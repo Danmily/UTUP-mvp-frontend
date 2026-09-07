@@ -608,6 +608,96 @@
   <div class="modal" id="formModalInner"></div>
 </div>
 
+<style>
+  /* ===== 合规预审 Agent 工作台（PRD §5 用户侧交互设计） ===== */
+  .pa-wide{width:min(1200px,97vw)!important}
+  .pa-steps{display:flex;align-items:center;gap:8px;padding:11px 22px;border-bottom:1px solid var(--line);
+    background:var(--bg3);font-size:12px;flex-wrap:wrap}
+  .pa-step{display:flex;align-items:center;gap:6px;color:var(--mute);white-space:nowrap}
+  .pa-step .n{width:19px;height:19px;border-radius:50%;background:var(--bg);border:1px solid var(--line-strong);
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--mute)}
+  .pa-step.active{color:var(--p);font-weight:600}
+  .pa-step.active .n{background:var(--grad-brand);color:#fff;border-color:var(--p);box-shadow:var(--shadow-glow-blue)}
+  .pa-step.done{color:var(--ok)}
+  .pa-step.done .n{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .pa-step .arw{color:var(--mute2)}
+  .pa-body{display:grid;grid-template-columns:1.06fr .94fr;height:min(60vh,548px);overflow:hidden}
+  .pa-chat{display:flex;flex-direction:column;border-right:1px solid var(--line);min-width:0;min-height:0;background:var(--bg3)}
+  .pa-log{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .pa-msg{display:flex;gap:8px;max-width:94%}
+  .pa-msg.user{align-self:flex-end;flex-direction:row-reverse}
+  .pa-av{width:27px;height:27px;border-radius:50%;flex:0 0 27px;display:flex;align-items:center;
+    justify-content:center;font-size:14px}
+  .pa-av.bot{background:var(--grad-brand);color:#fff;box-shadow:var(--shadow-glow-blue)}
+  .pa-av.user{background:var(--p-light);color:var(--p);border:1px solid rgba(51,112,255,.25)}
+  .pa-bubble{background:#fff;border:1px solid var(--line);border-radius:11px;padding:9px 13px;
+    font-size:13px;line-height:1.65;box-shadow:var(--shadow);color:var(--text)}
+  .pa-msg.user .pa-bubble{background:var(--p-light);border-color:rgba(51,112,255,.25)}
+  .pa-bubble b{color:var(--p-active)}
+  .pa-hint{margin-top:6px;font-size:11px;color:var(--warn);background:var(--warn-light);
+    border:1px solid rgba(255,125,0,.25);border-radius:6px;padding:5px 8px}
+  .pa-parse{margin-top:8px;border:1px dashed var(--line-strong);border-radius:8px;overflow:hidden}
+  .pa-parse .r{display:flex;gap:8px;padding:5px 10px;font-size:12px;border-top:1px solid var(--line-soft)}
+  .pa-parse .r:first-child{border-top:0}
+  .pa-parse .r .k{color:var(--mute);flex:0 0 62px}
+  .pa-input{border-top:1px solid var(--line);padding:11px 13px;background:#fff;display:flex;
+    flex-direction:column;gap:9px;flex:0 0 auto}
+  .pa-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .pa-chip{padding:6px 13px;border-radius:16px;background:var(--bg);border:1px solid var(--line-strong);
+    font-size:12px;color:var(--text2);cursor:pointer;transition:var(--t-fast)}
+  .pa-chip:hover{background:var(--p-light);border-color:var(--p);color:var(--p);transform:translateY(-1px)}
+  .pa-chip.primary{background:var(--grad-brand);color:#fff;border-color:var(--p);box-shadow:var(--shadow-glow-blue)}
+  .pa-chip.primary:hover{color:#fff;filter:brightness(1.05)}
+  .pa-ta{width:100%;padding:9px 11px;background:var(--bg2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;line-height:1.6}
+  .pa-typing span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;
+    background:var(--mute2);animation:paBlink 1s infinite}
+  .pa-typing span:nth-child(2){animation-delay:.2s}
+  .pa-typing span:nth-child(3){animation-delay:.4s}
+  @keyframes paBlink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  .pa-panel{overflow-y:auto;padding:16px;background:var(--bg2)}
+  .pa-panel-h{font-size:12px;font-weight:700;color:var(--text);letter-spacing:.3px;margin-bottom:8px;
+    display:flex;align-items:center;justify-content:space-between}
+  .pa-prog{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .pa-prog .bar{flex:1;height:7px;background:var(--bg);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+  .pa-prog .bar i{display:block;height:100%;background:var(--grad-brand);transition:width .5s var(--ease-out)}
+  .pa-prog .num{font-size:11px;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .pa-grp{background:#fff;border:1px solid var(--line);border-radius:8px;margin-bottom:9px;overflow:hidden}
+  .pa-grp-h{padding:7px 12px;font-size:11px;font-weight:600;color:var(--text2);background:var(--bg3);
+    border-bottom:1px solid var(--line);letter-spacing:.4px}
+  .pa-it{display:flex;justify-content:space-between;gap:10px;padding:6px 12px;font-size:12px;
+    border-top:1px solid var(--line-soft)}
+  .pa-it:first-of-type{border-top:0}
+  .pa-it .k{color:var(--mute);flex:0 0 76px}
+  .pa-it .v{color:var(--text);text-align:right;flex:1}
+  .pa-it .v .st{font-size:10px;margin-left:4px}
+  .pa-it.pend .v{color:var(--mute2)}
+  .pa-asset{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:9px}
+  .pa-asset .row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0}
+  .pa-asset .row .k{color:var(--mute)}
+  .pa-risk{border-radius:10px;padding:14px;margin-bottom:9px;border:1px solid}
+  .pa-risk .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .pa-risk .tag{font-size:20px}
+  .pa-risk .tt{font-size:15px;font-weight:700}
+  .pa-risk h5{font-size:11px;letter-spacing:.4px;margin:9px 0 3px;opacity:.85}
+  .pa-risk ul{margin:0;padding-left:16px;font-size:12px;line-height:1.7}
+  .pa-risk .route{margin-top:9px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,.55);font-size:12px}
+  .pa-tl{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 12px;margin-bottom:9px}
+  .pa-tl .node{display:flex;gap:10px;font-size:12px;padding-bottom:14px;position:relative}
+  .pa-tl .node:last-child{padding-bottom:0}
+  .pa-tl .node::before{content:"";position:absolute;left:8px;top:18px;bottom:0;width:2px;background:var(--line)}
+  .pa-tl .node:last-child::before{display:none}
+  .pa-tl .dot{width:18px;height:18px;border-radius:50%;flex:0 0 18px;display:flex;align-items:center;
+    justify-content:center;font-size:10px;z-index:1}
+  .pa-tl .dot.ok{background:var(--ok);color:#fff}
+  .pa-tl .dot.now{background:var(--grad-brand);color:#fff;animation:paPulse 1.6s infinite}
+  .pa-tl .dot.wait{background:var(--bg);border:1px solid var(--line-strong);color:var(--mute)}
+  @keyframes paPulse{0%,100%{box-shadow:0 0 0 0 rgba(51,112,255,.4)}50%{box-shadow:0 0 0 5px rgba(51,112,255,0)}}
+  .pa-tl .node .lb b{display:block}
+  .pa-tl .node .lb span{color:var(--mute);font-size:11px}
+  .pa-foot-hint{font-size:11px;color:var(--mute);display:flex;align-items:center;gap:6px}
+</style>
+
 <script>
 /* ===========================================================
  *  数据：完全对齐飞书文档《统一交易画像 — 数据规范与权限设计》
@@ -617,22 +707,22 @@
 const ROLES = {
   analyst:{name:"数据分析师",levels:["L1","L2"],canExport:false,canRiskOp:false,maskPII:true,
           domain:"电商DMP",
-          allowedNavs:["market","dualQ","llmTags","detail","approval","spec","audit"]},
+          allowedNavs:["market","dualQ","llmTags","detail","approval","spec","sources","audit"]},
   ops:    {name:"产运/算法",  levels:["L1","L2","L3-基础"],canExport:true,canRiskOp:false,maskPII:true,
           domain:"电商DMP",
-          allowedNavs:["market","dualQ","llmTags","detail","approval","spec","audit"]},
+          allowedNavs:["market","dualQ","llmTags","detail","approval","spec","sources","audit"]},
   risk:   {name:"风控/合规",  levels:["L1","L2","L3-基础","L3-高","L4"],canExport:true,canRiskOp:true,maskPII:false,
           domain:"生服LDMP",
-          allowedNavs:["market","dualQ","llmTags","detail","risk","approval","spec","audit","arch"]},
+          allowedNavs:["market","dualQ","llmTags","detail","risk","approval","spec","sources","audit","arch"]},
   owner:  {name:"标签Owner",  levels:["L1","L2","L3-基础","L3-高"],canExport:true,canRiskOp:false,maskPII:true,
           domain:"电商DMP",
-          allowedNavs:["market","dualQ","llmTags","detail","approval","ownerCenter","spec","audit"]},
+          allowedNavs:["market","dualQ","llmTags","detail","approval","ownerCenter","spec","sources","audit"]},
   admin:  {name:"平台管理员",  levels:["L1","L2","L3-基础","L3-高","L4"],canExport:true,canRiskOp:true,maskPII:false,
           domain:"AI画像",
-          allowedNavs:["market","dualQ","llmTags","detail","risk","approval","ownerCenter","spec","audit","arch","sources"]},
+          allowedNavs:["market","dualQ","llmTags","detail","risk","approval","ownerCenter","spec","sources","audit","arch"]},
   audit:  {name:"审计",       levels:["L1","L2"],canExport:false,canRiskOp:false,maskPII:true,
           domain:"AI画像",
-          allowedNavs:["dualQ","llmTags","spec","audit","arch"]}
+          allowedNavs:["dualQ","llmTags","spec","sources","audit","arch"]}
 };
 
 /* ============== 跨域判断 & 升档 ============== */
@@ -673,7 +763,7 @@ const DOMAINS = [
   {name:"AI 用户画像",  scale:"50+ 维度", marker:"有准确率/覆盖率，无独立密级",   high:"常驻经纬度hash、常驻POI",       common:"性别、年龄分层、城市等级、手机品牌"},
   {name:"序列数据",     scale:"多条序列", marker:"无独立安全标注",                high:"含商品明细的完整行为序列",       common:"券领取/核销聚合序列"},
   {name:"LLM 理解标签", scale:"6000万",  marker:"无独立安全标注",                high:"消费心理画像、深层偏好 Summary", common:"品类兴趣、价格敏感度分层"},
-  {name:"双QI用户数据",     scale:"DID 天级", marker:"默认 L4-机密",                  high:"竞品 App 活跃/下单/会员（美团/淘宝/京东/拼多多）", common:"—"}
+  {name:"双QI用户数据",     scale:"DID 天级", marker:"默认 L4-机密",                  high:"双Q App 活跃 / 下单 / 会员数据", common:"—"}
 ];
 
 // 标签元信息（4 大模块）— 对齐文档 3.1
@@ -899,135 +989,370 @@ function getOwnerApplications(){
   return APPLICATIONS.filter(a=>["待审批","审批中","已通过","已拒绝"].includes(a.status));
 }
 
-/* ============== 申请提交（市场页一键调用 - 表单 Modal） ============== */
+/* ===========================================================
+ *  合规预审 Agent 工作台（对齐 PRD §5 用户侧交互设计）
+ *  用"对话 + 实时预审单"替代原申请表单：
+ *  五步流程 —— 进入 → 录入 → 澄清 → 结论 → 提交/追踪
+ *  所有交互脚本化预置，用于完整展示预审 Agent 功能体验
+ * =========================================================== */
+const PA_STEPS=["描述需求","澄清补全","预审结论","提交/复核"];
+// 预审单：五组要素 · 共 12 项（对齐 PRD 结构化预审单）
+const PA_GROUPS=[
+  {g:"需求",      items:[["业务目的","goal"],["关联项目","project"]]},
+  {g:"数据",      items:[["标签/字段","fields"],["数据分级","level"],["数据口径","caliber"]]},
+  {g:"主体与人群",items:[["人群规模","pop"],["个人识别风险","pii"]]},
+  {g:"使用与产出",items:[["使用方式","usage"],["产出形态","output"],["是否外发","export"]]},
+  {g:"流转",      items:[["留存周期","retention"],["数据销毁","destroy"]]}
+];
+// 渐进式追问（少打字多点选）
+const PA_Q=[
+  {key:"usage", q:'这批数据你主要打算<b>怎么用</b>？点选即可 👇', chips:["仅人群圈选 / 投放","行为分析 / 洞察报告","模型训练 / 算法特征","导出明细做二次加工"]},
+  {key:"export",q:'产出结果<b>是否需要外发</b>或对接外部系统？', chips:["不外发 · 仅平台内使用","对接公司内部系统","需外发给外部合作方"]},
+  {key:"retention",q:'数据 / 衍生结果预计<b>留存多久</b>？', chips:["项目结束即销毁（≤7天）","留存 90 天","留存 180 天","长期留存"]}
+];
+const PA_TIER={
+  green :{emoji:"🟢",name:"自动预审通过",       bg:"var(--ok-light)", bd:"rgba(0,180,42,.35)", fg:"#0A8A25"},
+  yellow:{emoji:"🟡",name:"补材料后再审",       bg:"#FFFBE6",         bd:"rgba(247,186,30,.5)",fg:"#A9740A"},
+  orange:{emoji:"🟠",name:"合规人工复核",       bg:"var(--warn-light)",bd:"rgba(255,125,0,.45)",fg:"#C25E00"},
+  red   :{emoji:"🔴",name:"建议改造 / 需合规复核",bg:"var(--err-light)", bd:"rgba(245,63,63,.45)",fg:"#CC2020"}
+};
+let __pa=null;
+
 window.openApplyForm=function(tagId){
   const t=(window.REAL_TAGS||[]).find(x=>x.id===tagId);
   if(!t){alert("未找到该标签元数据");return;}
-  const origLvl=t.l;
-  const cross = isCrossDomain(t);
-  const lvl = cross ? crossDomainUpgrade(origLvl) : origLvl;
+  const origLvl=t.l, cross=isCrossDomain(t), lvl=cross?crossDomainUpgrade(origLvl):origLvl;
   const cfgMap={
-    "L2":     {sla:"实时",      valid:"永久",      route:"系统自动通过",       hint:"无须人工审批，提交后立即写入 ACL"},
-    "L3-基础":{sla:"实时",      valid:"180 天",    route:"平台留痕 · 自动通过",hint:"提交后系统留痕，无须 Owner 介入"},
-    "L3-高":  {sla:"72 小时",   valid:"90 天",     route:`Owner 审批 · ${t.owner}`, hint:"标签 Owner 收到飞书卡片，72 小时内决策"},
-    "L4":     {sla:"7 工作日",  valid:"30 天 · 不可续期", route:"来源方合规审批 · 法务/安全",hint:"自动转 DMP/LDMP 合规中心或双QI采购合规系统"}
+    "L2":     {sla:"实时",     valid:"永久",             route:"系统自动通过"},
+    "L3-基础":{sla:"实时",     valid:"180 天",           route:"平台留痕 · 自动通过"},
+    "L3-高":  {sla:"72 小时",  valid:"90 天",            route:"Owner 审批 · "+t.owner},
+    "L4":     {sla:"7 工作日", valid:"30 天 · 不可续期", route:"来源方合规审批 · 法务/安全"}
   };
-  const cfg=cfgMap[lvl];
-  const origCfg=cfgMap[origLvl];
-  const crossBanner = cross ? `<div class="alert" style="background:rgba(245,49,157,.12);border:1px solid rgba(245,49,157,.4);color:#F5319D;padding:12px 14px;border-radius:8px;margin-bottom:12px">
-    🌐 <b>本次为跨域申请</b>：申请人域「${getConsumerDomain()}」 ← 标签来源域「${t.d}」<br/>
-    <span style="font-size:12px;color:#F5319D">
-      • 密级已自动升档：<b>${origLvl} → ${lvl}</b><br/>
-      • 审批路由由 <s style="color:var(--mute)">${origCfg.route}</s> 变更为 <b>${cfg.route}</b><br/>
-      • SLA 由 <s style="color:var(--mute)">${origCfg.sla}</s> 变更为 <b>${cfg.sla}</b><br/>
-      • 权限有效期由 <s style="color:var(--mute)">${origCfg.valid}</s> 变更为 <b>${cfg.valid}</b>
-    </span>
-  </div>` : "";
+  // 初始化会话状态，预置预审单字段
+  const F={}; PA_GROUPS.forEach(gr=>gr.items.forEach(([,k])=>F[k]={v:"—",s:"pend"}));
+  __pa={
+    tagId, t, origLvl, lvl, cross, cfg:cfgMap[lvl], origCfg:cfgMap[origLvl],
+    step:1, stage:"entry", qIndex:0, revised:false,
+    msgs:[], fields:F, answers:{}
+  };
+  document.getElementById("formModal").classList.add("active");
+  paRender();
+  // 步骤 1 进入：欢迎语 + 两个入口
+  paBot(`你好，我是<b>合规预审 Agent</b> 🤖。你不用再填一长串申请表——把需求<b>说给我听</b>或<b>上传需求文档</b>，我会边聊边帮你把预审单填好，并给出<b>可解释的预审结论</b>与预计审批路径。<br/><br/>本次针对标签 <b>${t.n}</b>（<code>${t.id}</code>，来源域「${t.d}」）。`,600);
+};
+
+// —— 渲染整块工作台 ——
+function paRender(){
+  const s=__pa; if(!s)return;
+  const t=s.t, tier=paTier();
+  const stepsHtml=PA_STEPS.map((lb,i)=>{
+    const n=i+1, cls=n<s.step?"done":(n===s.step?"active":"");
+    return `<div class="pa-step ${cls}"><span class="n">${n<s.step?"✓":n}</span>${lb}</div>`+(i<3?'<span class="arw">›</span>':"");
+  }).join("");
+  document.getElementById("formModalInner").className="modal pa-wide";
   document.getElementById("formModalInner").innerHTML=`
     <div class="modal-head">
       <div class="modal-title">
-        <div class="modal-title-name">📝 提交标签申请单
-          <span class="level ${levelClass(lvl)}">${lvl}</span>
-          ${cross?`<span class="pill" style="background:rgba(245,49,157,.15);color:#F5319D;border:1px solid rgba(245,49,157,.35)">🌐 跨域升档：${origLvl}→${lvl}</span>`:""}
-          <span class="pill" style="background:var(--p-light);color:var(--p)">${cfg.route}</span>
+        <div class="modal-title-name">🤖 合规预审 Agent · 数据消费申请
+          <span class="level ${levelClass(s.lvl)}">${s.lvl}</span>
+          ${s.cross?`<span class="pill" style="background:rgba(245,49,157,.15);color:#F5319D;border:1px solid rgba(245,49,157,.35)">🌐 跨域升档 ${s.origLvl}→${s.lvl}</span>`:""}
         </div>
         <div class="modal-title-id">标签：<b>${t.n}</b> · <code>${t.id}</code> · 来源域：${t.d} · 归属：${t.team}</div>
       </div>
       <button class="modal-close" onclick="closeFormModal()">✕</button>
     </div>
-    <div class="modal-body" style="grid-template-columns:1fr">
-      ${crossBanner}
-      <!-- 步骤指示 -->
-      <div style="display:flex;gap:8px;align-items:center;padding:6px 0;font-size:11px;color:var(--mute)">
-        <span class="pill" style="background:var(--p-light);color:var(--p)">1. 填写表单</span>
-        <span>→</span>
-        <span class="pill">2. 路由审批</span>
-        <span>→</span>
-        <span class="pill">3. 配置使用</span>
+    <div class="pa-steps">${stepsHtml}</div>
+    <div class="pa-body">
+      <div class="pa-chat">
+        <div class="pa-log" id="paLog">${s.msgs.map(paMsgHtml).join("")}</div>
+        <div class="pa-input" id="paInput">${paInputHtml()}</div>
       </div>
-
-      <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>① 申请人信息（自动带入）</div>
-        <div class="meta-row"><div class="k">申请人</div><div class="v">李娟（${ROLES[currentRole].name}）</div></div>
-        <div class="meta-row"><div class="k">所在团队</div><div class="v">数据应用部 · 用户洞察组</div></div>
-        <div class="meta-row"><div class="k">飞书 ID</div><div class="v"><code>ou_599b23b7e3e00a389530c55f3290c3a9</code></div></div>
-      </div>
-
-      <div class="meta-card">
-        <div class="meta-card-title"><span class="dot" style="background:#722ED1"></span>② 业务用途与场景 <span style="color:var(--err)">*必填</span></div>
-        <div class="meta-row"><div class="k">使用场景</div><div class="v">
-          <select id="f_sceneType" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:6px">
-            <option value="">— 请选择场景类型 —</option>
-            <option>用户分层 / 圈选</option>
-            <option>定向投放 / 营销触达</option>
-            <option>行为分析 / 洞察报告</option>
-            <option>模型训练 / 算法特征</option>
-            <option>风控反欺诈</option>
-            <option>个性化推荐</option>
-          </select></div></div>
-        <div class="meta-row"><div class="k">详细说明</div><div class="v">
-          <textarea id="f_sceneDesc" rows="3" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:6px;font-family:inherit;resize:vertical" placeholder="请详细描述本次申请的业务背景、目标人群、使用方式（最少 20 字）"></textarea></div></div>
-        <div class="meta-row"><div class="k">关联项目</div><div class="v">
-          <input id="f_project" placeholder="例：双十一大促圈选项目 #PRJ-2026-0612" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:6px"/></div></div>
-      </div>
-
-      <div class="meta-card">
-        <div class="meta-card-title"><span class="dot" style="background:var(--err)"></span>③ 数据使用合规承诺</div>
-        <div class="meta-row"><div class="k">使用方式</div><div class="v">
-          <label style="margin-right:14px"><input type="radio" name="usage" value="圈选投放" checked/> 仅圈选/投放</label>
-          <label style="margin-right:14px"><input type="radio" name="usage" value="模型训练"/> 模型训练</label>
-          <label><input type="radio" name="usage" value="导出明细"/> 导出明细（需二次审批）</label>
-        </div></div>
-        <div class="meta-row"><div class="k">出域承诺</div><div class="v">
-          <label><input type="checkbox" id="f_noExport" checked/> 不导出至公司外部 / 不二次销售 / 不对接外部系统</label></div></div>
-        <div class="meta-row"><div class="k">数据销毁</div><div class="v">
-          <label><input type="checkbox" id="f_destroy" checked/> 项目结束后 7 日内主动通知回收 / 销毁所有衍生明细</label></div></div>
-      </div>
-
-      <div class="meta-card">
-        <div class="meta-card-title"><span class="dot" style="background:var(--ok)"></span>④ 申请有效期 / 审批路由（系统自动判定）</div>
-        <div class="meta-row"><div class="k">分级</div><div class="v"><span class="level ${levelClass(lvl)}">${levelPair(lvl)}</span>${cross?` <span class="pill" style="background:rgba(245,49,157,.12);color:#F5319D;margin-left:6px">跨域已由 ${origLvl} 升档</span>`:""}</div></div>
-        <div class="meta-row"><div class="k">审批路由</div><div class="v">${cfg.route}${cross?` <span style="color:var(--mute);font-size:11px;text-decoration:line-through">${origCfg.route}</span>`:""}</div></div>
-        <div class="meta-row"><div class="k">SLA</div><div class="v">${cfg.sla}</div></div>
-        <div class="meta-row"><div class="k">权限有效期</div><div class="v">${cfg.valid}</div></div>
-        <div class="meta-row"><div class="k">说明</div><div class="v" style="color:var(--mute);font-size:11px">${cfg.hint}</div></div>
-      </div>
-
-      <div class="alert ${lvl==='L4'?'err':'info'}" style="margin:0">
-        ⚠️ <b>承诺与责任</b>：提交即代表本人已阅读《数据规范 §4.1 §4.3》，违规使用将依据《安全条例》追责，
-        ${lvl==='L4'?'<b style="color:var(--err)">L4 高敏数据将额外触发安全团队复核与全程链路审计</b>':'所有调用将记录至少 180 天审计日志'}
+      <div class="pa-panel">
+        <div class="pa-panel-h"><span>📋 实时预审单</span><span style="font-weight:400;color:var(--mute)">随对话自动填充</span></div>
+        ${paProgressHtml()}
+        ${paSheetHtml()}
+        ${paAssetHtml()}
+        ${s.step>=3?paRiskHtml(tier):""}
+        ${s.step>=4?paTimelineHtml():""}
       </div>
     </div>
     <div class="modal-foot">
-      <div style="font-size:11px;color:var(--mute)">📋 提交后将生成申请单号 APP-2026-xxxx，可在「消费方·申请与权限」实时跟踪</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="closeFormModal()">取消</button>
-        <button class="btn" onclick="doSubmitApplyForm('${tagId}')">提交申请 →</button>
-      </div>
+      <div class="pa-foot-hint">🔒 全链路留痕 · 对话与澄清将写入《合规预审报告》</div>
+      <div style="display:flex;gap:8px">${paFootBtns(tier)}</div>
     </div>`;
-  document.getElementById("formModal").classList.add("active");
+  const log=document.getElementById("paLog");
+  if(log) requestAnimationFrame(()=>{log.scrollTop=log.scrollHeight;});
+}
+
+function paMsgHtml(m){
+  if(m.typing) return `<div class="pa-msg bot"><div class="pa-av bot">🤖</div><div class="pa-bubble pa-typing"><span></span><span></span><span></span></div></div>`;
+  const av=m.role==="user"?`<div class="pa-av user">🙋</div>`:`<div class="pa-av bot">🤖</div>`;
+  return `<div class="pa-msg ${m.role}">${av}<div class="pa-bubble">${m.html}</div></div>`;
+}
+
+// 输入区随阶段变化（按钮改用 data-pa，交由委托监听处理，避免重渲染竞态）
+function paInputHtml(){
+  const s=__pa;
+  if(s.stage==="entry")
+    return `<div class="pa-chips">
+      <div class="pa-chip primary" data-pa="paUpload">📄 上传需求文档</div>
+      <div class="pa-chip" data-pa="paDescribe">✍️ 直接描述需求</div>
+    </div>`;
+  if(s.stage==="describe")
+    return `<textarea class="pa-ta" id="paDesc" rows="3" placeholder="例：为双十一大促增长项目圈选高消费潜力人群，用于站内广告定向投放，投后做人群效果分析…">为双十一大促增长圈选高消费潜力人群，用于站内广告定向投放并做投后效果分析。</textarea>
+      <div class="pa-chips"><div class="pa-chip primary" data-pa="paSubmitDesc">发送给 Agent →</div><div class="pa-chip" data-pa="paBackEntry">↩ 返回</div></div>`;
+  if(s.stage==="confirm")
+    return `<div class="pa-chips"><div class="pa-chip primary" data-pa="paStartClarify">✅ 理解正确，继续澄清</div><div class="pa-chip" data-pa="paDescribe">✏️ 补充 / 修正</div></div>`;
+  if(s.stage==="clarify"){
+    const q=PA_Q[s.qIndex]; if(!q)return "";
+    return `<div class="pa-chips">${q.chips.map(c=>`<div class="pa-chip" data-pa="answer" data-key="${q.key}">${c}</div>`).join("")}</div>`;
+  }
+  if(s.stage==="done")
+    return `<div class="pa-chips"><div class="pa-chip primary" data-pa="paConclude">🔍 查看预审结论 →</div></div>`;
+  if(s.stage==="conclusion")
+    return `<div style="font-size:12px;color:var(--mute);text-align:center;padding:4px">请在下方选择处理方式，或点击右侧字段回改并重评</div>`;
+  if(s.stage==="submitted")
+    return `<div class="pa-chips"><div class="pa-chip" data-pa="paReport">📄 下载预审报告</div><div class="pa-chip primary" data-pa="nav-approval">📂 查看我的申请</div></div>`;
+  return "";
+}
+
+function paProgressHtml(){
+  const s=__pa, all=[]; PA_GROUPS.forEach(g=>g.items.forEach(it=>all.push(it[1])));
+  const done=all.filter(k=>s.fields[k].s!=="pend").length;
+  return `<div class="pa-prog"><div class="bar"><i style="width:${Math.round(done/all.length*100)}%"></i></div><div class="num">${done}/${all.length} 项</div></div>`;
+}
+
+function paSheetHtml(){
+  const s=__pa;
+  const st={auto:'<span class="st" title="Agent 自动识别">🤖</span>',ok:'<span class="st" title="已确认">✅</span>',pend:'<span class="st" title="待补充">✍️</span>'};
+  return PA_GROUPS.map(g=>`<div class="pa-grp"><div class="pa-grp-h">${g.g}</div>${
+    g.items.map(([lb,k])=>{const f=s.fields[k];return `<div class="pa-it ${f.s==='pend'?'pend':''}"><div class="k">${lb}</div><div class="v">${f.v}${st[f.s]}</div></div>`;}).join("")
+  }</div>`).join("");
+}
+
+function paAssetHtml(){
+  const s=__pa; if(s.step<2)return "";
+  const t=s.t;
+  const pii={"L2":"无（聚合口径）","L3-基础":"低","L3-高":"中","L4":"高（含个人级标识）"}[s.lvl];
+  return `<div class="pa-panel-h" style="margin-top:4px"><span>🗂 数据资产卡</span><span style="font-weight:400;color:var(--mute)">Agent 自动拉取</span></div>
+  <div class="pa-asset">
+    <div class="row"><div class="k">字段清单</div><div>${t.n}（${t.id}）</div></div>
+    <div class="row"><div class="k">数据分级</div><div><span class="level ${levelClass(s.lvl)}">${s.lvl}</span>${s.cross?` <span style="color:#F5319D;font-size:11px">跨域升档</span>`:""}</div></div>
+    <div class="row"><div class="k">来源 / Owner</div><div>${t.d} · ${t.owner}</div></div>
+    <div class="row"><div class="k">血缘口径</div><div>近 90 天行为聚合 · T+1</div></div>
+    <div class="row"><div class="k">个人识别风险</div><div>${pii}</div></div>
+    <div class="row"><div class="k">历史审批</div><div>${(s.lvl==='L2'||s.lvl==='L3-基础')?"命中 3 条等价通过案例":"近 90 天 2 单 · 1 通过 1 复核"}</div></div>
+  </div>`;
+}
+
+// —— 四档风险结论 ——
+function paTier(){
+  const s=__pa; if(!s)return "green";
+  const base=(s.lvl==="L2"||s.lvl==="L3-基础")?"green":"orange";
+  const usage=s.answers.usage||"", exp=s.answers.export||"";
+  let tier=base;
+  if(exp.includes("外发给外部")) tier="red";
+  else if(base==="green"&&(usage.includes("模型训练")||usage.includes("导出明细"))) tier="yellow";
+  if(s.revised){ if(tier==="red")tier="orange"; else if(tier==="yellow")tier="green"; }
+  return tier;
+}
+
+function paRiskHtml(tier){
+  const s=__pa, T=PA_TIER[tier], t=s.t;
+  const usage=s.answers.usage||"人群圈选", exp=s.answers.export||"不外发";
+  const rules=[], reasons=[], advice=[];
+  // 命中规则 & 可解释理由（引用用户回答，做到"说清为什么"）
+  reasons.push(`使用方式为「${usage}」，产出「${s.fields.output.v}」`);
+  reasons.push(`外发口径：「${exp}」`);
+  if(s.cross){rules.push("§4.1 跨域消费密级就高："+s.origLvl+" → "+s.lvl);reasons.push(`申请人域「${getConsumerDomain()}」≠ 来源域「${t.d}」，触发跨域升档`);}
+  if(s.lvl==="L4"){rules.push("§4.3 L4 高敏：需来源方合规 + 安全全程审计");}
+  if(s.lvl==="L3-高"){rules.push("§4.2 受控级：需来源方 Owner 审批（"+s.cfg.sla+"）");}
+  if(tier==="green"){rules.push("§4.0 聚合/通用级：命中历史等价审批案例，可自动预审通过");}
+  let concl,route,path;
+  if(tier==="green"){concl="聚合口径、目的明确、无个人识别风险，且已有等价历史审批案例。";route="预审单即申请单，直接提交门户 · 合规抽检";path=`${s.cfg.route} · ${s.cfg.sla}`;advice.push("保持聚合口径即可，无需改造");}
+  else if(tier==="yellow"){concl="目的可行，但当前用途（模型训练/导出明细）下字段与留存说明不够清晰，需补材料后再审。";route="补充材料 → Agent 重跑预审";path="补齐后预计 "+s.cfg.sla+" 内出结论";advice.push("补充训练/加工的最小必要字段清单");advice.push("裁剪与目的无关的个人级字段");}
+  else if(tier==="orange"){concl="涉及跨域个人级 / 受控级数据，无法自动放行，需推送合规 Review 包由人工复核。";route="生成合规 Review 包 · 转人工复核";path=`${s.cfg.route} · 预计 ${s.cfg.sla}`;advice.push("改为聚合口径可下调风险档位");advice.push("缩短留存周期、明确销毁机制");}
+  else{concl="存在不可控外发 / 超出授权范围风险，建议先改造，否则可能不予受理。";route="建议改造后重评 · 或转人工申诉";path="改造后重评，或转人工 "+s.cfg.sla;advice.push("取消外部外发，改为平台内使用");advice.push("改聚合口径 + 裁个人级字段");advice.push("补充数据安全与审计能力说明");}
+  return `<div class="pa-panel-h" style="margin-top:4px"><span>🎯 预审结论</span>${s.revised?'<span style="font-weight:400;color:var(--ok)">已套用改造 · 风险已下调</span>':""}</div>
+  <div class="pa-risk" style="background:${T.bg};border-color:${T.bd};color:${T.fg}">
+    <div class="top"><span class="tag">${T.emoji}</span><span class="tt">${T.name}</span></div>
+    <div style="font-size:12px;line-height:1.6">${concl}</div>
+    <h5>命中规则</h5><ul>${rules.map(r=>`<li>${r}</li>`).join("")}</ul>
+    <h5>可解释理由</h5><ul>${reasons.map(r=>`<li>${r}</li>`).join("")}</ul>
+    <h5>降风险建议</h5><ul>${advice.map(a=>`<li>${a}</li>`).join("")}</ul>
+    <div class="route">🧭 <b>预计审批路径</b>：${route}<br/>⏱ ${path}</div>
+  </div>`;
+}
+
+function paTimelineHtml(){
+  const s=__pa; if(s.step<5||!s.app)return "";
+  const a=s.app, pass=a.status==="已通过", mid=a.status==="审批中";
+  const midLabel=mid?"合规人工复核":"Owner 审批";
+  const nodes=[
+    {c:"ok",  i:"✓", b:"预审完成",   sub:"Agent 已生成预审单与结论"},
+    {c:"ok",  i:"✓", b:"提交门户",   sub:a.appId+" · "+a.submitTime},
+    pass?{c:"ok",i:"✓",b:"审批通过",sub:"自动通过 · 已写入 ACL"}
+        :{c:"now",i:"…",b:midLabel,sub:"预计 "+a.slaLeft+"（"+(mid?a.reviewer||"合规团队":a.owner)+"）"},
+    {c:pass?"now":"wait", i:pass?"→":"·", b:pass?"权限生效":"待生效", sub:pass?"可前往配置使用":"审批通过后自动开通"}
+  ];
+  return `<div class="pa-panel-h" style="margin-top:4px"><span>🛰 状态追踪时间线</span></div>
+  <div class="pa-tl">${nodes.map(n=>`<div class="node"><div class="dot ${n.c}">${n.i}</div><div class="lb"><b>${n.b}</b><span>${n.sub}</span></div></div>`).join("")}</div>`;
+}
+
+function paFootBtns(tier){
+  const s=__pa;
+  if(s.step<4) return `<button class="btn btn-ghost" data-pa="close">取消</button>`;
+  if(s.stage==="submitted") return `<button class="btn btn-ghost" data-pa="close">关闭</button><button class="btn" data-pa="paReport">📄 下载预审报告</button>`;
+  // 结论阶段：按档位给行动按钮（对齐 PRD 第 5 步三条分支）
+  let btns=`<button class="btn btn-ghost" data-pa="close">取消</button>`;
+  if(tier==="green") btns+=`<button class="btn" data-pa="paSubmit">✅ 一键提交（预审单即申请单）→</button>`;
+  else if(tier==="yellow") btns+=`<button class="btn btn-ghost" data-pa="paRevise">采纳改造后重评</button><button class="btn" data-pa="paSubmit">仍要提交转人工 →</button>`;
+  else if(tier==="orange") btns+=`<button class="btn btn-ghost" data-pa="paRevise">采纳改造降风险</button><button class="btn" data-pa="paSubmit">📨 提交并转人工复核 →</button>`;
+  else btns+=`<button class="btn" data-pa="paRevise">🛠 采纳改造建议</button><button class="btn btn-err" data-pa="paSubmit">仍申诉并转人工</button>`;
+  return btns;
+}
+
+/* ---------- 状态机驱动（脚本化预置交互） ---------- */
+function paBot(html,delay,after){
+  __pa.msgs.push({role:"bot",typing:true}); paRender();
+  setTimeout(()=>{
+    if(__pa.msgs.length&&__pa.msgs[__pa.msgs.length-1].typing) __pa.msgs.pop();
+    __pa.msgs.push({role:"bot",html}); paRender(); after&&after();
+  }, delay||700);
+}
+function paUser(html){ __pa.msgs.push({role:"user",html}); paRender(); }
+function paSetField(k,v,st){ __pa.fields[k]={v,s:st||"auto"}; }
+
+window.paDescribe=function(){ __pa.stage="describe"; paRender(); };
+window.paBackEntry=function(){ __pa.stage="entry"; paRender(); };
+window.paUpload=function(){
+  paUser("📄 已上传《双十一增长-用数需求.pdf》");
+  __pa.stage="parsing"; paRender();
+  paBot("正在解析需求文档 …（识别目的 / 数据 / 人群 / 产出）",900,()=>paParseDone());
+};
+window.paSubmitDesc=function(){
+  const v=(document.getElementById("paDesc")||{}).value||"";
+  __pa.answers.describe=v.trim();
+  paUser(v.trim()||"（按默认场景描述）");
+  __pa.stage="parsing"; paRender();
+  paBot("收到，正在解析你的需求 …",900,()=>paParseDone());
 };
 
-window.doSubmitApplyForm=function(tagId){
-  const sceneType=document.getElementById("f_sceneType").value;
-  const sceneDesc=document.getElementById("f_sceneDesc").value.trim();
-  const project=document.getElementById("f_project").value.trim();
-  const usage=document.querySelector('input[name="usage"]:checked')?.value||"";
-  const noExport=document.getElementById("f_noExport").checked;
-  const destroy=document.getElementById("f_destroy").checked;
-  if(!sceneType){alert("请选择使用场景类型");return;}
-  if(sceneDesc.length<20){alert("请详细描述使用场景，至少 20 字");return;}
-  if(!noExport||!destroy){alert("请勾选所有合规承诺");return;}
-  const fullScene=`${sceneType} · ${sceneDesc}${project?" · 项目"+project:""}`;
-  const app=window.submitApplication(tagId, fullScene);
-  app.usage=usage;app.project=project;app.commit={noExport,destroy};
-  closeFormModal();
-  showResultToast(`✓ 申请单 ${app.appId} 已提交\n${app.status==='已通过'?'• 自动通过 · 已写入 ACL':app.status==='审批中'?'• 已转合规法务（'+app.slaLeft+'）':'• 已飞书通知 '+app.owner+'，'+app.slaLeft+' 内决策'}`,
-    "查看我的申请",()=>{switchNav("approval");});
+// 步骤 2 录入 → 解析结果摘要 + 自动填充预审单
+function paParseDone(){
+  const s=__pa, t=s.t;
+  const goal=s.answers.describe&&s.answers.describe.length>6 ? s.answers.describe : `围绕「${t.n}」的跨域用户圈选与精准触达`;
+  paSetField("goal",goal.length>22?goal.slice(0,22)+"…":goal,"auto");
+  paSetField("project","双十一大促增长 #PRJ-2026-0788","auto");
+  paSetField("fields",t.n,"auto");
+  paSetField("level",s.lvl+(s.cross?"（跨域升档）":""),"auto");
+  paSetField("caliber","近90天行为聚合 · T+1","auto");
+  paSetField("pop","约 3,200 万 DID（去重）","auto");
+  paSetField("pii",{"L2":"无（聚合）","L3-基础":"低","L3-高":"中","L4":"高（个人级）"}[s.lvl],"auto");
+  s.step=1;
+  paBot(`已解析完成 ✅ 我的理解如下，请确认「理解得对不对」：
+    <div class="pa-parse">
+      <div class="r"><div class="k">🎯 目的</div><div>${goal}</div></div>
+      <div class="r"><div class="k">🗂 数据</div><div>${t.n}（${s.lvl}${s.cross?" · 跨域升档":""}）</div></div>
+      <div class="r"><div class="k">👥 人群</div><div>约 3,200 万 DID（去重）</div></div>
+      <div class="r"><div class="k">📦 产出</div><div>待澄清（人群包 / 报表 / 特征）</div></div>
+    </div>`,1100,()=>{ s.stage="confirm"; paRender(); });
+}
+
+// 步骤 3 澄清
+window.paStartClarify=function(){
+  __pa.step=2; __pa.stage="clarify"; __pa.qIndex=0;
+  const q=PA_Q[0];
+  paBot("好的 👍 我还差几项就能出结论。"+q.q,700,()=>__pa.stage==="clarify"&&paRender());
+};
+window.paAnswer=function(key,val){
+  const s=__pa; s.answers[key]=val; paUser(val);
+  if(key==="usage"){
+    paSetField("usage",val,"ok");
+    const out=val.includes("圈选")?"人群包 ID List":val.includes("分析")?"聚合报表":val.includes("模型")?"特征宽表":"明细字段导出";
+    paSetField("output",out,"auto");
+  }else if(key==="export"){
+    paSetField("export",val,"ok");
+  }else if(key==="retention"){
+    paSetField("retention",val,"ok");
+    paSetField("destroy",val.includes("销毁")?"项目结束 7 日内销毁衍生明细":("到期（"+val+"）后自动清理"),"auto");
+  }
+  s.qIndex++;
+  const nq=PA_Q[s.qIndex];
+  if(nq){
+    // 盲点提示：外发/模型训练时给风险提示
+    let hint="";
+    if(key==="usage"&&(val.includes("模型")||val.includes("导出"))) hint=`<div class="pa-hint">⚠️ 盲点提示：${val.includes("模型")?"模型训练":"明细导出"}属高风险用途，建议后续说明最小必要字段与去标识化方案。</div>`;
+    paBot(nq.q+hint,650,()=>s.stage==="clarify"&&paRender());
+  }else{
+    s.stage="done";
+    paBot("信息已补全，预审单 <b>12/12</b> 全部就绪 ✅ 我已完成规则匹配与风险评估，可以看结论了。",800,()=>{s.stage="done";paRender();});
+  }
 };
 
-window.closeFormModal=function(){document.getElementById("formModal").classList.remove("active");};
+// 步骤 4 结论
+window.paConclude=function(){
+  __pa.step=3; __pa.stage="conclusion";
+  const tier=paTier(), T=PA_TIER[tier];
+  __pa.step=4;
+  paBot(`预审完成。综合评估结论：<b>${T.emoji} ${T.name}</b>。右侧已给出<b>命中规则、可解释理由、降风险建议</b>与预计审批路径，你可以直接处理，或点右侧字段回改后重评。`,900,()=>{__pa.stage="conclusion";paRender();});
+};
+
+// 改造重评（中/高风险分支）
+window.paRevise=function(){
+  const s=__pa; s.revised=true;
+  s.answers.export="不外发 · 仅平台内使用"; paSetField("export","不外发 · 仅平台内使用","ok");
+  s.answers.usage="仅人群圈选 / 投放"; paSetField("usage","仅人群圈选 / 投放","ok"); paSetField("output","人群包 ID List","auto");
+  paUser("采纳改造建议：改聚合口径 + 裁个人级字段 + 取消外发");
+  paBot("已为你套用降风险改造并<b>重新评估</b> ✅ 风险档位已下调，请查看更新后的结论。",900,()=>{s.stage="conclusion";paRender();});
+};
+
+// 步骤 5 提交/追踪
+window.paSubmit=function(){
+  const s=__pa, tier=paTier();
+  const fullScene=`${s.answers.usage||"人群圈选"} · 目的：${s.fields.goal.v} · 人群 ${s.fields.pop.v} · 留存 ${s.answers.retention||"—"} · ${s.answers.export||"不外发"}（合规预审 Agent）`;
+  const app=window.submitApplication(s.tagId, fullScene);
+  app.viaAgent=true; app.tier=tier; app.usage=s.answers.usage;
+  s.app=app; s.step=5; s.stage="submitted";
+  paBot(`已提交门户 ✅ 申请单号 <b>${app.appId}</b>。${app.status==='已通过'?'系统自动预审通过，已写入 ACL，可直接配置使用。':app.status==='审批中'?'已生成合规 Review 包并转人工复核（'+app.slaLeft+'）。':'已飞书通知 '+app.owner+'，'+app.slaLeft+' 内决策。'}右侧可查看状态时间线，或下载预审报告。`,900,()=>{s.stage="submitted";paRender();});
+  pushAudit("Agent 预审提交",`${s.t.id} ${s.t.n} · ${PA_TIER[tier].name}`,s.lvl,tier==="green"?"low":"mid");
+};
+window.paReport=function(){
+  const s=__pa;
+  showResultToast(`✓ 《合规预审报告》已生成\n• 编号 PA-RPT-${Date.now().toString().slice(-6)}\n• 含对话/澄清/命中规则/风险分级/结论\n• 已同步审计留痕`,"查看我的申请",()=>{closeFormModal();switchNav("approval");});
+};
+
+window.closeFormModal=function(){document.getElementById("formModal").classList.remove("active");__pa=null;};
 window.quickApply=function(tagId){window.openApplyForm(tagId);};
+// 向后兼容旧调用
+window.doSubmitApplyForm=function(){ if(__pa) window.paSubmit(); };
+
+/* 事件委托：监听器挂在永不重建的 #formModal 外层，
+   PA 内部 DOM 无论如何重渲染，data-pa 按钮点击都能命中，彻底消除竞态 */
+(function bindPaDelegate(){
+  const root=document.getElementById("formModal");
+  if(!root) return;
+  root.addEventListener("click",function(e){
+    const el=e.target.closest("[data-pa]");
+    if(!el||!root.contains(el)) return;
+    const act=el.getAttribute("data-pa");
+    if(!__pa && act!=="close") return;
+    switch(act){
+      case "close": closeFormModal(); break;
+      case "paUpload": window.paUpload(); break;
+      case "paDescribe": window.paDescribe(); break;
+      case "paBackEntry": window.paBackEntry(); break;
+      case "paSubmitDesc": window.paSubmitDesc(); break;
+      case "paStartClarify": window.paStartClarify(); break;
+      case "paConclude": window.paConclude(); break;
+      case "paRevise": window.paRevise(); break;
+      case "paSubmit": window.paSubmit(); break;
+      case "paReport": window.paReport(); break;
+      case "answer": window.paAnswer(el.getAttribute("data-key"), el.textContent.trim()); break;
+      case "nav-approval": closeFormModal(); switchNav("approval"); break;
+    }
+  });
+})();
 
 /* ============== 通用 Toast ============== */
 window.showResultToast=function(msg, ctaText, ctaFn){
@@ -1484,8 +1809,8 @@ function viewMarket(c){
     {id:"LLM_LIFE",   n:"生命阶段（LLM 推断）",      d:"LLM理解", l:"L3-高",   acc:"86.4%", cov:"54.8%", ttl:"T+7",  scene:"深层偏好 Summary",      owner:"@llm-pf-xuyihan",      team:"LLM 理解团队",   src:"llm_understanding.dws_life_stage", off:false},
     {id:"LLM_PSY",    n:"消费心理画像",              d:"LLM理解", l:"L3-高",   acc:"82.1%", cov:"61.2%", ttl:"T+7",  scene:"情感化文案 / 推荐",     owner:"@llm-pf-xuyihan",      team:"LLM 理解团队",   src:"llm_understanding.dws_psy_profile", off:false},
     // ---- 双QI（默认 L4）— 归属方：双QI采购组 + 合规法务 ----
-    {id:"OUT_MT",     n:"美团活跃 / 下单（双QI）",    d:"双QI",   l:"L4",      acc:"—",     cov:"41.6%", ttl:"DID天级",scene:"竞品分析（合规审批）", owner:"@procurement-jiangyu", team:"双QI采购组",      src:"external.meituan_did_active（合规协议）", off:false},
-    {id:"OUT_TB",     n:"淘宝会员等级（双QI）",        d:"双QI",   l:"L4",      acc:"—",     cov:"38.2%", ttl:"DID天级",scene:"跨平台用户洞察",       owner:"@procurement-jiangyu", team:"双QI采购组",      src:"external.taobao_member_level（合规协议）", off:false}
+    {id:"OUT_MT",     n:"双Q 活跃 / 下单",    d:"双QI",   l:"L4",      acc:"—",     cov:"41.6%", ttl:"DID天级",scene:"竞品分析（合规审批）", owner:"@procurement-jiangyu", team:"双QI采购组",      src:"external.dualq_did_active（合规协议）", off:false},
+    {id:"OUT_TB",     n:"双Q 会员等级",        d:"双QI",   l:"L4",      acc:"—",     cov:"38.2%", ttl:"DID天级",scene:"跨平台用户洞察",       owner:"@procurement-jiangyu", team:"双QI采购组",      src:"external.dualq_member_level（合规协议）", off:false}
   ];
 
   window.filterTags=function(){
@@ -1910,10 +2235,21 @@ function viewMarket(c){
         </div>
         <div style="font-size:11px;color:var(--mute);margin-top:4px">最高分级：${s.risk}</div>
         <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${domTags}</div>
-        <button class="btn" style="width:100%;margin-top:8px;padding:6px;font-size:11px">一键批量申请 →</button>
+        <button class="btn" style="width:100%;margin-top:8px;padding:6px;font-size:11px" onclick="batchApplyScene('${(s.risk||'').replace(/'/g,'')}')">🤖 预审 Agent 批量申请 →</button>
       </div>`;
     }).join("")||`<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--mute);font-size:12px">当前范围筛选下无可推荐的场景包，可点击顶部 KPI 卡片切换/取消范围</div>`;
     document.getElementById("scenes").innerHTML=html;
+  };
+  // 场景包批量申请：以该场景最高分级的代表标签发起预审 Agent
+  window.batchApplyScene=function(risk){
+    const tags=window.REAL_TAGS||[];
+    let pick=null;
+    if(risk&&risk.indexOf("L4")>=0) pick=tags.find(t=>t.l==="L4");
+    else if(risk&&risk.indexOf("L3-高")>=0) pick=tags.find(t=>t.l==="L3-高");
+    else if(risk&&risk.indexOf("L3")>=0) pick=tags.find(t=>t.l==="L3-高"||t.l==="L3-基础");
+    pick=pick||tags.find(t=>t.l==="L3-高")||tags[0];
+    if(!pick){alert("暂无可申请标签");return;}
+    window.openApplyForm(pick.id);
   };
   window.renderScenes();
 
@@ -2039,7 +2375,7 @@ function viewDetail(c){
         ${tagBox("品类偏好序列","美妆 → 数码 → 服饰","L3-高","76%")}
         ${tagBox("性别·年龄段","女·25-29","L3-基础","99%")}
         ${tagBox("生命周期","成熟期","L3-高","91%")}
-        ${tagBox("竞品活跃","美团/淘宝/京东","L4","41%")}
+        ${tagBox("竞品活跃","双Q App 活跃","L4","41%")}
         ${tagBox("常驻 POI","上海·静安寺","L4","63%")}
       </div>
       <div class="card">
@@ -2128,7 +2464,7 @@ function viewAnalysis(c){
   echarts.init(document.getElementById("channel")).setOption({
     backgroundColor:"transparent",tooltip:{trigger:"item"},
     series:[{type:"pie",radius:"75%",
-      data:[{value:42,name:"抖音电商"},{value:23,name:"美团生服"},{value:18,name:"小程序"},
+      data:[{value:42,name:"抖音电商"},{value:23,name:"双Q 生服"},{value:18,name:"小程序"},
             {value:11,name:"H5"},{value:6,name:"双QI渠道"}],
       label:{color:"#1D2129",fontSize:11}}]
   });
