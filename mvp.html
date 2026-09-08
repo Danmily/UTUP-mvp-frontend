@@ -555,7 +555,7 @@ function closeModal(){ el("modal").classList.remove("active"); }
 function openModal(html){ el("modalInner").innerHTML=html; el("modal").classList.add("active"); }
 function pageHead(title,codes,desc,badge){
   return `<div class="page-head"><div>
-    <div class="page-title">${title}${codes?` <span class="stepcode">${codes}</span>`:""}${badge?` <span class="db ${badge.c}">${badge.t}</span>`:""}</div>
+    <div class="page-title">${title}${badge?` <span class="db ${badge.c}">${badge.t}</span>`:""}</div>
     <div class="page-desc">${desc||""}</div></div></div>`;
 }
 function deliverBadge(t){ // 交付 / 降级交付 / P1
@@ -774,7 +774,7 @@ function openApplyGuide(id){
   openModal(`
     <div class="modal-head">
       <div>
-        <div class="modal-title-name">权限申请引导 <span class="stepcode">P3 · A5</span> ${deliverBadge("交付")}</div>
+        <div class="modal-title-name">权限申请引导 ${deliverBadge("交付")}</div>
         <div class="modal-title-id">${t.name} · tag_id ${t.id}</div>
       </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
