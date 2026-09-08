@@ -390,8 +390,8 @@ function V(){ return VIEWS[currentView]; }
 const NAV = {
   consumer:[
     {group:"画像集市 · 消费动线", items:[
-      {key:"market", label:"P1 标签广场", code:"A2"},
-      {key:"myperm", label:"P4 我的申请 / 权限", code:"A6"}
+      {key:"market", label:"标签广场", code:"A2"},
+      {key:"myperm", label:"我的申请 / 权限", code:"A6"}
     ]},
     {group:"嵌入看板", items:[
       {key:"dualq", label:"双 QI 看板", code:"嵌入", soon:true},
@@ -403,8 +403,8 @@ const NAV = {
   ],
   supplier:[
     {group:"供给方工作台", items:[
-      {key:"approval", label:"P5 我的审批", code:"B3"},
-      {key:"harvest",  label:"P6 效果回收", code:"B4"}
+      {key:"approval", label:"我的审批", code:"B3"},
+      {key:"harvest",  label:"效果回收", code:"B4"}
     ]},
     {group:"资产接入", items:[
       {key:"onboard", label:"资产接入 SOP", code:"B1", soon:true}
@@ -415,17 +415,17 @@ const NAV = {
   ],
   platform:[
     {group:"平台视角能力", items:[
-      {key:"route",  label:"4.1 分级审批路由", code:"4.1"},
-      {key:"cross",  label:"4.2 跨域升级判断", code:"4.2"},
-      {key:"audit",  label:"4.3 审计日志", code:"4.3"}
+      {key:"route",  label:"分级审批路由", code:"4.1"},
+      {key:"cross",  label:"跨域升级判断", code:"4.2"},
+      {key:"audit",  label:"审计日志", code:"4.3"}
     ]},
     {group:"消费动线（全览）", items:[
-      {key:"market", label:"P1 标签广场", code:"A2"},
-      {key:"myperm", label:"P4 我的申请 / 权限", code:"A6"}
+      {key:"market", label:"标签广场", code:"A2"},
+      {key:"myperm", label:"我的申请 / 权限", code:"A6"}
     ]},
     {group:"供给动线（全览）", items:[
-      {key:"approval", label:"P5 我的审批", code:"B3"},
-      {key:"harvest",  label:"P6 效果回收", code:"B4"}
+      {key:"approval", label:"我的审批", code:"B3"},
+      {key:"harvest",  label:"效果回收", code:"B4"}
     ]},
     {group:"占位入口", items:[
       {key:"dualq",   label:"双 QI 看板", code:"嵌入", soon:true},
@@ -615,9 +615,9 @@ function renderSidebar(){
     <div class="nav-group"><div class="nav-title">${g.group}</div>
       ${g.items.map(it=>`
         <div class="nav-item${it.soon?" locked":""}" data-key="${it.key}"
-          onclick="${it.soon?`toast('该模块本期为占位入口（'+ '${it.code}' +'），P1 规划')`:`switchNav('${it.key}')`}">
+          onclick="${it.soon?`toast('该模块本期为占位入口，规划中')`:`switchNav('${it.key}')`}">
           <span>${it.label}</span>
-          ${it.soon?`<span class="soon">占位</span>`:`<span class="soon">${it.code}</span>`}
+          ${it.soon?`<span class="soon">占位</span>`:``}
         </div>`).join("")}
     </div>`).join("");
 }
@@ -629,8 +629,8 @@ function switchNav(key){
 function renderView(key){
   const fns={ market:viewMarket, myperm:viewMyPerm, approval:viewApproval, harvest:viewHarvest,
     route:viewRoute, cross:viewCross, audit:viewAudit };
-  const labels={ market:"P1 标签广场", myperm:"P4 我的申请 / 权限", approval:"P5 我的审批",
-    harvest:"P6 效果回收", route:"分级审批路由", cross:"跨域升级判断", audit:"审计日志" };
+  const labels={ market:"标签广场", myperm:"我的申请 / 权限", approval:"我的审批",
+    harvest:"效果回收", route:"分级审批路由", cross:"跨域升级判断", audit:"审计日志" };
   el("bcLabel").textContent=labels[key]||key;
   (fns[key]||viewMarket)(el("main"));
 }
