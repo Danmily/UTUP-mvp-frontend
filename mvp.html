@@ -395,16 +395,14 @@
 
 /* ---------- 视角 / 身份上下文（A1，身份降为「登录态 + 组织架构」） ---------- */
 const VIEWS = {
-  consumer_ecom:{name:"消费方 · 电商", role:"consumer", domain:"电商", wl:true,
-    levels:["开放","通用","受控","高敏"], desc:"POC 白名单成员，见全量标签；本域=电商"},
-  consumer_life:{name:"消费方 · 生服", role:"consumer", domain:"生服", wl:false,
-    levels:["开放","通用"], desc:"非白名单，默认仅见开放级 / 通用级；本域=生服"},
+  consumer:{name:"消费方", role:"consumer", domain:"电商", wl:true,
+    levels:["开放","通用","受控","高敏"], desc:"POC 白名单成员，检索标签、查看详情、路由申请与查看进度；跨域调用自动升档"},
   supplier:{name:"供给方 · Owner", role:"supplier", domain:"电商", wl:true,
     levels:["开放","通用","受控","高敏"], desc:"标签 Owner，审批名下资产申请 + 效果回收"},
   platform:{name:"平台管理员", role:"platform", domain:"平台", wl:true,
     levels:["开放","通用","受控","高敏"], desc:"分级审批路由 / 跨域升档规则 / 审计日志"}
 };
-let currentView = "consumer_ecom";
+let currentView = "consumer";
 function V(){ return VIEWS[currentView]; }
 
 /* ---------- 侧导：统一四段顺序 消费方 / 供给方 / 占位入口 / 平台能力 ---------- */
