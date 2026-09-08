@@ -89,13 +89,14 @@
     background:var(--warn-light);color:var(--warn);border:1px solid rgba(255,125,0,.3);font-weight:500}
   .role-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px}
   .role-card{padding:14px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;
-    background:#FFF;transition:all var(--t);position:relative;overflow:hidden}
+    background:#FFF;transition:all var(--t);position:relative;overflow:hidden;text-align:center}
   .role-card::before{content:"";position:absolute;inset:0;background:var(--grad-aurora);opacity:0;transition:opacity var(--t)}
   .role-card:hover{border-color:var(--p);transform:translateY(-2px);box-shadow:var(--shadow-glow-blue)}
   .role-card:hover::before{opacity:1}
   .role-card>*{position:relative;z-index:1}
   .role-card.selected{border-color:var(--p);background:var(--p-light);box-shadow:0 0 0 1px var(--p) inset,var(--shadow-glow-blue)}
-  .role-name{font-weight:600;margin-bottom:4px;font-size:14px;color:var(--text)}
+  .role-icon{font-size:26px;line-height:1;margin-bottom:8px}
+  .role-name{font-weight:600;font-size:14px;color:var(--text)}
   .role-desc{font-size:11px;color:var(--mute);line-height:1.5}
   .login-btn{width:100%;padding:12px;background:var(--grad-brand);color:#fff;border-radius:var(--r);
     font-weight:500;font-size:14px;margin-top:8px;transition:all var(--t);box-shadow:var(--shadow-glow-blue);letter-spacing:.5px}
@@ -350,13 +351,9 @@
 <div class="login" id="loginPage">
   <div class="login-card">
     <h1>🛡️ 统一交易画像门户</h1>
-    <p class="sub">UTUP · 跨域标签连接器 · 电商 &amp; 双 QI 最小闭环</p>
-    <span class="mvp-flag">MVP 收敛版 · 仅演示交付范围内动线</span>
-    <p style="font-size:12px;color:var(--mute);margin-bottom:12px">请选择视角（身份上下文本期降级为「登录态 + 组织架构」）</p>
+    <p style="font-size:12px;color:var(--mute);margin-bottom:12px">请选择视角</p>
     <div class="role-grid" id="roleGrid"></div>
     <button class="login-btn" onclick="doLogin()">飞书 SSO 登录 →</button>
-    <div class="login-foot">门户仅提供申请路由入口，不建单；建单与身份校验由 Triton / DMP / LDMP 承接<br/>
-      门户侧动作（浏览 / 申请 / 授权 / 录入）均写入审计日志</div>
   </div>
 </div>
 
@@ -395,11 +392,11 @@
 
 /* ---------- 视角 / 身份上下文（A1，身份降为「登录态 + 组织架构」） ---------- */
 const VIEWS = {
-  consumer:{name:"消费方", role:"consumer", domain:"电商", wl:true,
+  consumer:{name:"消费方", icon:"🛒", role:"consumer", domain:"电商", wl:true,
     levels:["开放","通用","受控","高敏"], desc:"POC 白名单成员，检索标签、查看详情、路由申请与查看进度；跨域调用自动升档"},
-  supplier:{name:"供给方 · Owner", role:"supplier", domain:"电商", wl:true,
-    levels:["开放","通用","受控","高敏"], desc:"标签 Owner，审批名下资产申请 + 效果回收"},
-  platform:{name:"平台管理员", role:"platform", domain:"平台", wl:true,
+  supplier:{name:"供给方 · Owner", icon:"📦", role:"supplier", domain:"电商", wl:true,
+    levels:["开放","通用","受控","高敏"], desc:"来源域管理员，汇总本域申请状态 + 跳转 Triton 审批 + 效果回收"},
+  platform:{name:"平台管理员", icon:"🛡️", role:"platform", domain:"平台", wl:true,
     levels:["开放","通用","受控","高敏"], desc:"分级审批路由 / 跨域升档规则 / 审计日志"}
 };
 let currentView = "consumer";
@@ -423,12 +420,9 @@ const NAV = {
   ],
   supplier:[
     {group:"供给方", items:[
-      {key:"approval", label:"我的审批"},
-      {key:"harvest",  label:"效果回收"},
-      {key:"cfg",      label:"分级与跨域配置"}
-    ]},
-    {group:"占位入口", items:[
-      {key:"onboard", label:"资产接入 SOP", soon:true}
+      {key:"workbench", label:"供给方工作台"},
+      {key:"cfg",      label:"配置中心"},
+      {key:"assetin",  label:"资产接入"}
     ]},
     {group:"平台能力", items:[
       {key:"audit", label:"审计日志"}
@@ -441,14 +435,13 @@ const NAV = {
       {key:"income", label:"消费与收益录入"}
     ]},
     {group:"供给方", items:[
-      {key:"approval", label:"我的审批"},
-      {key:"harvest",  label:"效果回收"},
-      {key:"cfg",      label:"分级与跨域配置"}
+      {key:"workbench", label:"供给方工作台"},
+      {key:"cfg",      label:"配置中心"},
+      {key:"assetin",  label:"资产接入"}
     ]},
     {group:"占位入口", items:[
       {key:"dualq",   label:"双 QI 看板", soon:true},
-      {key:"llm",     label:"LLM 侧写标签", soon:true},
-      {key:"onboard", label:"资产接入 SOP", soon:true}
+      {key:"llm",     label:"LLM 侧写标签", soon:true}
     ]},
     {group:"平台能力", items:[
       {key:"audit", label:"审计日志"}
@@ -481,89 +474,181 @@ function applyPath(tag){
 
 /* ---------- 标签资产（脚本预置，模拟 EDMP/LDMP 元数据同步 B1） ---------- */
 const TAGS = [
-  {id:14479, name:"电商支付交易单数分层", domain:"电商", level:"高敏", callType:"tag", owner:"孙淼璐 · 电商风控", team:"电商风控",
-    src:"电商 DMP", table:"dwd_ecom_pay_order_di", cov:92, freq:"T+1",
+  /* ===== 电商DMP ===== */
+  {id:14479, name:"电商支付交易单数分层", domain:"电商", level:"高敏", callType:"tag", owner:"电商风控团队", team:"电商风控",
+    src:"电商DMP", table:"dwd_ecom_pay_order_di", cov:92, freq:"T+1",
     desc:"含支付金额与订单明细，直接关联资金账户，反查自然人；泄露可用于精准诈骗 / 套现。",
     enums:["高消费(≥3000/月)","中消费","低消费","无支付"], official:true},
-  {id:14501, name:"电商消费力分层 ecom_consumption_level", domain:"电商", level:"受控", callType:"tag", owner:"李黎亚 · 电商增长", team:"电商增长",
-    src:"电商 DMP", table:"dws_ecom_consume_level_df", cov:88, freq:"T+1",
+  {id:14501, name:"电商消费力分层 ecom_consumption_level", domain:"电商", level:"受控", callType:"tag", owner:"电商增长团队", team:"电商增长",
+    src:"电商DMP", table:"dws_ecom_consume_level_df", cov:88, freq:"T+1",
     desc:"刻画消费能力与偏好，滥用可导致差别定价 / 骚扰营销，是组合识别的高权重维度。",
     enums:["S 高消费力","A","B","C 低消费力"], official:true},
-  {id:14520, name:"品类偏好序列 Top10", domain:"电商", level:"受控", callType:"tag", owner:"李黎亚 · 电商增长", team:"电商增长",
-    src:"电商 DMP", table:"dws_ecom_cate_pref_df", cov:81, freq:"T+7",
+  {id:14520, name:"品类偏好序列 Top10", domain:"电商", level:"受控", callType:"tag", owner:"电商增长团队", team:"电商增长",
+    src:"电商DMP", table:"dws_ecom_cate_pref_df", cov:81, freq:"T+7",
     desc:"用户近 90 天一级 / 二级类目偏好序列，用于人群圈选与推荐。",
     enums:["3C数码","美妆个护","服饰鞋包","食品生鲜","母婴"], official:true},
-  {id:14533, name:"活跃天数分层（近 30 天）", domain:"电商", level:"通用", callType:"tag", owner:"王晨 · 电商数据", team:"电商数据",
-    src:"电商 DMP", table:"dws_ecom_active_days_df", cov:97, freq:"T+1",
+  {id:14533, name:"活跃天数分层（近 30 天）", domain:"电商", level:"通用", callType:"tag", owner:"电商数据团队", team:"电商数据",
+    src:"电商DMP", table:"dws_ecom_active_days_df", cov:97, freq:"T+1",
     desc:"粒度粗、群体大，单独识别度低；可叠加使用，故留痕可追、不免审。",
     enums:["高活(≥20天)","中活","低活","沉默"], official:true},
-  {id:14540, name:"二级类目购买人群包", domain:"电商", level:"通用", callType:"psm", owner:"王晨 · 电商数据", team:"电商数据",
-    src:"电商 DMP", table:"dws_ecom_cate_buyer_df", cov:90, freq:"T+1",
+  {id:14540, name:"二级类目购买人群包", domain:"电商", level:"通用", callType:"psm", owner:"电商数据团队", team:"电商数据",
+    src:"电商DMP", table:"dws_ecom_cate_buyer_df", cov:90, freq:"T+1",
     desc:"按二级类目聚合的购买人群，系统间调用场景，走 PSM 申请。",
     enums:["美妆购买人群","3C购买人群","母婴购买人群"], official:false},
-  {id:14555, name:"聚合类目分布（脱敏）", domain:"电商", level:"开放", callType:"tag", owner:"王晨 · 电商数据", team:"电商数据",
-    src:"电商 DMP", table:"ads_ecom_cate_dist_df", cov:100, freq:"T+1",
+  {id:14555, name:"聚合类目分布（脱敏）", domain:"电商", level:"开放", callType:"tag", owner:"电商数据团队", team:"电商数据",
+    src:"电商DMP", table:"ads_ecom_cate_dist_df", cov:100, freq:"T+1",
     desc:"已聚合脱敏、无个体指向，滥用面小，可自助订阅免审批。",
     enums:["类目分布指数"], official:false},
-  {id:14580, name:"生服到店消费频次", domain:"生服", level:"受控", callType:"tag", owner:"张小侠 · 生服数据", team:"生服数据",
-    src:"生服 LDMP", table:"dws_life_visit_freq_df", cov:76, freq:"T+1",
+  {id:14560, name:"退货退款率分层", domain:"电商", level:"受控", callType:"tag", owner:"电商风控团队", team:"电商风控",
+    src:"电商DMP", table:"dws_ecom_refund_rate_df", cov:85, freq:"T+1",
+    desc:"售后行为分层，与风控 / 商家体验强相关，滥用可致差别服务。",
+    enums:["低退款","中退款","高退款","异常退款"], official:true},
+  {id:14566, name:"客单价分层 avg_order_amount", domain:"电商", level:"通用", callType:"tag", owner:"电商增长团队", team:"电商增长",
+    src:"电商DMP", table:"dws_ecom_aov_level_df", cov:94, freq:"T+1",
+    desc:"近 90 天平均订单金额分层，用于人群圈选与价格带运营。",
+    enums:["高客单","中客单","低客单"], official:true},
+  {id:14572, name:"加购收藏活跃度", domain:"电商", level:"通用", callType:"tag", owner:"电商数据团队", team:"电商数据",
+    src:"电商DMP", table:"dws_ecom_cart_active_df", cov:89, freq:"T+1",
+    desc:"加购 / 收藏行为频次分层，反映购买意向强度。",
+    enums:["高意向","中意向","低意向"], official:false},
+  {id:14578, name:"大促敏感度分层", domain:"电商", level:"受控", callType:"tag", owner:"电商增长团队", team:"电商增长",
+    src:"电商DMP", table:"dws_ecom_promo_sens_df", cov:78, freq:"T+7",
+    desc:"对大促 / 优惠的响应敏感度，用于营销投放，避免过度骚扰。",
+    enums:["强敏感","中敏感","弱敏感","不敏感"], official:true},
+  {id:14584, name:"会员等级分布（脱敏）", domain:"电商", level:"开放", callType:"tag", owner:"电商数据团队", team:"电商数据",
+    src:"电商DMP", table:"ads_ecom_member_dist_df", cov:100, freq:"T+1",
+    desc:"会员等级聚合分布，无个体指向，可自助订阅。",
+    enums:["普通","银卡","金卡","黑卡"], official:false},
+  {id:14590, name:"直播互动活跃度", domain:"电商", level:"通用", callType:"tag", owner:"电商内容团队", team:"电商内容",
+    src:"电商DMP", table:"dws_ecom_live_engage_df", cov:73, freq:"T+1",
+    desc:"直播间观看 / 互动 / 转化行为分层，用于内容与货品匹配。",
+    enums:["高互动","中互动","低互动"], official:false},
+
+  /* ===== 生服LDMP ===== */
+  {id:14580, name:"生服到店消费频次", domain:"生服", level:"受控", callType:"tag", owner:"生服数据团队", team:"生服数据",
+    src:"生服LDMP", table:"dws_life_visit_freq_df", cov:76, freq:"T+1",
     desc:"到店核销频次分层，跨域调用（电商消费方）将自动升档。",
     enums:["高频","中频","低频"], official:true},
+  {id:14606, name:"到店客单价分层", domain:"生服", level:"受控", callType:"tag", owner:"生服数据团队", team:"生服数据",
+    src:"生服LDMP", table:"dws_life_aov_level_df", cov:80, freq:"T+1",
+    desc:"到店消费客单价分层，用于本地生活商户运营。",
+    enums:["高客单","中客单","低客单"], official:true},
+  {id:14612, name:"团购券核销率", domain:"生服", level:"通用", callType:"tag", owner:"生服增长团队", team:"生服增长",
+    src:"生服LDMP", table:"dws_life_coupon_redeem_df", cov:83, freq:"T+1",
+    desc:"团购 / 代金券核销行为分层，反映到店转化效率。",
+    enums:["高核销","中核销","低核销"], official:false},
+  {id:14618, name:"到店品类偏好", domain:"生服", level:"通用", callType:"tag", owner:"生服增长团队", team:"生服增长",
+    src:"生服LDMP", table:"dws_life_cate_pref_df", cov:77, freq:"T+7",
+    desc:"到店餐饮 / 休闲 / 丽人等品类偏好，用于本地推荐。",
+    enums:["餐饮","休闲娱乐","丽人","亲子"], official:false},
+  {id:14624, name:"常驻商圈分层", domain:"生服", level:"高敏", callType:"tag", owner:"生服数据团队", team:"生服数据",
+    src:"生服LDMP", table:"dwd_life_geo_zone_di", cov:69, freq:"T+7",
+    desc:"含地理位置聚集特征，可反推居住 / 工作区域，属高敏，需法务加签。",
+    enums:["核心商圈","社区商圈","近郊","跨城"], official:true},
+  {id:14630, name:"到店时段偏好（脱敏）", domain:"生服", level:"开放", callType:"tag", owner:"生服增长团队", team:"生服增长",
+    src:"生服LDMP", table:"ads_life_time_dist_df", cov:100, freq:"T+1",
+    desc:"到店消费时段聚合分布，无个体指向，可自助订阅。",
+    enums:["工作日","周末","午市","晚市"], official:false},
+
+  /* ===== AI用户画像 ===== */
   {id:14602, name:"LLM 深层心理画像", domain:"电商", level:"高敏", callType:"tag", owner:"AI 平台 · 侧写", team:"AI平台",
-    src:"LLM 侧写", table:"dwd_llm_psy_profile_di", cov:64, freq:"T+7",
+    src:"AI用户画像", table:"dwd_llm_psy_profile_di", cov:64, freq:"T+7",
     desc:"侧写理解类标签，深层心理画像默认受控 / 高敏级，仅白名单可见入口。",
     enums:["价格敏感型","品质导向型","冲动消费型"], official:false},
   {id:14610, name:"品类兴趣（LLM 侧写）", domain:"电商", level:"通用", callType:"tag", owner:"AI 平台 · 侧写", team:"AI平台",
-    src:"LLM 侧写", table:"dwd_llm_cate_interest_di", cov:70, freq:"T+7",
+    src:"AI用户画像", table:"dwd_llm_cate_interest_di", cov:70, freq:"T+7",
     desc:"品类兴趣通用级侧写标签，可申请自助留痕。",
-    enums:["运动户外","家居家装","图书文娱"], official:false}
+    enums:["运动户外","家居家装","图书文娱"], official:false},
+  {id:14640, name:"消费决策风格（LLM 推断）", domain:"电商", level:"受控", callType:"tag", owner:"AI 平台 · 侧写", team:"AI平台",
+    src:"AI用户画像", table:"dwd_llm_decision_style_di", cov:61, freq:"T+7",
+    desc:"基于行为文本推断的决策风格，受控级，需 Owner 审批。",
+    enums:["理性比价型","跟随推荐型","品牌忠诚型"], official:false},
+  {id:14646, name:"内容兴趣主题（LLM）", domain:"电商", level:"通用", callType:"tag", owner:"AI 平台 · 侧写", team:"AI平台",
+    src:"AI用户画像", table:"dwd_llm_content_topic_di", cov:66, freq:"T+7",
+    desc:"内容消费兴趣主题聚类，用于内容与货品匹配。",
+    enums:["科技数码","美食","旅行","健身"], official:false},
+  {id:14652, name:"生命阶段推断（LLM）", domain:"电商", level:"受控", callType:"tag", owner:"AI 平台 · 侧写", team:"AI平台",
+    src:"AI用户画像", table:"dwd_llm_life_stage_di", cov:58, freq:"T+7",
+    desc:"基于综合信号推断的生命阶段，敏感度较高，受控级。",
+    enums:["学生","新职场","已婚有娃","银发"], official:false},
+
+  /* ===== 双域算法资产 ===== */
+  {id:14660, name:"跨域消费力融合分", domain:"电商", level:"高敏", callType:"tag", owner:"算法平台 · 融合", team:"算法平台",
+    src:"双域算法资产", table:"dwd_xd_consume_fusion_di", cov:71, freq:"T+7",
+    desc:"融合电商 + 生服双域消费信号的综合评分，跨域高权重，属高敏。",
+    enums:["S","A","B","C"], official:true},
+  {id:14666, name:"跨域生命周期阶段", domain:"电商", level:"受控", callType:"tag", owner:"算法平台 · 融合", team:"算法平台",
+    src:"双域算法资产", table:"dws_xd_lifecycle_df", cov:74, freq:"T+7",
+    desc:"结合双域行为判定的用户生命周期阶段，用于分层运营。",
+    enums:["新客","成长","成熟","流失预警"], official:true},
+  {id:14672, name:"双域高价值人群包", domain:"生服", level:"高敏", callType:"psm", owner:"算法平台 · 融合", team:"算法平台",
+    src:"双域算法资产", table:"dws_xd_high_value_crowd_df", cov:68, freq:"T+7",
+    desc:"双域高价值人群系统间调用，跨域 + 高敏，走 PSM + 法务加签。",
+    enums:["双域高价值","电商高价值","生服高价值"], official:false},
+  {id:14678, name:"跨域流失预警分", domain:"电商", level:"受控", callType:"tag", owner:"算法平台 · 融合", team:"算法平台",
+    src:"双域算法资产", table:"dws_xd_churn_risk_df", cov:72, freq:"T+1",
+    desc:"融合双域活跃 / 消费衰减信号的流失预警评分，用于挽回运营。",
+    enums:["高流失风险","中风险","低风险"], official:true}
+];
+/* ---------- 标签目录量级（顶部统计卡片，模拟全量元数据同步） ---------- */
+const CATALOG = [
+  {d:"电商DMP", n:2043},
+  {d:"生服LDMP", n:1972},
+  {d:"AI用户画像", n:316},
+  {d:"双域算法资产", n:57}
 ];
 
 /* ---------- 我的权限（P4 只读镜像，A6） ---------- */
 let MYPERM = [
-  {id:"APP-24098", tagId:14533, tag:"活跃天数分层（近 30 天）", level:"通用", src:"电商 DMP", status:"生效中", grantAt:"2026-07-20", valid:"2027-01-16", days:131, scene:"人群圈选"},
-  {id:"APP-24112", tagId:14555, tag:"聚合类目分布（脱敏）", level:"开放", src:"电商 DMP", status:"生效中", grantAt:"2026-06-01", valid:"永久", days:9999, scene:"数据分析"},
-  {id:"APP-24230", tagId:14501, tag:"电商消费力分层", level:"受控", src:"电商 DMP", status:"审批中", grantAt:"—", valid:"—", days:0, scene:"营销投放"},
-  {id:"APP-24255", tagId:14580, tag:"生服到店消费频次（跨域）", level:"高敏", src:"生服 LDMP", status:"即将到期", grantAt:"2026-06-11", valid:"2026-09-11", days:4, scene:"模型特征", cross:true},
-  {id:"APP-24301", tagId:14602, tag:"LLM 深层心理画像", level:"高敏", src:"LLM 侧写", status:"已拒绝", grantAt:"—", valid:"—", days:0, scene:"模型特征", reject:"未提供收益测算与法务意见"}
+  {id:"APP-24098", tagId:14533, tag:"活跃天数分层（近 30 天）", level:"通用", src:"电商DMP", status:"生效中", grantAt:"2026-07-20", valid:"2027-01-16", days:131, scene:"人群圈选"},
+  {id:"APP-24112", tagId:14555, tag:"聚合类目分布（脱敏）", level:"开放", src:"电商DMP", status:"生效中", grantAt:"2026-06-01", valid:"永久", days:9999, scene:"数据分析"},
+  {id:"APP-24230", tagId:14501, tag:"电商消费力分层", level:"受控", src:"电商DMP", status:"审批中", grantAt:"—", valid:"—", days:0, scene:"营销投放"},
+  {id:"APP-24255", tagId:14580, tag:"生服到店消费频次（跨域）", level:"高敏", src:"生服LDMP", status:"即将到期", grantAt:"2026-06-11", valid:"2026-09-11", days:4, scene:"模型特征", cross:true},
+  {id:"APP-24301", tagId:14602, tag:"LLM 深层心理画像", level:"高敏", src:"AI用户画像", status:"已拒绝", grantAt:"—", valid:"—", days:0, scene:"模型特征", reject:"未提供收益测算与法务意见"}
 ];
 
-/* ---------- 供给方待审批（P5，B3） ---------- */
+/* ---------- 供给方工作台：本域「由门户提交」的申请及 Triton 同步状态（B3） ---------- */
+/* 0908：门户不建单、不代批，仅汇总本域申请 + 状态，审批动作全部深链跳 Triton */
 let APPROVALS = [
-  {id:"TKT-88012", applicant:"陈昊 · 电商增长", tag:"电商消费力分层", level:"受控", scene:"营销投放", at:"2026-09-05 14:22", status:"待审批", cross:false},
-  {id:"TKT-88030", applicant:"周舟 · 生服算法", tag:"品类偏好序列 Top10", level:"高敏", scene:"模型特征", at:"2026-09-06 09:10", status:"待审批", cross:true, up:"受控→高敏"},
-  {id:"TKT-88041", applicant:"林夕 · 电商数据", tag:"二级类目购买人群包", level:"通用", scene:"人群圈选", at:"2026-09-06 16:48", status:"待审批", cross:false},
-  {id:"TKT-88055", applicant:"赵岚 · 电商风控", tag:"电商支付交易单数分层", level:"高敏", scene:"数据分析", at:"2026-09-07 08:30", status:"待审批", cross:false},
-  {id:"TKT-87990", applicant:"钱进 · 电商增长", tag:"品类偏好序列 Top10", level:"受控", scene:"数据分析", at:"2026-09-03 11:05", status:"已通过", cross:false},
-  {id:"TKT-87965", applicant:"孙武 · 生服算法", tag:"电商消费力分层", level:"受控", scene:"模型特征", at:"2026-09-02 15:40", status:"已拒绝", cross:false, reject:"用途说明不充分"}
+  {id:"TKT-88012", applicant:"电商增长团队", tags:["电商消费力分层"], src:"电商DMP", level:"受控", scene:"营销投放", at:"2026-09-05 14:22", status:"审批中", cross:false},
+  {id:"TKT-88030", applicant:"生服算法团队", tags:["品类偏好序列 Top10","电商消费力分层"], src:"电商DMP", level:"高敏", scene:"模型特征", at:"2026-09-06 09:10", status:"审批中", cross:true, up:"受控→高敏"},
+  {id:"TKT-88041", applicant:"电商数据团队", tags:["二级类目购买人群包"], src:"电商DMP", level:"通用", scene:"人群圈选", at:"2026-09-06 16:48", status:"审批中", cross:false},
+  {id:"TKT-88055", applicant:"电商风控团队", tags:["电商支付交易单数分层"], src:"电商DMP", level:"高敏", scene:"数据分析", at:"2026-09-07 08:30", status:"审批中", cross:false},
+  {id:"TKT-87990", applicant:"电商增长团队", tags:["品类偏好序列 Top10"], src:"电商DMP", level:"受控", scene:"数据分析", at:"2026-09-03 11:05", status:"已通过", cross:false},
+  {id:"TKT-87965", applicant:"生服算法团队", tags:["电商消费力分层"], src:"电商DMP", level:"受控", scene:"模型特征", at:"2026-09-02 15:40", status:"已拒绝", cross:false, reject:"用途说明不充分"}
 ];
 
-/* ---------- 效果回收：申请概览 + PSM 汇总 + 表热度 + 收益录入（P6，B4） ---------- */
+/* ---------- 效果回收：本域申请概览 + 消费收益录入（P6，B4 · 降级） ---------- */
+/* 0908：调用方 PSM 汇总 / 离线表热度 均降为 P1，本期不接；收益以消费方手工录入为唯一来源 */
 const HARVEST = {
-  psm:[
-    {psm:"ecom.growth.crowd_service", calls:128400, note:"人群圈选服务"},
-    {psm:"ecom.rec.feature_hub", calls:96200, note:"推荐特征中心"},
-    {psm:"life.algo.model_serving", calls:41800, note:"生服模型服务（跨域）"},
-    {psm:"ecom.mkt.dmp_gateway", calls:23600, note:"营销 DMP 网关"}
-  ],
-  hive:[
-    {table:"dws_ecom_consume_level_df", heat:9820, period:"近 30 天"},
-    {table:"dws_ecom_cate_pref_df", heat:7140, period:"近 30 天"},
-    {table:"dwd_ecom_pay_order_di", heat:5210, period:"近 30 天"}
-  ],
   income:[
-    {assets:["电商消费力分层"], scene:"营销投放", income:"ROI +12%（618 大促）", doc:"收益测算-618大促.docx", docUrl:"https://bytedance.larkoffice.com/docx/demo618", by:"陈昊", at:"2026-09-05 10:20"},
-    {assets:["品类偏好序列 Top10","电商消费力分层"], scene:"推荐特征", income:"CTR +5.3%", doc:"AB实验报告-推荐特征.docx", docUrl:"https://bytedance.larkoffice.com/docx/demoAB", by:"钱进", at:"2026-09-03 16:40"}
+    {assets:["电商消费力分层"], scene:"营销投放", income:"ROI +12%（618 大促）", doc:"收益测算-618大促.docx", docUrl:"https://bytedance.larkoffice.com/docx/demo618", by:"电商增长团队", at:"2026-09-05 10:20"},
+    {assets:["品类偏好序列 Top10","电商消费力分层"], scene:"推荐特征", income:"CTR +5.3%", doc:"AB实验报告-推荐特征.docx", docUrl:"https://bytedance.larkoffice.com/docx/demoAB", by:"电商数据团队", at:"2026-09-03 16:40"}
   ]
 };
 
-/* ---------- 审计日志（4.3，门户侧动作留痕） ---------- */
+/* ---------- 来源域合规说明（3.1 / 3.2：申请区嵌入双域合规 Doc） ---------- */
+const COMPLIANCE = {
+  "电商DMP":{title:"《中国电商外部用户数据采买规范_26Q3》", url:"https://bytedance.larkoffice.com/wiki/WvMSw2O3ViC0tCkA2Cqcq2nNn8f",
+    note:"电商用户数据对外供给须遵循外采规范；跨域 / 高敏使用需走源头合规审批。"},
+  "生服LDMP":{title:"《本地生活数据使用合规规范》", url:"https://bytedance.larkoffice.com/wiki/demoLDMP",
+    note:"到店 / 地理类数据涉及位置敏感，跨域调用自动升档并加签合规。"},
+  "AI用户画像":{title:"《LLM 侧写标签使用合规须知》", url:"https://bytedance.larkoffice.com/wiki/demoLLM",
+    note:"侧写理解类标签默认受控 / 高敏，仅白名单可见，需走跨域申请流程。"},
+  "双域算法资产":{title:"《跨域数据融合使用合规规范》", url:"https://bytedance.larkoffice.com/wiki/demoXD",
+    note:"融合双域信号的资产属跨域高权重，密级就高、审批更严。"}
+};
+function compliance(tag){ return COMPLIANCE[tag.src] || COMPLIANCE["电商DMP"]; }
+
+/* ---------- 审计日志（4.3，门户侧动作留痕；全链路调用留痕为 P1） ---------- */
 let AUDIT = [
   {time:"2026-09-07 08:31:02", who:"user", what:"查看标签详情：电商支付交易单数分层", lvl:"高敏", risk:"记录"},
-  {time:"2026-09-07 08:30:41", who:"user", what:"P1 标签广场检索：关键词=消费力", lvl:"—", risk:"记录"},
-  {time:"2026-09-06 16:49:10", who:"林夕", what:"发起申请路由：二级类目购买人群包 → DMP", lvl:"通用", risk:"记录"},
-  {time:"2026-09-06 09:11:55", who:"周舟", what:"跨域升档触发：受控→高敏（品类偏好序列）", lvl:"高敏", risk:"关注"},
-  {time:"2026-09-05 14:23:08", who:"陈昊", what:"发起申请路由：电商消费力分层 → Triton", lvl:"受控", risk:"记录"}
+  {time:"2026-09-07 08:30:41", who:"user", what:"标签广场检索：关键词=消费力", lvl:"—", risk:"记录"},
+  {time:"2026-09-06 16:49:10", who:"电商数据团队", what:"唤起 DMP SDK 申请抽屉：二级类目购买人群包", lvl:"通用", risk:"记录"},
+  {time:"2026-09-06 09:11:55", who:"生服算法团队", what:"跨域升档触发：受控→高敏（品类偏好序列）", lvl:"高敏", risk:"关注"},
+  {time:"2026-09-05 14:23:08", who:"电商增长团队", what:"申请提交成功：电商消费力分层 · 单号 TKT-88012", lvl:"受控", risk:"记录"},
+  {time:"2026-09-05 10:12:33", who:"user", what:"访问双 QI 看板：电商×双QI 交易概览", lvl:"—", risk:"关注"},
+  {time:"2026-09-04 19:02:17", who:"user", what:"访问 LLM 侧写 tab：品类兴趣（LLM 侧写）", lvl:"通用", risk:"记录"}
 ];
 function pushAudit(what,lvl){
   AUDIT.unshift({time:new Date().toLocaleString("zh-CN",{hour12:false}), who:"user", what, lvl:lvl||"—", risk:"记录"});
@@ -577,13 +662,8 @@ function closeModal(){ el("modal").classList.remove("active"); }
 function openModal(html){ el("modalInner").innerHTML=html; el("modal").classList.add("active"); }
 function pageHead(title,codes,desc,badge){
   return `<div class="page-head"><div>
-    <div class="page-title">${title}${badge?` <span class="db ${badge.c}">${badge.t}</span>`:""}</div>
+    <div class="page-title">${title}</div>
     ${desc?`<div class="page-desc">${desc}</div>`:""}</div></div>`;
-}
-function deliverBadge(t){ // 交付 / 降级交付 / P1
-  if(t==="交付") return `<span class="db deliver">交付</span>`;
-  if(t==="降级交付") return `<span class="db degrade">降级交付</span>`;
-  return `<span class="db p1">P1 · 本期不做</span>`;
 }
 
 /* 可见性判定矩阵（A7 / 3.1）：返回 {visible, real, canApply, reason} */
@@ -606,8 +686,8 @@ function visibility(tag){
 function renderRoleGrid(){
   el("roleGrid").innerHTML = Object.entries(VIEWS).map(([k,v])=>`
     <div class="role-card${k===currentView?" selected":""}" data-view="${k}">
+      <div class="role-icon">${v.icon}</div>
       <div class="role-name">${v.name}</div>
-      <div class="role-desc">${v.desc}</div>
     </div>`).join("");
   document.querySelectorAll(".role-card").forEach(c=>{
     c.onclick=()=>{
@@ -649,10 +729,10 @@ function switchNav(key){
   renderView(key);
 }
 function renderView(key){
-  const fns={ market:viewMarket, myperm:viewMyPerm, income:viewIncome, approval:viewApproval, harvest:viewHarvest,
-    cfg:viewCfg, audit:viewAudit };
-  const labels={ market:"标签广场", myperm:"我的申请 / 权限", income:"消费与收益录入", approval:"我的审批",
-    harvest:"效果回收", cfg:"分级与跨域配置", audit:"审计日志" };
+  const fns={ market:viewMarket, myperm:viewMyPerm, income:viewIncome, workbench:viewWorkbench,
+    cfg:viewCfg, assetin:viewAssetIn, audit:viewAudit };
+  const labels={ market:"标签广场", myperm:"我的申请 / 权限", income:"消费与收益录入", workbench:"供给方工作台",
+    cfg:"配置中心", assetin:"资产接入", audit:"审计日志" };
   el("bcLabel").textContent=labels[key]||key;
   (fns[key]||viewMarket)(el("main"));
 }
@@ -661,15 +741,14 @@ function renderView(key){
 let marketFilter={q:"",src:"",lvl:"",st:""};
 function viewMarket(c){
   const v=V();
-  const domains=[...new Set(TAGS.map(t=>t.src))];
-  // 顶部统计卡片（仅"总数"可得，降级）
-  const stat=domains.map(d=>({d, n:TAGS.filter(t=>t.src===d).length}));
+  const domains=CATALOG.map(x=>x.d);
+  // 顶部统计卡片：标签目录量级（模拟全量元数据同步）
   let html = pageHead("标签广场", "P1 · A2", null,
     {c:"deliver",t:"交付"});
-  html += `<div class="kpi-row">` + stat.map(s=>`
+  html += `<div class="kpi-row">` + CATALOG.map(s=>`
     <div class="kpi domain-kpi" onclick="marketFilter.src='${s.d}';renderMarketList()">
       <div class="kpi-label">📦 ${s.d} · 标签总数</div>
-      <div class="kpi-value">${s.n}<small> 个</small></div>
+      <div class="kpi-value">${s.n.toLocaleString()}<small> 个</small></div>
       <div class="kpi-trend">点击按来源域筛选</div>
     </div>`).join("") + `</div>`;
   html += `<div class="card">
@@ -741,7 +820,7 @@ function openTag(id){
     </div>
     <div class="modal-body">
       <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>元信息（A3 · 交付）</div>
+        <div class="meta-card-title"><span class="dot"></span>元信息</div>
         <div class="meta-row"><div class="k">口径描述</div><div class="v">${t.desc}</div></div>
         <div class="meta-row"><div class="k">来源域 / 表</div><div class="v">${t.src} · <code>${t.table}</code></div></div>
         <div class="meta-row"><div class="k">Owner / 团队</div><div class="v">${t.owner}</div></div>
@@ -750,20 +829,15 @@ function openTag(id){
         <div class="meta-row"><div class="k">统一分级</div><div class="v">${levelChip(t.level)} <span style="color:var(--mute);font-size:11px">由供给方判定 · 密级本期 Coral 兜底</span></div></div>
       </div>
       <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>枚举值 / 示例值（动态查询 · 交付）</div>
+        <div class="meta-card-title"><span class="dot"></span>枚举值 / 示例值（动态查询）</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;line-height:2">${enumShow}</div>
         ${(t.level==="高敏"||t.level==="受控")&&!vis.real?`<div class="alert warn" style="margin-top:10px">🔒 高敏 / 受控标签对未授权者仅露元信息，数据值脱敏为 ***；授权后自动解密。</div>`:""}
       </div>
       <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>权限与申请 · 路由判定（A4 · 交付）</div>
-        <div class="meta-row"><div class="k">白名单</div><div class="v">${V().wl?"✓ POC 白名单内":"✗ 非白名单"}</div></div>
-        <div class="meta-row"><div class="k">授权状态</div><div class="v">${tagPermState(t)==="granted"?"已授权":"未授权"}</div></div>
-        <div class="meta-row"><div class="k">跨域判定</div><div class="v">${vis.cross?`跨域（消费方=${V().domain} ≠ 标签=${t.domain}）→ 密级就高升为 ${vis.eff}`:"同域，按原密级路由"}</div></div>
-        <div class="meta-row"><div class="k">申请入口</div><div class="v">${vis.canApply?`✓ 展示（${vis.reason}）`:`✗ 置灰（${vis.reason}）`}</div></div>
-        <div class="route-box">
-          <b>申请路径：${path.name}</b><br/>
-          <span style="color:var(--text2);font-size:12px;line-height:1.8">${path.detail}</span>
-        </div>
+        <div class="meta-card-title"><span class="dot"></span>数据使用合规说明</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.8">${compliance(t).note}</div>
+        <a href="${compliance(t).url}" target="_blank" class="pill" style="text-decoration:none;margin-top:8px;display:inline-block">📄 ${compliance(t).title}</a>
+        ${(t.level==="高敏"||vis.cross)?`<div class="alert warn" style="margin:10px 0 0">⚠️ ${vis.cross?"跨域":"高敏"}场景：申请须遵循源头合规审批流程，请提前准备合规材料。</div>`:""}
       </div>
     </div>
     <div class="modal-foot">
@@ -771,13 +845,13 @@ function openTag(id){
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal()">关闭</button>
         ${vis.canApply
-          ? `<button class="btn" onclick="closeModal();openApplyGuide(${t.id})">申请 →</button>`
+          ? `<button class="btn" onclick="closeModal();openApplyGuide(${t.id})">申请权限 →</button>`
           : `<button class="btn" disabled>${V().wl?"不可申请":"走本域 POC 收口"}</button>`}
       </div>
     </div>`);
 }
 
-/* ======================= P3 申请引导页（A5 · 不建单，深链跳转） ======================= */
+/* ======================= P3 权限申请（A5 · Triton SDK 抽屉建单，门户不建单/不预填） ======================= */
 function openApplyGuide(id){
   const t=TAGS.find(x=>x.id===id); if(!t) return;
   const vis=visibility(t);
@@ -789,31 +863,47 @@ function openApplyGuide(id){
   openModal(`
     <div class="modal-head">
       <div>
-        <div class="modal-title-name">权限申请引导 ${deliverBadge("交付")}</div>
+        <div class="modal-title-name">申请智能助手<span class="badge" style="margin-left:8px">规划中</span></div>
         <div class="modal-title-id">${t.name} · tag_id ${t.id}</div>
       </div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="alert info">🔗 门户仅提供路由入口，<b>不建单</b>；建单与身份校验由 ${path.target} 承接。</div>
+      <div class="alert info">🤖 智能小助手核心能力：<b>表单智能预填</b>——自动带出<b>申请字段 / 申请人 / 使用场景</b>；支持上传 Doc（PRD / 需求单 / 收益测算）后 <b>自动解析并回填</b>上述内容，确认无误后一键跳转 Triton 建单。</div>
       ${vis.cross?`<div class="alert warn">⚡ 跨域申请：密级将升档为 <b>${eff}</b>，审批路由为「<b>${LEVELS[eff].approve}</b>」，审批更严。</div>`:""}
       <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>申请路径（A4）</div>
-        <div class="meta-row"><div class="k">类型</div><div class="v">${path.name}</div></div>
-        <div class="meta-row"><div class="k">路由目标</div><div class="v">${path.target}</div></div>
-        <div class="meta-row"><div class="k">路径说明</div><div class="v">${path.detail}</div></div>
+        <div class="meta-card-title"><span class="dot"></span>上传 Doc · 智能解析回填</div>
+        <div class="route-box" id="agDrop" onclick="parseDocPrefill(${t.id})" style="cursor:pointer;text-align:center;padding:18px">
+          <div style="font-size:22px">📄⬆️</div>
+          <div style="font-size:13px;margin-top:6px"><b>点击上传 PRD / 需求单 / 收益测算 Doc</b></div>
+          <div style="font-size:11px;color:var(--mute);margin-top:4px">小助手将自动解析并预填「申请字段 / 申请人 / 使用场景」</div>
+        </div>
+        <div id="agParseNote" style="font-size:11px;color:var(--ok);margin-top:8px;display:none">✓ 已解析 <span id="agParseFile"></span>，字段已智能预填，请核对后提交。</div>
       </div>
       <div class="meta-card">
-        <div class="meta-card-title"><span class="dot"></span>材料要求聚合（当前分级：${eff}）</div>
+        <div class="meta-card-title"><span class="dot"></span>智能预填表单（可编辑核对）</div>
         <div style="margin-bottom:10px">
-          <div style="font-size:12px;color:var(--mute);margin-bottom:6px">消费场景（必选，卡点前移到申请环节）</div>
+          <div style="font-size:12px;color:var(--mute);margin-bottom:6px">申请字段</div>
+          <input id="agFields" value="${t.name}" class="pa-ta" style="width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:6px"/>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--mute);margin-bottom:6px">申请人</div>
+          <input id="agApplicant" value="user（${V().name} · ${V().domain}）" class="pa-ta" style="width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:6px"/>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--mute);margin-bottom:6px">使用场景</div>
           <select id="agScene" class="pa-ta" style="width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:6px">
-            <option value="">— 请选择消费场景 —</option>
+            <option value="">— 请选择或由 Doc 解析预填 —</option>
             <option>人群圈选</option><option>用户360</option><option>模型特征</option><option>营销投放</option><option>数据分析</option>
           </select>
         </div>
-        <ul class="checklist">${mats.map((m,i)=>`<li class="${needExtra&&i>=3?"req":""}">${m}</li>`).join("")}</ul>
-        <div style="font-size:11px;color:var(--mute);margin-top:6px">门户侧做提示性校验，最终必填以目标系统表单为准。</div>
+        ${needExtra?`<div class="alert warn" style="margin:10px 0 0">受控 / 高敏：另需 PRD 链接、Meego 需求单、收益测算，可由上传 Doc 一并解析。</div>`:""}
+        <div style="font-size:11px;color:var(--mute);margin-top:8px">预填为辅助，最终必填与校验以 Triton 表单为准。</div>
+      </div>
+      <div class="meta-card">
+        <div class="meta-card-title"><span class="dot"></span>数据使用合规说明</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.8">${compliance(t).note}</div>
+        <a href="${compliance(t).url}" target="_blank" class="pill" style="text-decoration:none;margin-top:8px;display:inline-block">📄 ${compliance(t).title}</a>
       </div>
       <div class="meta-card">
         <div class="meta-card-title"><span class="dot"></span>预判审批链路（4.1 / 4.2）</div>
@@ -828,25 +918,44 @@ function openApplyGuide(id){
       </div>
     </div>
     <div class="modal-foot">
-      <span style="font-size:11px;color:var(--mute)">⛔ 门户不落工单；续期 / 主动回收无对外接口（P1）</span>
+      <span style="font-size:11px;color:var(--mute)">🤖 P1 能力：Doc 智能解析预填；门户不落工单，建单在 Triton 完成</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal()">取消</button>
-        <button class="btn" onclick="submitApplyGuide(${t.id})">一键深链跳转 ${path.target} 发起 →</button>
+        <button class="btn" onclick="submitApplyGuide(${t.id})">去 Triton 申请 →</button>
       </div>
     </div>`);
+}
+/* 智能小助手：模拟上传 Doc 解析并回填申请字段 / 申请人 / 使用场景 */
+function parseDocPrefill(id){
+  const t=TAGS.find(x=>x.id===id); if(!t) return;
+  const scenes=["人群圈选","用户360","模型特征","营销投放","数据分析"];
+  const guess=scenes[t.id % scenes.length];
+  const drop=el("agDrop");
+  if(drop){ drop.style.borderStyle="solid"; drop.querySelector("div:nth-child(2)").innerHTML="<b>解析中…</b>"; }
+  setTimeout(()=>{
+    if(el("agFields")) el("agFields").value = `${t.name}（含枚举：${(t.enums||[]).slice(0,2).join(" / ")||"—"}）`;
+    if(el("agScene")) el("agScene").value = guess;
+    const note=el("agParseNote"); if(note){ note.style.display="block"; }
+    const fn=el("agParseFile"); if(fn){ fn.textContent="PRD_"+t.name+".docx"; }
+    if(drop){ drop.querySelector("div:nth-child(2)").innerHTML="<b>✓ 解析完成，可重新上传替换</b>"; }
+    pushAudit(`智能小助手解析 Doc 预填申请字段：${t.name}`, visibility(t).eff);
+    toast(`🤖 已解析文档并智能预填：\n• 申请字段：${t.name}\n• 申请人：user（${V().name}）\n• 使用场景：${guess}\n请核对后点击「去 Triton 申请」`);
+  }, 500);
 }
 function submitApplyGuide(id){
   const t=TAGS.find(x=>x.id===id);
   const scene=el("agScene").value;
-  if(!scene){ toast("⚠️ 请先选择消费场景（申请环节强制登记）"); return; }
+  if(!scene){ toast("⚠️ 请先选择或由 Doc 解析预填使用场景"); return; }
   const path=applyPath(t);
   const vis=visibility(t);
-  // 门户仅登记一条"审批中"镜像 + 审计留痕，不建单
-  const appId="APP-"+(24300+Math.floor(Math.random()*600));
-  MYPERM.unshift({id:appId, tagId:t.id, tag:t.name+(vis.cross?"（跨域）":""), level:vis.eff, src:t.src, status:"审批中", grantAt:"—", valid:"—", days:0, scene, cross:vis.cross});
-  pushAudit(`发起申请路由：${t.name} → ${path.target}（场景=${scene}）`, vis.eff);
+  // 门户仅登记一条"审批中"镜像 + 审计留痕；实际建单在 Triton 完成，门户不落工单
+  const tktId="TKT-"+(88100+Math.floor(Math.random()*800));
+  MYPERM.unshift({id:tktId, tagId:t.id, tag:t.name+(vis.cross?"（跨域）":""), level:vis.eff, src:t.src, status:"审批中", grantAt:"—", valid:"—", days:0, scene, cross:vis.cross});
+  // 审计埋点（4.3）：智能小助手带预填跳转 Triton + 提交成功各记一次
+  pushAudit(`去 ${path.target} 申请（智能小助手预填）：${t.name}${vis.cross?"（跨域升档）":""}`, vis.eff);
+  pushAudit(`申请提交成功：${t.name} · 单号 ${tktId}（场景=${scene}）`, vis.eff);
   closeModal();
-  toast(`✓ 已跳转 ${path.target} 建单（门户不落工单）\n• 申请镜像 ${appId} 已生成，状态：审批中\n• 消费场景「${scene}」已登记并写入审计\n可在「P4 我的申请 / 权限」查看进度`);
+  toast(`✓ 已携预填字段跳转 ${path.target} 建单（门户不落工单）\n• 申请单 ${tktId} 已生成，状态：审批中\n• 「标签 ↔ 单号」映射已记录，使用场景「${scene}」写入审计\n可在「我的申请 / 权限」按申请单粒度查看进度`);
 }
 
 /* ======================= P4 我的申请 / 权限（A6 · 只读镜像） ======================= */
@@ -866,7 +975,7 @@ function viewMyPerm(c){
     <div class="kpi"><div class="kpi-label">✕ 已拒绝</div><div class="kpi-value" style="color:var(--err)">${cntReject}</div><div class="kpi-trend">在来源系统重提</div></div>
   </div>`;
   if(cntSoon) html+=`<div class="alert warn">⚠️ 有 ${cntSoon} 条权限即将到期，避免调用断档请及时处理。<b>门户无续期按钮</b>，需外跳来源系统（Triton / DMP）重新发起（P1）。</div>`;
-  html+=`<div class="card"><h3>权限与申请列表 <span class="badge">只读镜像</span></h3>
+  html+=`<div class="card"><h3>权限与申请列表</h3>
     <table><thead><tr><th>申请单号</th><th>标签</th><th>分级</th><th>来源域</th><th>消费场景</th><th>状态</th><th>有效期 / 剩余</th><th>操作</th></tr></thead><tbody>`;
   MYPERM.forEach(p=>{
     const m=LEVELS[p.level];
@@ -918,133 +1027,92 @@ function permDetail(id){
     </div>`);
 }
 
-/* ======================= P5 我的审批（B3） ======================= */
-let apSel=new Set();
-function viewApproval(c){
-  const pending=APPROVALS.filter(a=>a.status==="待审批");
+/* ======================= 供给方工作台（B3 + B4 合并 · 双 Tab） =======================
+ * 整合原「本域申请状态汇总」与「效果回收」两个页面为单一工作台，用 Tab 区分：
+ *   Tab①「本域申请状态」：申请单状态汇总 KPI + Triton 审批深链入口 + 申请明细表（可筛选）
+ *   Tab②「效果回收」：收益汇总 KPI + 本域消费收益明细表（消费方手工录入镜像）
+ * 0908 结论：审批动作全部在 Triton 完成；调用量 / 离线表热度 / PSM 汇总均降为 P1。
+ * 可见范围按来源域管理员组判定，仅本域、经门户提交的记录。
+ * ==================================================================================== */
+let apFilter={st:"",lvl:""};
+let wbTab="status"; // status | harvest
+function switchWbTab(t){ wbTab=t; viewWorkbench(el("main")); }
+function viewWorkbench(c){
+  let html=pageHead("供给方工作台");
+  html+=`<div class="tab-bar">
+    <div class="tab${wbTab==="status"?" active":""}" style="font-size:15px;padding:12px 20px" onclick="switchWbTab('status')">📋 本域申请状态</div>
+    <div class="tab${wbTab==="harvest"?" active":""}" style="font-size:15px;padding:12px 20px" onclick="switchWbTab('harvest')">💰 效果回收</div>
+  </div>`;
+  html+=`<div id="wbBody">${wbTab==="harvest"?wbHarvest():wbStatus()}</div>`;
+  c.innerHTML=html;
+}
+/* Tab① 本域申请状态：汇总数据（KPI）+ 明细（申请单列表） */
+function wbStatus(){
+  const inProg=APPROVALS.filter(a=>a.status==="审批中").length;
   const pass=APPROVALS.filter(a=>a.status==="已通过").length;
   const rej=APPROVALS.filter(a=>a.status==="已拒绝").length;
-  apSel.clear();
-  let html=pageHead("我的审批", "P5 · B3", null,
-    {c:"deliver",t:"交付"});
-  html+=`<div class="kpi-row">
-    <div class="kpi domain-kpi" onclick="toast('下钻到待审批列表')"><div class="kpi-label">⏳ 待审批</div><div class="kpi-value" style="color:var(--warn)">${pending.length}</div><div class="kpi-trend">名下资产</div></div>
-    <div class="kpi domain-kpi"><div class="kpi-label">✅ 已通过</div><div class="kpi-value" style="color:var(--ok)">${pass}</div><div class="kpi-trend">累计</div></div>
-    <div class="kpi domain-kpi"><div class="kpi-label">✕ 已拒绝</div><div class="kpi-value" style="color:var(--err)">${rej}</div><div class="kpi-trend">累计</div></div>
-    <div class="kpi"><div class="kpi-label">⚡ 跨域升档</div><div class="kpi-value">${pending.filter(a=>a.cross).length}</div><div class="kpi-trend">需就高审批</div></div>
+  let h=`<div class="kpi-row">
+    <div class="kpi domain-kpi" onclick="apFilter.st='审批中';switchWbTab('status')"><div class="kpi-label">⏳ 审批中</div><div class="kpi-value" style="color:var(--warn)">${inProg}</div><div class="kpi-trend">经门户提交</div></div>
+    <div class="kpi domain-kpi" onclick="apFilter.st='已通过';switchWbTab('status')"><div class="kpi-label">✅ 已通过</div><div class="kpi-value" style="color:var(--ok)">${pass}</div><div class="kpi-trend">Triton 同步</div></div>
+    <div class="kpi domain-kpi" onclick="apFilter.st='已拒绝';switchWbTab('status')"><div class="kpi-label">✕ 已拒绝</div><div class="kpi-value" style="color:var(--err)">${rej}</div><div class="kpi-trend">Triton 同步</div></div>
+    <div class="kpi"><div class="kpi-label">⚡ 跨域升档</div><div class="kpi-value">${APPROVALS.filter(a=>a.cross).length}</div><div class="kpi-trend">就高审批</div></div>
   </div>`;
-  html+=`<div class="card"><h3>待审批申请 <span class="badge">按提交时间倒序</span></h3>
-    <div id="apBar" style="margin-bottom:10px;display:none;padding:8px 12px;background:var(--p-light);border-radius:var(--r-sm);align-items:center;justify-content:space-between">
-      <span id="apSelTxt" style="font-size:12px;color:var(--p)"></span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-sm" onclick="batchApprove('通过')">批量通过</button>
-        <button class="btn btn-warn btn-sm" onclick="batchApprove('拒绝')">批量拒绝</button>
-      </div>
+  // Triton 审批入口
+  h+=`<div class="card">
+    <h3>待审批 / 历史审批入口</h3>
+    <div class="card-sub">门户仅提供路由入口，实际审批（通过 / 拒绝 / 补充）全部在 Triton 侧完成；返回后列表状态按同步周期刷新。</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" onclick="toast('新开页深链跳转 Triton 待审批列表')">去 Triton 审批 →</button>
+      <button class="btn btn-ghost" onclick="toast('新开页深链跳转 Triton 历史审批')">查看历史审批 →</button>
     </div>
-    <table><thead><tr><th style="width:36px"><input type="checkbox" onclick="toggleAllAp(this.checked)"></th><th>工单号</th><th>申请人</th><th>标签</th><th>分级</th><th>场景</th><th>提交时间</th><th>操作</th></tr></thead><tbody id="apBody"></tbody></table>
   </div>`;
-  // 历史
-  const hist=APPROVALS.filter(a=>a.status!=="待审批");
-  html+=`<div class="card" style="margin-top:14px"><h3>历史审批</h3><table><thead><tr><th>工单号</th><th>申请人</th><th>标签</th><th>分级</th><th>结果</th></tr></thead><tbody>${hist.map(a=>`
-    <tr><td><code style="font-size:11px">${a.id}</code></td><td>${a.applicant}</td><td>${a.tag}</td><td>${levelChip(a.level)}</td>
-    <td><span class="level ${a.status==="已通过"?"l1":"l4"}">${a.status}</span>${a.reject?`<div style="font-size:11px;color:var(--mute)">${a.reject}</div>`:""}</td></tr>`).join("")}</tbody></table></div>`;
-  c.innerHTML=html;
-  renderApBody();
-}
-function renderApBody(){
-  const body=el("apBody"); if(!body) return;
-  const pending=APPROVALS.filter(a=>a.status==="待审批");
-  if(!pending.length){ body.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="em-ic">✅</div>暂无待审批</div></td></tr>`; updateApBar(); return; }
-  body.innerHTML=pending.map(a=>`
-    <tr>
-      <td><input type="checkbox" ${apSel.has(a.id)?"checked":""} onclick="toggleAp('${a.id}',this.checked)"></td>
+  // 申请明细
+  const list=APPROVALS.filter(a=>(!apFilter.st||a.status===apFilter.st)&&(!apFilter.lvl||a.level===apFilter.lvl));
+  h+=`<div class="card" style="margin-top:14px"><h3>申请状态明细</h3>
+    <div class="search-bar">
+      <select onchange="apFilter.st=this.value;switchWbTab('status')"><option value="">全部状态</option>${["审批中","已通过","已拒绝"].map(s=>`<option${apFilter.st===s?" selected":""}>${s}</option>`).join("")}</select>
+      <select onchange="apFilter.lvl=this.value;switchWbTab('status')"><option value="">全部分级</option>${LEVEL_KEYS.map(l=>`<option${apFilter.lvl===l?" selected":""}>${l}</option>`).join("")}</select>
+      ${(apFilter.st||apFilter.lvl)?`<button class="btn btn-ghost btn-sm" onclick="apFilter={st:'',lvl:''};switchWbTab('status')">清空筛选</button>`:""}
+    </div>
+    <table><thead><tr><th>申请单号</th><th>申请人</th><th>标签（可多个）</th><th>分级</th><th>场景</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead><tbody>`;
+  if(!list.length){ h+=`<tr><td colspan="8"><div class="empty"><div class="em-ic">🗂️</div>暂无申请</div></td></tr>`; }
+  else h+=list.map(a=>{
+    const tags=a.tags||[a.tag];
+    const tagShow = tags.length>1 ? `${tags[0]} <span class="pill" title="${tags.join(' / ')}">+${tags.length-1}</span>` : tags[0];
+    const stCls = a.status==="已通过"?"l1":(a.status==="已拒绝"?"l4":"l2");
+    return `<tr>
       <td><code style="font-size:11px">${a.id}</code></td>
       <td>${a.applicant}</td>
-      <td>${a.tag}${a.cross?` <span class="cross-badge" title="${a.up||"跨域升档"}">⚡ ${a.up||"跨域"}</span>`:""}</td>
+      <td>${tagShow}${a.cross?` <span class="cross-badge" title="${a.up||"跨域升档"}">⚡ ${a.up||"跨域"}</span>`:""}</td>
       <td>${levelChip(a.level)}</td>
       <td>${a.scene}</td>
       <td style="font-size:12px">${a.at}</td>
-      <td style="display:flex;gap:6px">
-        <button class="btn btn-sm" onclick="oneApprove('${a.id}','通过')">通过</button>
-        <button class="btn btn-warn btn-sm" onclick="oneApprove('${a.id}','拒绝')">拒绝</button>
-        <button class="btn btn-ghost btn-sm" onclick="toast('新开页深链跳转 Triton 工单页处理')">Triton →</button>
-      </td>
-    </tr>`).join("");
-  updateApBar();
+      <td><span class="level ${stCls}">${a.status}</span>${a.reject?`<div style="font-size:11px;color:var(--mute)">${a.reject}</div>`:""}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="toast('新开页深链跳转 Triton 工单详情')">在 Triton 查看 →</button></td>
+    </tr>`;}).join("");
+  h+=`</tbody></table></div>`;
+  return h;
 }
-function toggleAp(id,ck){ ck?apSel.add(id):apSel.delete(id); updateApBar(); }
-function toggleAllAp(ck){ APPROVALS.filter(a=>a.status==="待审批").forEach(a=>ck?apSel.add(a.id):apSel.delete(a.id)); renderApBody(); }
-function updateApBar(){ const bar=el("apBar"); if(!bar) return; if(apSel.size){ bar.style.display="flex"; el("apSelTxt").textContent=`已选 ${apSel.size} 条申请`; } else bar.style.display="none"; }
-function oneApprove(id,act){
-  if(act==="拒绝"){ const r=prompt("请填写拒绝原因（Triton 工单必填）："); if(r===null) return; setApResult([id],"已拒绝",r); }
-  else setApResult([id],"已通过");
-}
-function batchApprove(act){
-  if(!apSel.size){ toast("请先勾选申请"); return; }
-  const ids=[...apSel];
-  if(act==="拒绝"){ const r=prompt(`批量拒绝 ${ids.length} 条，请填写原因：`); if(r===null) return; setApResult(ids,"已拒绝",r); }
-  else { if(!confirm(`确认批量通过 ${ids.length} 条申请？结果将回写 Triton 工单。`)) return; setApResult(ids,"已通过"); }
-  apSel.clear();
-}
-function setApResult(ids,status,reason){
-  ids.forEach(id=>{ const a=APPROVALS.find(x=>x.id===id); if(a){ a.status=status; if(reason) a.reject=reason; pushAudit(`审批${status==="已通过"?"通过":"拒绝"}：${a.tag}（${a.applicant}）`, a.level); }});
-  toast(`✓ ${ids.length} 条申请已${status.replace("已","")}，结果回写 Triton 工单，列表已刷新`);
-  viewApproval(el("main"));
-}
-
-/* ======================= P6 效果回收（B4 · 降级） ======================= */
-function viewHarvest(c){
-  let html=pageHead("效果回收", "P6 · B4", null,
-    {c:"degrade",t:"降级交付"});
-  const applyCnt=APPROVALS.length, pass=APPROVALS.filter(a=>a.status==="已通过").length, rej=APPROVALS.filter(a=>a.status==="已拒绝").length, pend=APPROVALS.filter(a=>a.status==="待审批").length;
-  html+=`<div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">📥 名下资产申请数</div><div class="kpi-value">${applyCnt}</div><div class="kpi-trend up">门户自有数据 · 确定可得</div></div>
-    <div class="kpi"><div class="kpi-label">✅ 已通过</div><div class="kpi-value">${pass}</div><div class="kpi-trend">—</div></div>
-    <div class="kpi"><div class="kpi-label">⏳ 待审批</div><div class="kpi-value">${pend}</div><div class="kpi-trend">—</div></div>
-    <div class="kpi"><div class="kpi-label">✕ 已拒绝</div><div class="kpi-value">${rej}</div><div class="kpi-trend">—</div></div>
+/* Tab② 效果回收：收益汇总数据（KPI）+ 收益明细（消费方录入镜像） */
+function wbHarvest(){
+  const assetSet=new Set(); HARVEST.income.forEach(i=>(i.assets||[i.tag]).forEach(a=>assetSet.add(a)));
+  const sceneSet=new Set(HARVEST.income.map(i=>i.scene));
+  let h=`<div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">💰 收益记录数</div><div class="kpi-value">${HARVEST.income.length}</div><div class="kpi-trend up">消费方手工录入 · 确定可得</div></div>
+    <div class="kpi"><div class="kpi-label">🏷️ 涉及资产数</div><div class="kpi-value">${assetSet.size}</div><div class="kpi-trend">去重统计</div></div>
+    <div class="kpi"><div class="kpi-label">🎯 覆盖场景数</div><div class="kpi-value">${sceneSet.size}</div><div class="kpi-trend">${[...sceneSet].join(" / ")||"—"}</div></div>
+    <div class="kpi"><div class="kpi-label">📄 佐证文档</div><div class="kpi-value">${HARVEST.income.filter(i=>i.docUrl).length}</div><div class="kpi-trend">飞书 Doc 链接</div></div>
   </div>`;
-  html+=`<div class="grid" style="grid-template-columns:1.2fr .8fr">
-    <div class="card">
-      <h3>名下资产申请概览 <span class="db deliver">交付</span></h3>
-      <div class="card-sub">谁申请了我的资源：申请人 / 标签 / 分级 / 场景 / 审批结果（门户自有数据）</div>
-      <table><thead><tr><th>申请人</th><th>标签</th><th>分级</th><th>场景</th><th>结果</th></tr></thead><tbody>${APPROVALS.map(a=>`
-        <tr><td>${a.applicant}</td><td>${a.tag}</td><td>${levelChip(a.level)}</td><td>${a.scene}</td>
-        <td><span class="level ${a.status==="已通过"?"l1":(a.status==="已拒绝"?"l4":"l2")}">${a.status}</span></td></tr>`).join("")}</tbody></table>
-    </div>
-    <div class="card">
-      <h3>调用方 PSM 汇总 <span class="db degrade">降级</span></h3>
-      <div class="card-sub">系统间调用：调用方 PSM + 调用次数（口径待调研）</div>
-      <div id="psmChart" class="chart-sm"></div>
-    </div>
+  h+=`<div class="card">
+    <h3>本域消费收益明细</h3>
+    <div class="card-sub">镜像消费方录入的消费场景、收益说明与佐证飞书文档；一条记录可关联多个标签。</div>
+    <table><thead><tr><th>数据资产（可多个）</th><th>场景</th><th>收益说明</th><th>佐证飞书文档</th><th>录入人</th><th>录入时间</th></tr></thead><tbody id="incomeBody">${HARVEST.income.map(i=>`
+      <tr><td>${(i.assets||[i.tag]).map(a=>`<span class="pill" style="margin:1px 2px">${a}</span>`).join("")}</td><td>${i.scene}</td><td>${i.income}</td>
+      <td>${i.docUrl?`<a href="${i.docUrl}" target="_blank" class="pill" style="text-decoration:none">📄 ${i.doc}</a>`:`<span class="pill">${i.doc}</span>`}</td>
+      <td style="font-size:12px;color:var(--mute)">${i.by||"—"}</td>
+      <td style="font-size:12px;color:var(--mute)">${i.at||"—"}</td></tr>`).join("")}</tbody></table>
   </div>`;
-  html+=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
-    <div class="card">
-      <h3>离线表热度 <span class="db degrade">降级</span></h3>
-      <div class="card-sub">⚠️ 表级口径，非标签级（标签→表为多对一）</div>
-      <table><thead><tr><th>上游 Hive 表</th><th>热度值</th><th>统计周期</th></tr></thead><tbody>${HARVEST.hive.map(h=>`
-        <tr><td><code style="font-size:11px">${h.table}</code></td><td>${h.heat.toLocaleString()}</td><td>${h.period}</td></tr>`).join("")}</tbody></table>
-    </div>
-    <div class="card">
-      <h3>消费与收益查看 <span class="db deliver">交付 · 只读</span></h3>
-      <div class="card-sub">镜像消费方录入的消费场景、收益说明与佐证飞书文档（供给方只读，无自动回流，P1）</div>
-      <table><thead><tr><th>数据资产</th><th>场景</th><th>收益说明</th><th>佐证飞书文档</th><th>录入人</th></tr></thead><tbody id="incomeBody">${HARVEST.income.map(i=>`
-        <tr><td>${(i.assets||[i.tag]).map(a=>`<span class="pill" style="margin:1px 2px">${a}</span>`).join("")}</td><td>${i.scene}</td><td>${i.income}</td>
-        <td>${i.docUrl?`<a href="${i.docUrl}" target="_blank" class="pill" style="text-decoration:none">📄 ${i.doc}</a>`:`<span class="pill">${i.doc}</span>`}</td>
-        <td style="font-size:12px;color:var(--mute)">${i.by||"—"}</td></tr>`).join("")}</tbody></table>
-    </div>
-  </div>`;
-  c.innerHTML=html;
-  setTimeout(()=>{
-    const dom=el("psmChart"); if(!dom||typeof echarts==="undefined") return;
-    echarts.init(dom).setOption({
-      tooltip:{trigger:"axis",axisPointer:{type:"shadow"}},
-      grid:{left:"3%",right:"6%",bottom:"3%",top:10,containLabel:true},
-      xAxis:{type:"value"},
-      yAxis:{type:"category",data:HARVEST.psm.map(p=>p.psm.split(".").slice(-1)[0]).reverse()},
-      series:[{type:"bar",data:HARVEST.psm.map(p=>p.calls).reverse(),barWidth:16,itemStyle:{borderRadius:[0,4,4,0]},
-        label:{show:true,position:"right",formatter:p=>p.value.toLocaleString(),color:"#86909C",fontSize:10}}]
-    });
-  },60);
+  return h;
 }
 /* ======================= 消费与收益录入（消费方，镜像至供给方查看） ======================= */
 let incomeDoc=null; // 本次录入上传的飞书文档（仅一个）
@@ -1054,7 +1122,7 @@ function viewIncome(c){
   let html=pageHead("消费与收益录入",null,null,
     {c:"degrade",t:"降级交付"});
   // 录入表单
-  html+=`<div class="card"><h3>新增收益录入 <span class="badge">手工链路</span></h3>
+  html+=`<div class="card"><h3>新增收益录入</h3>
     <div class="card-sub">数据资产支持单选 / 多选；每次录入可上传 1 份飞书文档作为佐证。</div>
     <div class="form-grid">
       <div class="form-row">
@@ -1087,7 +1155,7 @@ function viewIncome(c){
     </div>
   </div>`;
   // 我的录入记录
-  html+=`<div class="card" style="margin-top:14px"><h3>我的收益录入记录 <span class="badge">镜像同步供给方</span></h3>
+  html+=`<div class="card" style="margin-top:14px"><h3>我的收益录入记录</h3>
     <table><thead><tr><th>数据资产</th><th>场景</th><th>收益说明</th><th>佐证飞书文档</th><th>录入时间</th></tr></thead><tbody id="incomeListBody">${renderIncomeRows()}</tbody></table>
   </div>`;
   c.innerHTML=html;
@@ -1122,107 +1190,52 @@ function saveIncome(){
   viewIncome(el("main"));
 }
 
-/* ======================= 分级与跨域配置（合并页 · 整体下拉框配置 · P1） ======================= */
-// 下拉选项集（路由配置项整体改用下拉框）
-const CFG_OPTS = {
-  approve:["免审批 · 自助订阅","自助申请 + 留痕","来源方 Owner 审批","来源方合规流程"],
-  approver:["—","平台自动通过","标签 Owner / 团队","跳转来源方审批系统 + 法务加签"],
-  valid:["永久（默认 180 天）","180 天","90 天","30 天"]
-};
-function cfgSelect(l,f){
-  const cur=LEVELS[l][f];
-  const opts=CFG_OPTS[f].slice();
-  if(!opts.includes(cur)) opts.unshift(cur); // 兜底：保留当前值
-  return `<select class="cfg-select rt-sel" data-lvl="${l}" data-f="${f}">${opts.map(o=>`<option${o===cur?" selected":""}>${o}</option>`).join("")}</select>`;
-}
-let crossDemo={consumer:"电商", tag:"生服"};
+/* ======================= 配置中心（占位 · P1） =======================
+ * 分级审批路由 / 跨域升档规则等配置能力规划中，本期仅展示占位。
+ * ==================================================================== */
 function viewCfg(c){
-  const editable=canConfig();
-  const roBadge=`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`;
-  let html=pageHead("分级与跨域配置",null,null,
-    {c:"p1",t:"P1"});
-
-  // ① 分级审批路由配置（下拉框）
-  html+=`<div class="card">
-    <h3>① 分级 → 审批路由配置 ${editable?`<span class="badge">可配置</span>`:roBadge}</h3>
-    <div class="card-sub">${editable?"审批方式 / 审批人 / 有效期均通过下拉框选择，保存后同步影响消费方申请时的路由展示与审批链路。":"当前视角为消费方，仅可查看路由策略，不能修改。"}</div>
-    <table><thead><tr><th style="width:120px">统一分级</th><th>审批方式</th><th>审批人 / 加签</th><th style="width:170px">默认有效期</th></tr></thead><tbody>
-    ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
-      return `<tr><td>${levelChip(l)}</td>
-        <td>${editable?cfgSelect(l,"approve"):m.approve}</td>
-        <td>${editable?cfgSelect(l,"approver"):m.approver}</td>
-        <td>${editable?cfgSelect(l,"valid"):m.valid}</td></tr>`;}).join("")}
-    </tbody></table>
-  </div>`;
-
-  // ② 跨域升级判断配置（下拉框）
-  html+=`<div class="card" style="margin-top:14px">
-    <h3>② 跨域升级判断配置 ${editable?`<span class="badge">可配置</span>`:roBadge}</h3>
-    <div class="card-sub">${editable?"下拉设定各原分级在跨域调用时「就高定级」到的目标分级；升档目标不得低于原分级。保存后即时驱动升档模拟与申请路由。":"当前视角为消费方，仅可查看升档规则，不能修改。"}</div>
-    <table><thead><tr><th style="width:130px">原分级</th><th style="width:200px">跨域升档到</th><th>同域路由</th><th>跨域后审批</th></tr></thead><tbody>
-    ${LEVEL_KEYS.map(l=>{const eff=upgrade(l);
-      const opts=LEVEL_KEYS.filter(t=>LORDER[t]>=LORDER[l]); // 升档目标不得低于原分级
-      return `<tr><td>${levelChip(l)}</td>
-        <td>${editable?`<select class="cfg-select cross-sel" data-lvl="${l}">${opts.map(t=>`<option${t===eff?" selected":""}>${t}</option>`).join("")}</select>`
-          :(eff!==l?levelChip(eff)+' <span class="cross-badge">⚡升档</span>':'<span style="color:var(--mute)">不变</span>')}</td>
-        <td>${LEVELS[l].approve}</td><td>${LEVELS[eff].approve}</td></tr>`;}).join("")}
-    </tbody></table>
-    ${editable?`<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-      <button class="btn" onclick="saveCfg()">保存配置</button>
-      <button class="btn btn-ghost" onclick="viewCfg(el('main'))">重置未保存改动</button>
-      <span style="font-size:12px;color:var(--mute)">保存将同时提交上方两类配置</span>
-    </div>`:``}
-  </div>`;
-
-  // 跨域升档模拟器（实时预览）
-  html+=`<div class="card" style="margin-top:14px"><h3>跨域升档模拟器 <span class="badge">随配置实时预览</span></h3>
-    <div class="card-sub">跨域判断标准：由实际消费方发起，比对消费方业务线与标签业务线是否一致</div>
-    <div class="search-bar">
-      <select onchange="crossDemo.consumer=this.value;renderCrossResult()"><option${crossDemo.consumer==="电商"?" selected":""}>电商</option><option${crossDemo.consumer==="生服"?" selected":""}>生服</option></select>
-      <span style="align-self:center;color:var(--mute)">消费方所属域　vs　标签供给域</span>
-      <select onchange="crossDemo.tag=this.value;renderCrossResult()"><option${crossDemo.tag==="电商"?" selected":""}>电商</option><option${crossDemo.tag==="生服"?" selected":""}>生服</option></select>
+  let html=pageHead("配置中心");
+  html+=`<div class="card" style="text-align:center;padding:56px 24px">
+    <div style="font-size:40px;line-height:1">⚙️</div>
+    <h3 style="justify-content:center;margin-top:14px">配置中心 · 规划中</h3>
+    <div class="card-sub" style="max-width:520px;margin:8px auto 0">
+      分级 → 审批路由配置、跨域升档规则、白名单范围等平台配置能力将在后续版本开放，本期仅展示入口占位。
     </div>
-    <div id="crossResult"></div>
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <span class="pill">分级审批路由</span>
+      <span class="pill">跨域升档规则</span>
+      <span class="pill">白名单范围</span>
+    </div>
   </div>`;
   c.innerHTML=html;
-  renderCrossResult();
 }
-function saveCfg(){
-  // ① 路由配置（下拉）
-  document.querySelectorAll(".rt-sel").forEach(sel=>{
-    const l=sel.dataset.lvl, f=sel.dataset.f;
-    if(l&&f&&LEVELS[l]) LEVELS[l][f]=sel.value;
-  });
-  // ② 跨域升档配置（下拉，守卫：升档不得低于原级）
-  document.querySelectorAll(".cross-sel").forEach(sel=>{
-    const l=sel.dataset.lvl;
-    if(l&&LORDER[sel.value]>=LORDER[l]) CROSS_CFG[l]=sel.value;
-  });
-  pushAudit("更新分级与跨域配置");
-  toast("✓ 分级与跨域配置已保存并生效");
-  viewCfg(el("main"));
-}
-function renderCrossResult(){
-  const box=el("crossResult"); if(!box) return;
-  const cross=crossDemo.consumer!==crossDemo.tag;
-  const orig="受控"; const eff=cross?upgrade(orig):orig;
-  box.innerHTML=`<div class="route-box">
-    <div style="margin-bottom:8px">${cross?'<span class="cross-badge">⚡ 跨域</span> 消费方业务线 ≠ 标签业务线':'<span class="level l1">✓ 同域</span> 业务线一致'}</div>
-    <div class="flow">
-      <div class="flow-step done">原密级：${levelChip(orig)}</div>
-      <span class="flow-arrow">→</span>
-      ${cross?`<div class="flow-step active">就高定级：${eff}</div><span class="flow-arrow">→</span><div class="flow-step">审批：${LEVELS[eff].approve}</div>`
-        :`<div class="flow-step">保持：${LEVELS[orig].approve}</div>`}
+
+/* ======================= 资产接入（占位 · P1） =======================
+ * 人消费标签接入 / 系统间调用接入等资产上架能力规划中，本期仅展示占位。
+ * ==================================================================== */
+function viewAssetIn(c){
+  let html=pageHead("资产接入");
+  html+=`<div class="card" style="text-align:center;padding:56px 24px">
+    <div style="font-size:40px;line-height:1">📥</div>
+    <h3 style="justify-content:center;margin-top:14px">资产接入 · 规划中</h3>
+    <div class="card-sub" style="max-width:520px;margin:8px auto 0">
+      人消费标签接入（Hive 表 → Triton）、系统间调用接入（PSM → DMP / LDMP）、上架资产元数据登记与分级申报等能力将在后续版本开放，本期仅展示入口占位。
     </div>
-    ${cross?`<div class="alert warn" style="margin:10px 0 0">非 POC 白名单消费方对受控级 + 的跨域需求，须先经本域 POC 前置收口再进入审批。</div>`:""}
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <span class="pill">人消费标签接入</span>
+      <span class="pill">系统间调用接入</span>
+      <span class="pill">资产上架 SOP</span>
+    </div>
   </div>`;
+  c.innerHTML=html;
 }
+
 
 /* ======================= 平台 4.3 审计日志 ======================= */
 function viewAudit(c){
   let html=pageHead("审计日志", "4.3", null,
     {c:"deliver",t:"交付（门户侧动作）"});
-  html+=`<div class="card"><h3>审计记录 <span class="badge">保留 ≥ 180 天</span></h3>
+  html+=`<div class="card"><h3>审计记录</h3>
     <table><thead><tr><th>时间</th><th>操作人（who）</th><th>动作（what）</th><th>涉及分级</th><th>风险</th></tr></thead><tbody>
     ${AUDIT.map(a=>`<tr><td style="font-size:12px;font-family:'SF Mono',monospace">${a.time}</td><td>${a.who}</td><td>${a.what}</td>
       <td>${a.lvl==="—"?'<span style="color:var(--mute)">—</span>':levelChip(a.lvl)}</td>
