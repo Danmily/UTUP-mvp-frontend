@@ -240,6 +240,19 @@
   .cfg-input:focus,.cfg-select:focus{border-color:var(--p);background:#FFF;box-shadow:0 0 0 3px rgba(51,112,255,.12)}
   .cfg-select{cursor:pointer}
 
+  /* INCOME FORM (消费与收益录入) */
+  .form-grid{display:flex;flex-direction:column;gap:16px}
+  .form-row{display:flex;flex-direction:column;gap:8px}
+  .form-label{font-size:13px;font-weight:500;color:var(--text)}
+  .asset-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+  .asset-chk{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border:1px solid var(--line);
+    border-radius:var(--r-sm);cursor:pointer;font-size:13px;color:var(--text2);transition:all var(--t-fast)}
+  .asset-chk:hover{border-color:var(--p);background:var(--p-soft)}
+  .asset-chk input{accent-color:var(--p);width:15px;height:15px;cursor:pointer;flex:0 0 auto}
+  .asset-chk:has(input:checked){border-color:var(--p);background:var(--p-light);color:var(--text)}
+  .doc-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:var(--bg3);
+    border:1px dashed var(--line-strong);border-radius:var(--r-sm)}
+
   /* TAB */
   .tab-bar{display:flex;border-bottom:1px solid var(--line);margin-bottom:14px;gap:4px;overflow-x:auto}
   .tab{padding:10px 16px;cursor:pointer;color:var(--mute);font-size:13px;border-bottom:2px solid transparent;
@@ -399,7 +412,8 @@ const NAV = {
   consumer:[
     {group:"消费方", items:[
       {key:"market", label:"标签广场"},
-      {key:"myperm", label:"我的申请 / 权限"}
+      {key:"myperm", label:"我的申请 / 权限"},
+      {key:"income", label:"消费与收益录入"}
     ]},
     {group:"占位入口", items:[
       {key:"dualq", label:"双 QI 看板", soon:true},
@@ -413,8 +427,7 @@ const NAV = {
     {group:"供给方", items:[
       {key:"approval", label:"我的审批"},
       {key:"harvest",  label:"效果回收"},
-      {key:"route",    label:"分级审批路由配置"},
-      {key:"cross",    label:"跨域升级判断配置"}
+      {key:"cfg",      label:"分级与跨域配置"}
     ]},
     {group:"占位入口", items:[
       {key:"onboard", label:"资产接入 SOP", soon:true}
@@ -426,13 +439,13 @@ const NAV = {
   platform:[
     {group:"消费方", items:[
       {key:"market", label:"标签广场"},
-      {key:"myperm", label:"我的申请 / 权限"}
+      {key:"myperm", label:"我的申请 / 权限"},
+      {key:"income", label:"消费与收益录入"}
     ]},
     {group:"供给方", items:[
       {key:"approval", label:"我的审批"},
       {key:"harvest",  label:"效果回收"},
-      {key:"route",    label:"分级审批路由配置"},
-      {key:"cross",    label:"跨域升级判断配置"}
+      {key:"cfg",      label:"分级与跨域配置"}
     ]},
     {group:"占位入口", items:[
       {key:"dualq",   label:"双 QI 看板", soon:true},
@@ -541,8 +554,8 @@ const HARVEST = {
     {table:"dwd_ecom_pay_order_di", heat:5210, period:"近 30 天"}
   ],
   income:[
-    {tag:"电商消费力分层", scene:"营销投放", income:"ROI +12%（618 大促）", doc:"链接：收益测算.docx", by:"陈昊"},
-    {tag:"品类偏好序列 Top10", scene:"推荐特征", income:"CTR +5.3%", doc:"链接：AB 报告.docx", by:"钱进"}
+    {assets:["电商消费力分层"], scene:"营销投放", income:"ROI +12%（618 大促）", doc:"收益测算-618大促.docx", docUrl:"https://bytedance.larkoffice.com/docx/demo618", by:"陈昊", at:"2026-09-05 10:20"},
+    {assets:["品类偏好序列 Top10","电商消费力分层"], scene:"推荐特征", income:"CTR +5.3%", doc:"AB实验报告-推荐特征.docx", docUrl:"https://bytedance.larkoffice.com/docx/demoAB", by:"钱进", at:"2026-09-03 16:40"}
   ]
 };
 
@@ -638,10 +651,10 @@ function switchNav(key){
   renderView(key);
 }
 function renderView(key){
-  const fns={ market:viewMarket, myperm:viewMyPerm, approval:viewApproval, harvest:viewHarvest,
-    route:viewRoute, cross:viewCross, audit:viewAudit };
-  const labels={ market:"标签广场", myperm:"我的申请 / 权限", approval:"我的审批",
-    harvest:"效果回收", route:"分级审批路由配置", cross:"跨域升级判断配置", audit:"审计日志" };
+  const fns={ market:viewMarket, myperm:viewMyPerm, income:viewIncome, approval:viewApproval, harvest:viewHarvest,
+    cfg:viewCfg, audit:viewAudit };
+  const labels={ market:"标签广场", myperm:"我的申请 / 权限", income:"消费与收益录入", approval:"我的审批",
+    harvest:"效果回收", cfg:"分级与跨域配置", audit:"审计日志" };
   el("bcLabel").textContent=labels[key]||key;
   (fns[key]||viewMarket)(el("main"));
 }
@@ -1025,11 +1038,12 @@ function viewHarvest(c){
         <tr><td><code style="font-size:11px">${h.table}</code></td><td>${h.heat.toLocaleString()}</td><td>${h.period}</td></tr>`).join("")}</tbody></table>
     </div>
     <div class="card">
-      <h3>消费与收益录入 <span class="db degrade">降级 · 手工</span></h3>
-      <div class="card-sub">手工录入消费场景、收益说明与佐证文档链接（无自动回流，P1）</div>
-      <table><thead><tr><th>标签</th><th>场景</th><th>收益说明</th><th>佐证</th></tr></thead><tbody id="incomeBody">${HARVEST.income.map(i=>`
-        <tr><td>${i.tag}</td><td>${i.scene}</td><td>${i.income}</td><td><span class="pill">${i.doc}</span></td></tr>`).join("")}</tbody></table>
-      <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="openIncomeForm()">+ 新增收益录入</button>
+      <h3>消费与收益查看 <span class="db deliver">交付 · 只读</span></h3>
+      <div class="card-sub">镜像消费方录入的消费场景、收益说明与佐证飞书文档（供给方只读，无自动回流，P1）</div>
+      <table><thead><tr><th>数据资产</th><th>场景</th><th>收益说明</th><th>佐证飞书文档</th><th>录入人</th></tr></thead><tbody id="incomeBody">${HARVEST.income.map(i=>`
+        <tr><td>${(i.assets||[i.tag]).map(a=>`<span class="pill" style="margin:1px 2px">${a}</span>`).join("")}</td><td>${i.scene}</td><td>${i.income}</td>
+        <td>${i.docUrl?`<a href="${i.docUrl}" target="_blank" class="pill" style="text-decoration:none">📄 ${i.doc}</a>`:`<span class="pill">${i.doc}</span>`}</td>
+        <td style="font-size:12px;color:var(--mute)">${i.by||"—"}</td></tr>`).join("")}</tbody></table>
     </div>
   </div>`;
   html+=`<div class="alert warn" style="margin-top:14px">❌ 本期门户不落地全链路调用留痕；调用明细（who-when-what）、标签级调用量 / QPS / 平均时效、调用方式分布、风险事件流水、AB 收益自动回流均不可得（P1）。</div>`;
@@ -1046,95 +1060,137 @@ function viewHarvest(c){
     });
   },60);
 }
-function openIncomeForm(){
-  openModal(`
-    <div class="modal-head"><div class="modal-title-name">新增消费与收益录入 <span class="db degrade">手工链路</span></div>
-    <button class="modal-close" onclick="closeModal()">✕</button></div>
-    <div class="modal-body">
-      <div class="meta-card">
-        <div class="meta-row"><div class="k">标签</div><div class="v"><select id="ifTag" class="pa-ta" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:6px">${TAGS.filter(t=>t.domain==="电商").map(t=>`<option>${t.name}</option>`).join("")}</select></div></div>
-        <div class="meta-row"><div class="k">消费场景</div><div class="v"><select id="ifScene" class="pa-ta" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:6px"><option>人群圈选</option><option>用户360</option><option>模型特征</option><option>营销投放</option><option>数据分析</option></select></div></div>
-        <div class="meta-row"><div class="k">收益说明</div><div class="v"><input id="ifIncome" class="pa-ta" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:6px" placeholder="如 ROI +12% / CTR +5%"/></div></div>
-        <div class="meta-row"><div class="k">佐证文档</div><div class="v"><input id="ifDoc" class="pa-ta" style="width:100%;padding:7px;border:1px solid var(--line);border-radius:6px" placeholder="收益测算 / AB 报告链接"/></div></div>
+/* ======================= 消费与收益录入（消费方，镜像至供给方查看） ======================= */
+let incomeDoc=null; // 本次录入上传的飞书文档（仅一个）
+function viewIncome(c){
+  incomeDoc=null;
+  const ecomTags=TAGS.filter(t=>t.domain==="电商");
+  let html=pageHead("消费与收益录入",null,
+    "消费方在此登记已授权数据资产的实际消费场景与收益，并上传一份飞书文档作为佐证。录入结果镜像同步至供给方「效果回收 · 消费与收益查看」（只读）。本期为手工链路，无自动回流（P1）。",
+    {c:"degrade",t:"降级交付"});
+  // 录入表单
+  html+=`<div class="card"><h3>新增收益录入 <span class="badge">手工链路</span></h3>
+    <div class="card-sub">数据资产支持单选 / 多选；每次录入可上传 1 份飞书文档作为佐证。</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <div class="form-label">数据资产 <span style="color:var(--mute);font-weight:400">（单选 / 多选）</span></div>
+        <div class="asset-picker" id="assetPicker">
+          ${ecomTags.map(t=>`<label class="asset-chk"><input type="checkbox" class="if-asset" value="${t.name}"><span>${t.name} ${levelChip(t.level)}</span></label>`).join("")}
+        </div>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="form-label">消费场景</div>
+          <select id="ifScene" class="cfg-select"><option>人群圈选</option><option>用户360</option><option>模型特征</option><option>营销投放</option><option>数据分析</option></select></div>
+        <div><div class="form-label">收益说明</div>
+          <input id="ifIncome" class="cfg-input" placeholder="如 ROI +12% / CTR +5.3%"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">佐证飞书文档 <span style="color:var(--mute);font-weight:400">（仅可上传 1 份）</span></div>
+        <div class="doc-upload">
+          <input type="file" id="ifDocFile" accept=".doc,.docx,.pdf" style="display:none" onchange="onIncomeDocPick(this)"/>
+          <button class="btn btn-ghost btn-sm" onclick="el('ifDocFile').click()">📎 选择飞书文档</button>
+          <span id="ifDocName" style="font-size:12px;color:var(--mute)">未选择文档</span>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:var(--mute)">或粘贴链接：</span>
+          <input id="ifDocLink" class="cfg-input" style="max-width:280px" placeholder="https://bytedance.larkoffice.com/docx/..." oninput="onIncomeDocLink(this)"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button class="btn" onclick="saveIncome()">保存录入</button>
+        <button class="btn btn-ghost" onclick="viewIncome(el('main'))">重置</button>
       </div>
     </div>
-    <div class="modal-foot"><span style="font-size:11px;color:var(--mute)">按标签 / 场景归集，直接供效果回收看板消费</span>
-    <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="closeModal()">取消</button><button class="btn" onclick="saveIncome()">保存录入</button></div></div>`);
-}
-function saveIncome(){
-  const tag=el("ifTag").value, scene=el("ifScene").value, income=el("ifIncome").value||"（未填写）", doc=el("ifDoc").value||"（无佐证）";
-  HARVEST.income.unshift({tag, scene, income, doc:"链接："+doc, by:"user"});
-  pushAudit(`录入消费收益：${tag} · ${scene}`);
-  closeModal(); toast("✓ 收益录入已保存，看板已同步"); viewHarvest(el("main"));
-}
-
-/* ======================= 分级审批路由配置（4.1，供给方可配置） ======================= */
-function viewRoute(c){
-  const editable=canConfig();
-  let html=pageHead("分级审批路由配置",null,
-    "供给方在此维护「统一分级 → 审批链路」的路由策略：审批方式、审批人、有效期。规则由门户侧配置化维护、即时生效并驱动申请路由，不回写 Triton。一次请求含多分级标签时整体按最高级别路由，全程留痕。",
-    {c:"deliver",t:"交付"});
-  html+=`<div class="card">
-    <h3>分级 → 审批路由映射 ${editable?`<span class="badge">可配置</span>`:`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`}</h3>
-    <div class="card-sub">${editable?"修改后点击「保存配置」生效，将同步影响消费方申请时的路由展示与审批链路。":"当前视角为消费方，仅可查看路由策略，不能修改。"}</div>
-    <table><thead><tr><th style="width:120px">统一分级</th><th>审批方式</th><th>审批人 / 加签</th><th style="width:150px">默认有效期</th></tr></thead><tbody>
-    ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
-      return `<tr><td>${levelChip(l)}</td>
-        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="approve" value="${m.approve}">`:m.approve}</td>
-        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="approver" value="${m.approver}">`:m.approver}</td>
-        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="valid" value="${m.valid}">`:m.valid}</td></tr>`;}).join("")}
-    </tbody></table>
-    ${editable?`<div style="margin-top:14px;display:flex;gap:10px">
-      <button class="btn" onclick="saveRouteCfg()">保存配置</button>
-      <button class="btn btn-ghost" onclick="viewRoute(el('main'))">重置未保存改动</button>
-    </div>`:``}
   </div>`;
-  html+=`<div class="card" style="margin-top:14px"><h3>路由链路可视化 <span class="badge">随配置实时预览</span></h3>
-    <div style="display:flex;flex-direction:column;gap:14px">
-      ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
-        const steps = l==="开放"?["发起","免审批 · 留痕","授权"]
-          :l==="通用"?["发起","平台自动通过 · 留痕","授权"]
-          :l==="受控"?["发起","申请方 +1",`${m.approver} 审批`,"授权"]
-          :["发起","申请方 +2","Owner（UG 收口）","法务 + 合规加签","授权"];
-        return `<div><div style="font-size:12px;color:var(--mute);margin-bottom:6px">${levelChip(l)} · ${m.approve}</div>
-          <div class="flow">${steps.map((s,i)=>`<div class="flow-step ${i===0?"done":""}">${s}</div>${i<steps.length-1?'<span class="flow-arrow">→</span>':""}`).join("")}</div></div>`;
-      }).join("")}
-    </div></div>`;
+  // 我的录入记录
+  html+=`<div class="card" style="margin-top:14px"><h3>我的收益录入记录 <span class="badge">镜像同步供给方</span></h3>
+    <table><thead><tr><th>数据资产</th><th>场景</th><th>收益说明</th><th>佐证飞书文档</th><th>录入时间</th></tr></thead><tbody id="incomeListBody">${renderIncomeRows()}</tbody></table>
+  </div>`;
   c.innerHTML=html;
 }
-function saveRouteCfg(){
-  document.querySelectorAll(".cfg-input").forEach(inp=>{
-    const l=inp.dataset.lvl, f=inp.dataset.f;
-    if(l&&f&&LEVELS[l]) LEVELS[l][f]=inp.value.trim()||LEVELS[l][f];
-  });
-  pushAudit("更新分级审批路由配置");
-  toast("✓ 路由配置已保存并生效");
-  viewRoute(el("main"));
+function renderIncomeRows(){
+  return HARVEST.income.map(i=>`<tr>
+    <td>${(i.assets||[i.tag]).map(a=>`<span class="pill" style="margin:1px 2px">${a}</span>`).join("")}</td>
+    <td>${i.scene}</td><td>${i.income}</td>
+    <td>${i.docUrl?`<a href="${i.docUrl}" target="_blank" class="pill" style="text-decoration:none">📄 ${i.doc}</a>`:`<span class="pill">${i.doc}</span>`}</td>
+    <td style="font-size:12px;color:var(--mute)">${i.at||"—"}</td></tr>`).join("");
+}
+function onIncomeDocPick(input){
+  if(input.files&&input.files[0]){
+    incomeDoc={name:input.files[0].name, url:""};
+    el("ifDocName").textContent="已选择："+input.files[0].name;
+    el("ifDocLink").value="";
+  }
+}
+function onIncomeDocLink(input){
+  const v=input.value.trim();
+  if(v){ incomeDoc={name:v.split("/").pop()||"飞书文档", url:v}; el("ifDocName").textContent="已粘贴链接"; el("ifDocFile").value=""; }
+  else if(!el("ifDocFile").value){ incomeDoc=null; el("ifDocName").textContent="未选择文档"; }
+}
+function saveIncome(){
+  const assets=[...document.querySelectorAll(".if-asset:checked")].map(x=>x.value);
+  if(!assets.length){ toast("请至少选择 1 个数据资产"); return; }
+  if(!incomeDoc){ toast("请上传或粘贴 1 份飞书文档作为佐证"); return; }
+  const scene=el("ifScene").value, income=el("ifIncome").value.trim()||"（未填写）";
+  HARVEST.income.unshift({assets, scene, income, doc:incomeDoc.name, docUrl:incomeDoc.url, by:"user", at:new Date().toISOString().slice(0,16).replace("T"," ")});
+  pushAudit(`录入消费收益：${assets.join("、")} · ${scene}`);
+  toast("✓ 收益录入已保存，已镜像同步至供给方");
+  viewIncome(el("main"));
 }
 
-/* ======================= 跨域升级判断配置（4.2，供给方可配置） ======================= */
+/* ======================= 分级与跨域配置（合并页 · 整体下拉框配置 · P1） ======================= */
+// 下拉选项集（路由配置项整体改用下拉框）
+const CFG_OPTS = {
+  approve:["免审批 · 自助订阅","自助申请 + 留痕","来源方 Owner 审批","来源方合规流程"],
+  approver:["—","平台自动通过","标签 Owner / 团队","跳转来源方审批系统 + 法务加签"],
+  valid:["永久（默认 180 天）","180 天","90 天","30 天"]
+};
+function cfgSelect(l,f){
+  const cur=LEVELS[l][f];
+  const opts=CFG_OPTS[f].slice();
+  if(!opts.includes(cur)) opts.unshift(cur); // 兜底：保留当前值
+  return `<select class="cfg-select rt-sel" data-lvl="${l}" data-f="${f}">${opts.map(o=>`<option${o===cur?" selected":""}>${o}</option>`).join("")}</select>`;
+}
 let crossDemo={consumer:"电商", tag:"生服"};
-function viewCross(c){
+function viewCfg(c){
   const editable=canConfig();
-  let html=pageHead("跨域升级判断配置",null,
-    "供给方在此维护「跨域就高定级」策略：当消费方所属域 ≠ 标签供给域时，各原分级自动升档到的目标分级。同域按原密级路由；跨域调用密级自动升档、匹配更严审批，防止跨域绕过审批。非白名单对受控级+的跨域需求先经本域 POC 前置收口。",
-    {c:"deliver",t:"交付"});
+  const roBadge=`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`;
+  let html=pageHead("分级与跨域配置",null,
+    "供给方在此集中维护两类策略：①「统一分级 → 审批链路」路由（审批方式、审批人、有效期）；②「跨域就高定级」升档规则。所有配置项均以下拉框选择，保存后即时生效并驱动消费方申请路由与升档模拟，不回写 Triton。",
+    {c:"p1",t:"P1"});
+
+  // ① 分级审批路由配置（下拉框）
   html+=`<div class="card">
-    <h3>跨域升档规则配置 ${editable?`<span class="badge">可配置</span>`:`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`}</h3>
-    <div class="card-sub">${editable?"设定各原分级在跨域调用时「就高定级」到的目标分级；升档目标不得低于原分级。保存后即时驱动升档模拟与申请路由。":"当前视角为消费方，仅可查看升档规则，不能修改。"}</div>
+    <h3>① 分级 → 审批路由配置 ${editable?`<span class="badge">可配置</span>`:roBadge}</h3>
+    <div class="card-sub">${editable?"审批方式 / 审批人 / 有效期均通过下拉框选择，保存后同步影响消费方申请时的路由展示与审批链路。":"当前视角为消费方，仅可查看路由策略，不能修改。"}</div>
+    <table><thead><tr><th style="width:120px">统一分级</th><th>审批方式</th><th>审批人 / 加签</th><th style="width:170px">默认有效期</th></tr></thead><tbody>
+    ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
+      return `<tr><td>${levelChip(l)}</td>
+        <td>${editable?cfgSelect(l,"approve"):m.approve}</td>
+        <td>${editable?cfgSelect(l,"approver"):m.approver}</td>
+        <td>${editable?cfgSelect(l,"valid"):m.valid}</td></tr>`;}).join("")}
+    </tbody></table>
+  </div>`;
+
+  // ② 跨域升级判断配置（下拉框）
+  html+=`<div class="card" style="margin-top:14px">
+    <h3>② 跨域升级判断配置 ${editable?`<span class="badge">可配置</span>`:roBadge}</h3>
+    <div class="card-sub">${editable?"下拉设定各原分级在跨域调用时「就高定级」到的目标分级；升档目标不得低于原分级。保存后即时驱动升档模拟与申请路由。":"当前视角为消费方，仅可查看升档规则，不能修改。"}</div>
     <table><thead><tr><th style="width:130px">原分级</th><th style="width:200px">跨域升档到</th><th>同域路由</th><th>跨域后审批</th></tr></thead><tbody>
     ${LEVEL_KEYS.map(l=>{const eff=upgrade(l);
       const opts=LEVEL_KEYS.filter(t=>LORDER[t]>=LORDER[l]); // 升档目标不得低于原分级
       return `<tr><td>${levelChip(l)}</td>
-        <td>${editable?`<select class="cfg-select" data-lvl="${l}">${opts.map(t=>`<option${t===eff?" selected":""}>${t}</option>`).join("")}</select>`
+        <td>${editable?`<select class="cfg-select cross-sel" data-lvl="${l}">${opts.map(t=>`<option${t===eff?" selected":""}>${t}</option>`).join("")}</select>`
           :(eff!==l?levelChip(eff)+' <span class="cross-badge">⚡升档</span>':'<span style="color:var(--mute)">不变</span>')}</td>
         <td>${LEVELS[l].approve}</td><td>${LEVELS[eff].approve}</td></tr>`;}).join("")}
     </tbody></table>
-    ${editable?`<div style="margin-top:14px;display:flex;gap:10px">
-      <button class="btn" onclick="saveCrossCfg()">保存配置</button>
-      <button class="btn btn-ghost" onclick="viewCross(el('main'))">重置未保存改动</button>
+    ${editable?`<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+      <button class="btn" onclick="saveCfg()">保存配置</button>
+      <button class="btn btn-ghost" onclick="viewCfg(el('main'))">重置未保存改动</button>
+      <span style="font-size:12px;color:var(--mute)">保存将同时提交上方两类配置</span>
     </div>`:``}
   </div>`;
+
+  // 跨域升档模拟器（实时预览）
   html+=`<div class="card" style="margin-top:14px"><h3>跨域升档模拟器 <span class="badge">随配置实时预览</span></h3>
     <div class="card-sub">跨域判断标准：由实际消费方发起，比对消费方业务线与标签业务线是否一致</div>
     <div class="search-bar">
@@ -1147,14 +1203,20 @@ function viewCross(c){
   c.innerHTML=html;
   renderCrossResult();
 }
-function saveCrossCfg(){
-  document.querySelectorAll(".cfg-select").forEach(sel=>{
-    const l=sel.dataset.lvl;
-    if(l&&LORDER[sel.value]>=LORDER[l]) CROSS_CFG[l]=sel.value; // 守卫：升档不得低于原级
+function saveCfg(){
+  // ① 路由配置（下拉）
+  document.querySelectorAll(".rt-sel").forEach(sel=>{
+    const l=sel.dataset.lvl, f=sel.dataset.f;
+    if(l&&f&&LEVELS[l]) LEVELS[l][f]=sel.value;
   });
-  pushAudit("更新跨域升级判断配置");
-  toast("✓ 跨域升档规则已保存并生效");
-  viewCross(el("main"));
+  // ② 跨域升档配置（下拉，守卫：升档不得低于原级）
+  document.querySelectorAll(".cross-sel").forEach(sel=>{
+    const l=sel.dataset.lvl;
+    if(l&&LORDER[sel.value]>=LORDER[l]) CROSS_CFG[l]=sel.value;
+  });
+  pushAudit("更新分级与跨域配置");
+  toast("✓ 分级与跨域配置已保存并生效");
+  viewCfg(el("main"));
 }
 function renderCrossResult(){
   const box=el("crossResult"); if(!box) return;
