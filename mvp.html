@@ -674,12 +674,7 @@ function viewMarket(c){
       <div class="kpi-label">📦 ${s.d} · 标签总数</div>
       <div class="kpi-value">${s.n}<small> 个</small></div>
       <div class="kpi-trend">点击按来源域筛选</div>
-    </div>`).join("") + `
-    <div class="kpi">
-      <div class="kpi-label">🎫 我的可见范围</div>
-      <div class="kpi-value">${v.wl?"全量":"开放/通用"}</div>
-      <div class="kpi-trend">${v.wl?"POC 白名单成员":"非白名单 · 最小可见"}</div>
-    </div></div>`;
+    </div>`).join("") + `</div>`;
   html += `<div class="alert warn">⚠️ 概览指标本期降级：仅「标签总数」可得；调用量 / QPS / 平均时效 / 质量分无数据源（P1）。覆盖率取不到值时隐藏字段，不显示 0。</div>`;
   html += `<div class="card">
     <div class="search-bar">
