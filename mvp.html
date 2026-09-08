@@ -578,7 +578,7 @@ function openModal(html){ el("modalInner").innerHTML=html; el("modal").classList
 function pageHead(title,codes,desc,badge){
   return `<div class="page-head"><div>
     <div class="page-title">${title}${badge?` <span class="db ${badge.c}">${badge.t}</span>`:""}</div>
-    <div class="page-desc">${desc||""}</div></div></div>`;
+    ${desc?`<div class="page-desc">${desc}</div>`:""}</div></div>`;
 }
 function deliverBadge(t){ // 交付 / 降级交付 / P1
   if(t==="交付") return `<span class="db deliver">交付</span>`;
@@ -664,8 +664,7 @@ function viewMarket(c){
   const domains=[...new Set(TAGS.map(t=>t.src))];
   // 顶部统计卡片（仅"总数"可得，降级）
   const stat=domains.map(d=>({d, n:TAGS.filter(t=>t.src===d).length}));
-  let html = pageHead("标签广场", "P1 · A2",
-    "关键词搜索 + 四维筛选；可见范围随视角（职能 + 白名单）动态收敛，不可见标签不出现在列表（非置灰）。跨域标签标注「跨域将自动升档」。",
+  let html = pageHead("标签广场", "P1 · A2", null,
     {c:"deliver",t:"交付"});
   html += `<div class="kpi-row">` + stat.map(s=>`
     <div class="kpi domain-kpi" onclick="marketFilter.src='${s.d}';renderMarketList()">
@@ -673,7 +672,6 @@ function viewMarket(c){
       <div class="kpi-value">${s.n}<small> 个</small></div>
       <div class="kpi-trend">点击按来源域筛选</div>
     </div>`).join("") + `</div>`;
-  html += `<div class="alert warn">⚠️ 概览指标本期降级：仅「标签总数」可得；调用量 / QPS / 平均时效 / 质量分无数据源（P1）。覆盖率取不到值时隐藏字段，不显示 0。</div>`;
   html += `<div class="card">
     <div class="search-bar">
       <input id="mkQ" placeholder="🔍 搜索标签名 / 口径…" oninput="marketFilter.q=this.value;renderMarketList()" />
@@ -859,8 +857,7 @@ function viewMyPerm(c){
   const cntPending=MYPERM.filter(p=>p.status==="审批中").length;
   const cntSoon=MYPERM.filter(p=>p.status==="即将到期").length;
   const cntReject=MYPERM.filter(p=>p.status==="已拒绝").length;
-  let html=pageHead("我的申请 / 权限", "P4 · A6",
-    "按人聚合的只读镜像：回显工单状态与结果、有效期、到期提醒。审批节点 / 审批人字段本期拿不到（P1）；续期需外跳来源系统重新发起。",
+  let html=pageHead("我的申请 / 权限", "P4 · A6", null,
     {c:"degrade",t:"降级交付"});
   html+=`<div class="kpi-row">
     <div class="kpi"><div class="kpi-label">✅ 生效中</div><div class="kpi-value">${cntGranted}</div><div class="kpi-trend">按人聚合</div></div>
@@ -928,8 +925,7 @@ function viewApproval(c){
   const pass=APPROVALS.filter(a=>a.status==="已通过").length;
   const rej=APPROVALS.filter(a=>a.status==="已拒绝").length;
   apSel.clear();
-  let html=pageHead("我的审批", "P5 · B3",
-    "供给方 Owner 侧工作台：汇总名下资产待审批申请，支持批量通过 / 拒绝、深链跳转 Triton 处理、状态回显。门户不建单、不新增审批规则。",
+  let html=pageHead("我的审批", "P5 · B3", null,
     {c:"deliver",t:"交付"});
   html+=`<div class="kpi-row">
     <div class="kpi domain-kpi" onclick="toast('下钻到待审批列表')"><div class="kpi-label">⏳ 待审批</div><div class="kpi-value" style="color:var(--warn)">${pending.length}</div><div class="kpi-trend">名下资产</div></div>
@@ -937,7 +933,6 @@ function viewApproval(c){
     <div class="kpi domain-kpi"><div class="kpi-label">✕ 已拒绝</div><div class="kpi-value" style="color:var(--err)">${rej}</div><div class="kpi-trend">累计</div></div>
     <div class="kpi"><div class="kpi-label">⚡ 跨域升档</div><div class="kpi-value">${pending.filter(a=>a.cross).length}</div><div class="kpi-trend">需就高审批</div></div>
   </div>`;
-  html+=`<div class="alert info">🔗 保底提供状态与统计数（动线 B3）；审批节点与 SLA、续期 / 主动回收 / 冻结本期不出现（P1）。所有审批动作最终以 Triton 工单状态为准。</div>`;
   html+=`<div class="card"><h3>待审批申请 <span class="badge">按提交时间倒序</span></h3>
     <div id="apBar" style="margin-bottom:10px;display:none;padding:8px 12px;background:var(--p-light);border-radius:var(--r-sm);align-items:center;justify-content:space-between">
       <span id="apSelTxt" style="font-size:12px;color:var(--p)"></span>
@@ -999,8 +994,7 @@ function setApResult(ids,status,reason){
 
 /* ======================= P6 效果回收（B4 · 降级） ======================= */
 function viewHarvest(c){
-  let html=pageHead("效果回收", "P6 · B4",
-    "供给方 Owner 只读看板。本期降级交付：数据来自「门户自有申请数据」+「外部汇总接口（PSM / 表热度）」+「手工录入收益」；明细级调用、标签级 QPS 本期不可得（P1）。",
+  let html=pageHead("效果回收", "P6 · B4", null,
     {c:"degrade",t:"降级交付"});
   const applyCnt=APPROVALS.length, pass=APPROVALS.filter(a=>a.status==="已通过").length, rej=APPROVALS.filter(a=>a.status==="已拒绝").length, pend=APPROVALS.filter(a=>a.status==="待审批").length;
   html+=`<div class="kpi-row">
@@ -1039,7 +1033,6 @@ function viewHarvest(c){
         <td style="font-size:12px;color:var(--mute)">${i.by||"—"}</td></tr>`).join("")}</tbody></table>
     </div>
   </div>`;
-  html+=`<div class="alert warn" style="margin-top:14px">❌ 本期门户不落地全链路调用留痕；调用明细（who-when-what）、标签级调用量 / QPS / 平均时效、调用方式分布、风险事件流水、AB 收益自动回流均不可得（P1）。</div>`;
   c.innerHTML=html;
   setTimeout(()=>{
     const dom=el("psmChart"); if(!dom||typeof echarts==="undefined") return;
@@ -1058,8 +1051,7 @@ let incomeDoc=null; // 本次录入上传的飞书文档（仅一个）
 function viewIncome(c){
   incomeDoc=null;
   const ecomTags=TAGS.filter(t=>t.domain==="电商");
-  let html=pageHead("消费与收益录入",null,
-    "消费方在此登记已授权数据资产的实际消费场景与收益，并上传一份飞书文档作为佐证。录入结果镜像同步至供给方「效果回收 · 消费与收益查看」（只读）。本期为手工链路，无自动回流（P1）。",
+  let html=pageHead("消费与收益录入",null,null,
     {c:"degrade",t:"降级交付"});
   // 录入表单
   html+=`<div class="card"><h3>新增收益录入 <span class="badge">手工链路</span></h3>
@@ -1147,8 +1139,7 @@ let crossDemo={consumer:"电商", tag:"生服"};
 function viewCfg(c){
   const editable=canConfig();
   const roBadge=`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`;
-  let html=pageHead("分级与跨域配置",null,
-    "供给方在此集中维护两类策略：①「统一分级 → 审批链路」路由（审批方式、审批人、有效期）；②「跨域就高定级」升档规则。所有配置项均以下拉框选择，保存后即时生效并驱动消费方申请路由与升档模拟，不回写 Triton。",
+  let html=pageHead("分级与跨域配置",null,null,
     {c:"p1",t:"P1"});
 
   // ① 分级审批路由配置（下拉框）
@@ -1229,8 +1220,7 @@ function renderCrossResult(){
 
 /* ======================= 平台 4.3 审计日志 ======================= */
 function viewAudit(c){
-  let html=pageHead("审计日志", "4.3",
-    "门户侧动作全量留痕，记录 who-when-what（谁、何时、做了什么）；日志不可篡改，支持事后追溯与合规举证。本期为门户侧动作留痕；调用侧全链路留痕依赖源系统开放接口（P1）。",
+  let html=pageHead("审计日志", "4.3", null,
     {c:"deliver",t:"交付（门户侧动作）"});
   html+=`<div class="card"><h3>审计记录 <span class="badge">保留 ≥ 180 天</span></h3>
     <table><thead><tr><th>时间</th><th>操作人（who）</th><th>动作（what）</th><th>涉及分级</th><th>风险</th></tr></thead><tbody>
