@@ -232,6 +232,14 @@
     transition:border-color var(--t-fast),box-shadow var(--t-fast)}
   .search-bar input:focus,.search-bar select:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(51,112,255,.12)}
 
+  /* CONFIG FORM (可配置页表单控件) */
+  .cfg-input,.cfg-select{width:100%;padding:6px 10px;background:var(--bg3);border:1px solid var(--line);
+    border-radius:var(--r-sm);color:var(--text);font-size:13px;outline:none;
+    transition:border-color var(--t-fast),box-shadow var(--t-fast),background var(--t-fast)}
+  .cfg-input:hover,.cfg-select:hover{border-color:var(--line-strong)}
+  .cfg-input:focus,.cfg-select:focus{border-color:var(--p);background:#FFF;box-shadow:0 0 0 3px rgba(51,112,255,.12)}
+  .cfg-select{cursor:pointer}
+
   /* TAB */
   .tab-bar{display:flex;border-bottom:1px solid var(--line);margin-bottom:14px;gap:4px;overflow-x:auto}
   .tab{padding:10px 16px;cursor:pointer;color:var(--mute);font-size:13px;border-bottom:2px solid transparent;
@@ -386,56 +394,58 @@ const VIEWS = {
 let currentView = "consumer_ecom";
 function V(){ return VIEWS[currentView]; }
 
-/* ---------- 侧导（按 PRD 动线分组） ---------- */
+/* ---------- 侧导：统一四段顺序 消费方 / 供给方 / 占位入口 / 平台能力 ---------- */
 const NAV = {
   consumer:[
-    {group:"画像集市 · 消费动线", items:[
-      {key:"market", label:"标签广场", code:"A2"},
-      {key:"myperm", label:"我的申请 / 权限", code:"A6"}
+    {group:"消费方", items:[
+      {key:"market", label:"标签广场"},
+      {key:"myperm", label:"我的申请 / 权限"}
     ]},
-    {group:"嵌入看板", items:[
-      {key:"dualq", label:"双 QI 看板", code:"嵌入", soon:true},
-      {key:"llm",   label:"LLM 侧写标签", code:"嵌入", soon:true}
+    {group:"占位入口", items:[
+      {key:"dualq", label:"双 QI 看板", soon:true},
+      {key:"llm",   label:"LLM 侧写标签", soon:true}
     ]},
     {group:"平台能力", items:[
-      {key:"audit", label:"审计日志", code:"4.3"}
+      {key:"audit", label:"审计日志"}
     ]}
   ],
   supplier:[
-    {group:"供给方工作台", items:[
-      {key:"approval", label:"我的审批", code:"B3"},
-      {key:"harvest",  label:"效果回收", code:"B4"}
+    {group:"供给方", items:[
+      {key:"approval", label:"我的审批"},
+      {key:"harvest",  label:"效果回收"},
+      {key:"route",    label:"分级审批路由配置"},
+      {key:"cross",    label:"跨域升级判断配置"}
     ]},
-    {group:"资产接入", items:[
-      {key:"onboard", label:"资产接入 SOP", code:"B1", soon:true}
+    {group:"占位入口", items:[
+      {key:"onboard", label:"资产接入 SOP", soon:true}
     ]},
     {group:"平台能力", items:[
-      {key:"audit", label:"审计日志", code:"4.3"}
+      {key:"audit", label:"审计日志"}
     ]}
   ],
   platform:[
-    {group:"平台视角能力", items:[
-      {key:"route",  label:"分级审批路由", code:"4.1"},
-      {key:"cross",  label:"跨域升级判断", code:"4.2"},
-      {key:"audit",  label:"审计日志", code:"4.3"}
+    {group:"消费方", items:[
+      {key:"market", label:"标签广场"},
+      {key:"myperm", label:"我的申请 / 权限"}
     ]},
-    {group:"消费动线（全览）", items:[
-      {key:"market", label:"标签广场", code:"A2"},
-      {key:"myperm", label:"我的申请 / 权限", code:"A6"}
-    ]},
-    {group:"供给动线（全览）", items:[
-      {key:"approval", label:"我的审批", code:"B3"},
-      {key:"harvest",  label:"效果回收", code:"B4"}
+    {group:"供给方", items:[
+      {key:"approval", label:"我的审批"},
+      {key:"harvest",  label:"效果回收"},
+      {key:"route",    label:"分级审批路由配置"},
+      {key:"cross",    label:"跨域升级判断配置"}
     ]},
     {group:"占位入口", items:[
-      {key:"dualq",   label:"双 QI 看板", code:"嵌入", soon:true},
-      {key:"llm",     label:"LLM 侧写标签", code:"嵌入", soon:true},
-      {key:"onboard", label:"资产接入 SOP", code:"B1", soon:true}
+      {key:"dualq",   label:"双 QI 看板", soon:true},
+      {key:"llm",     label:"LLM 侧写标签", soon:true},
+      {key:"onboard", label:"资产接入 SOP", soon:true}
+    ]},
+    {group:"平台能力", items:[
+      {key:"audit", label:"审计日志"}
     ]}
   ]
 };
 
-/* ---------- 分级 → 审批路由（2.2 / 4.1） ---------- */
+/* ---------- 分级 → 审批路由（2.2 / 4.1）：供给方可配置 ---------- */
 const LEVELS = {
   "开放":{code:"L2", cls:"l2", approve:"免审批 · 自助订阅", approver:"—", valid:"永久（默认 180 天）"},
   "通用":{code:"L3-基础", cls:"l3", approve:"自助申请 + 留痕", approver:"平台自动通过", valid:"180 天"},
@@ -443,11 +453,12 @@ const LEVELS = {
   "高敏":{code:"L4", cls:"l4", approve:"来源方合规流程", approver:"跳转来源方审批系统 + 法务加签", valid:"30 天"}
 };
 const LORDER = {"开放":1,"通用":2,"受控":3,"高敏":4};
-function upgrade(l){ // 跨域就高定级：受控→高敏
-  if(l==="受控") return "高敏";
-  if(l==="通用") return "受控";
-  return l;
-}
+const LEVEL_KEYS = ["开放","通用","受控","高敏"];
+/* 跨域升档配置（4.2）：跨域调用时各原分级「就高定级」到的目标分级，供给方可配置 */
+let CROSS_CFG = {"开放":"开放","通用":"受控","受控":"高敏","高敏":"高敏"};
+function upgrade(l){ return CROSS_CFG[l]||l; } // 跨域就高定级，读配置
+/* 仅供给方 / 平台管理员可编辑配置页 */
+function canConfig(){ const r=V().role; return r==="supplier"||r==="platform"; }
 function levelChip(l){ const m=LEVELS[l]; return `<span class="level ${m.cls}">${l} · ${m.code}</span>`; }
 
 /* ---------- 申请路径（A4）：人消费标签→Triton / 系统间调用→DMP ---------- */
@@ -630,7 +641,7 @@ function renderView(key){
   const fns={ market:viewMarket, myperm:viewMyPerm, approval:viewApproval, harvest:viewHarvest,
     route:viewRoute, cross:viewCross, audit:viewAudit };
   const labels={ market:"标签广场", myperm:"我的申请 / 权限", approval:"我的审批",
-    harvest:"效果回收", route:"分级审批路由", cross:"跨域升级判断", audit:"审计日志" };
+    harvest:"效果回收", route:"分级审批路由配置", cross:"跨域升级判断配置", audit:"审计日志" };
   el("bcLabel").textContent=labels[key]||key;
   (fns[key]||viewMarket)(el("main"));
 }
@@ -1057,39 +1068,74 @@ function saveIncome(){
   closeModal(); toast("✓ 收益录入已保存，看板已同步"); viewHarvest(el("main"));
 }
 
-/* ======================= 平台 4.1 分级审批路由 ======================= */
+/* ======================= 分级审批路由配置（4.1，供给方可配置） ======================= */
 function viewRoute(c){
-  let html=pageHead("分级审批路由", "4.1",
-    "门户按标签分级自动路由到对应审批链路（策略配置化）；一次请求含多分级标签时整体按最高级别路由，全程留痕。审批规则由门户侧配置化维护，不回写 Triton。",
+  const editable=canConfig();
+  let html=pageHead("分级审批路由配置",null,
+    "供给方在此维护「统一分级 → 审批链路」的路由策略：审批方式、审批人、有效期。规则由门户侧配置化维护、即时生效并驱动申请路由，不回写 Triton。一次请求含多分级标签时整体按最高级别路由，全程留痕。",
     {c:"deliver",t:"交付"});
-  html+=`<div class="card"><h3>分级 → 审批路由映射</h3>
-    <table><thead><tr><th>统一分级</th><th>审批方式</th><th>审批人</th><th>有效期</th><th>跨域升级方案</th></tr></thead><tbody>
-    ${["开放","通用","受控","高敏"].map(l=>{const m=LEVELS[l];
-      const up=l==="开放"?"有效期降档（默认 180 天）":l==="通用"?"有效期降档（默认 90 天）":l==="受控"?"审批流准入升级：申请方 +1，升为高敏路由":"审批流准入升级：申请方 +2，法务 + 合规加签";
-      return `<tr><td>${levelChip(l)}</td><td>${m.approve}</td><td>${m.approver}</td><td>${m.valid}</td><td>${up}</td></tr>`;}).join("")}
+  html+=`<div class="card">
+    <h3>分级 → 审批路由映射 ${editable?`<span class="badge">可配置</span>`:`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`}</h3>
+    <div class="card-sub">${editable?"修改后点击「保存配置」生效，将同步影响消费方申请时的路由展示与审批链路。":"当前视角为消费方，仅可查看路由策略，不能修改。"}</div>
+    <table><thead><tr><th style="width:120px">统一分级</th><th>审批方式</th><th>审批人 / 加签</th><th style="width:150px">默认有效期</th></tr></thead><tbody>
+    ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
+      return `<tr><td>${levelChip(l)}</td>
+        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="approve" value="${m.approve}">`:m.approve}</td>
+        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="approver" value="${m.approver}">`:m.approver}</td>
+        <td>${editable?`<input class="cfg-input" data-lvl="${l}" data-f="valid" value="${m.valid}">`:m.valid}</td></tr>`;}).join("")}
     </tbody></table>
+    ${editable?`<div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn" onclick="saveRouteCfg()">保存配置</button>
+      <button class="btn btn-ghost" onclick="viewRoute(el('main'))">重置未保存改动</button>
+    </div>`:``}
   </div>`;
-  html+=`<div class="card" style="margin-top:14px"><h3>路由链路可视化</h3>
+  html+=`<div class="card" style="margin-top:14px"><h3>路由链路可视化 <span class="badge">随配置实时预览</span></h3>
     <div style="display:flex;flex-direction:column;gap:14px">
-      ${["开放","通用","受控","高敏"].map(l=>{
+      ${LEVEL_KEYS.map(l=>{const m=LEVELS[l];
         const steps = l==="开放"?["发起","免审批 · 留痕","授权"]
           :l==="通用"?["发起","平台自动通过 · 留痕","授权"]
-          :l==="受控"?["发起","申请方 +1","Owner 审批","授权"]
+          :l==="受控"?["发起","申请方 +1",`${m.approver} 审批`,"授权"]
           :["发起","申请方 +2","Owner（UG 收口）","法务 + 合规加签","授权"];
-        return `<div><div style="font-size:12px;color:var(--mute);margin-bottom:6px">${levelChip(l)}</div>
-          <div class="flow">${steps.map((s,i)=>`<div class="flow-step ${i===0?"done":(i===steps.length-1?"":"")}">${s}</div>${i<steps.length-1?'<span class="flow-arrow">→</span>':""}`).join("")}</div></div>`;
+        return `<div><div style="font-size:12px;color:var(--mute);margin-bottom:6px">${levelChip(l)} · ${m.approve}</div>
+          <div class="flow">${steps.map((s,i)=>`<div class="flow-step ${i===0?"done":""}">${s}</div>${i<steps.length-1?'<span class="flow-arrow">→</span>':""}`).join("")}</div></div>`;
       }).join("")}
     </div></div>`;
   c.innerHTML=html;
 }
+function saveRouteCfg(){
+  document.querySelectorAll(".cfg-input").forEach(inp=>{
+    const l=inp.dataset.lvl, f=inp.dataset.f;
+    if(l&&f&&LEVELS[l]) LEVELS[l][f]=inp.value.trim()||LEVELS[l][f];
+  });
+  pushAudit("更新分级审批路由配置");
+  toast("✓ 路由配置已保存并生效");
+  viewRoute(el("main"));
+}
 
-/* ======================= 平台 4.2 跨域升级判断 ======================= */
+/* ======================= 跨域升级判断配置（4.2，供给方可配置） ======================= */
 let crossDemo={consumer:"电商", tag:"生服"};
 function viewCross(c){
-  let html=pageHead("跨域升级判断", "4.2",
-    "申请时自动比对消费方所属域与标签供给域：同域按原密级路由；跨域调用密级自动升档、就高定级，匹配更严审批路由，防止跨域绕过审批。非白名单对受控级+的跨域需求先经本域 POC 前置收口。",
+  const editable=canConfig();
+  let html=pageHead("跨域升级判断配置",null,
+    "供给方在此维护「跨域就高定级」策略：当消费方所属域 ≠ 标签供给域时，各原分级自动升档到的目标分级。同域按原密级路由；跨域调用密级自动升档、匹配更严审批，防止跨域绕过审批。非白名单对受控级+的跨域需求先经本域 POC 前置收口。",
     {c:"deliver",t:"交付"});
-  html+=`<div class="card"><h3>跨域升档模拟器</h3>
+  html+=`<div class="card">
+    <h3>跨域升档规则配置 ${editable?`<span class="badge">可配置</span>`:`<span class="badge" style="background:var(--bg2);color:var(--mute)">只读 · 仅供给方 / 平台可配置</span>`}</h3>
+    <div class="card-sub">${editable?"设定各原分级在跨域调用时「就高定级」到的目标分级；升档目标不得低于原分级。保存后即时驱动升档模拟与申请路由。":"当前视角为消费方，仅可查看升档规则，不能修改。"}</div>
+    <table><thead><tr><th style="width:130px">原分级</th><th style="width:200px">跨域升档到</th><th>同域路由</th><th>跨域后审批</th></tr></thead><tbody>
+    ${LEVEL_KEYS.map(l=>{const eff=upgrade(l);
+      const opts=LEVEL_KEYS.filter(t=>LORDER[t]>=LORDER[l]); // 升档目标不得低于原分级
+      return `<tr><td>${levelChip(l)}</td>
+        <td>${editable?`<select class="cfg-select" data-lvl="${l}">${opts.map(t=>`<option${t===eff?" selected":""}>${t}</option>`).join("")}</select>`
+          :(eff!==l?levelChip(eff)+' <span class="cross-badge">⚡升档</span>':'<span style="color:var(--mute)">不变</span>')}</td>
+        <td>${LEVELS[l].approve}</td><td>${LEVELS[eff].approve}</td></tr>`;}).join("")}
+    </tbody></table>
+    ${editable?`<div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn" onclick="saveCrossCfg()">保存配置</button>
+      <button class="btn btn-ghost" onclick="viewCross(el('main'))">重置未保存改动</button>
+    </div>`:``}
+  </div>`;
+  html+=`<div class="card" style="margin-top:14px"><h3>跨域升档模拟器 <span class="badge">随配置实时预览</span></h3>
     <div class="card-sub">跨域判断标准：由实际消费方发起，比对消费方业务线与标签业务线是否一致</div>
     <div class="search-bar">
       <select onchange="crossDemo.consumer=this.value;renderCrossResult()"><option${crossDemo.consumer==="电商"?" selected":""}>电商</option><option${crossDemo.consumer==="生服"?" selected":""}>生服</option></select>
@@ -1098,13 +1144,17 @@ function viewCross(c){
     </div>
     <div id="crossResult"></div>
   </div>`;
-  html+=`<div class="card" style="margin-top:14px"><h3>升档规则表</h3>
-    <table><thead><tr><th>原分级</th><th>同域路由</th><th>跨域升档后</th><th>跨域后审批</th></tr></thead><tbody>
-    ${["开放","通用","受控","高敏"].map(l=>{const eff=upgrade(l);return `<tr><td>${levelChip(l)}</td><td>${LEVELS[l].approve}</td><td>${eff!==l?levelChip(eff)+' <span class="cross-badge">⚡升档</span>':'<span style="color:var(--mute)">不变</span>'}</td><td>${LEVELS[eff].approve}</td></tr>`;}).join("")}
-    </tbody></table>
-  </div>`;
   c.innerHTML=html;
   renderCrossResult();
+}
+function saveCrossCfg(){
+  document.querySelectorAll(".cfg-select").forEach(sel=>{
+    const l=sel.dataset.lvl;
+    if(l&&LORDER[sel.value]>=LORDER[l]) CROSS_CFG[l]=sel.value; // 守卫：升档不得低于原级
+  });
+  pushAudit("更新跨域升级判断配置");
+  toast("✓ 跨域升档规则已保存并生效");
+  viewCross(el("main"));
 }
 function renderCrossResult(){
   const box=el("crossResult"); if(!box) return;
