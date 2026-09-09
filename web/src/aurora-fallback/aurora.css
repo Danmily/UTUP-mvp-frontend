@@ -1,0 +1,285 @@
+/* ============================================================
+ * Aurora Design 4.0 — 本地同名组件库（fallback）样式
+ * 设计关键词：准确 · 易懂 · 高效 · 明亮简洁（扁平降噪、清晰字阶/层级）
+ * 通过 Design Token（CSS 变量）驱动，ConfigProvider 可切换主题。
+ * 真实内网环境安装 @ecom/aurora 后，本文件不参与打包（别名关闭）。
+ * ============================================================ */
+
+:root {
+  /* —— 品牌色 Seed —— */
+  --au-primary: #165dff;
+  --au-primary-hover: #4080ff;
+  --au-primary-active: #0e42d2;
+  --au-primary-light: #e8f3ff;
+  --au-primary-border: #bedaff;
+
+  /* —— 功能色 —— */
+  --au-success: #00b42a;
+  --au-success-light: #e8ffea;
+  --au-warning: #ff7d00;
+  --au-warning-light: #fff7e8;
+  --au-danger: #f53f3f;
+  --au-danger-light: #ffece8;
+  --au-info: #165dff;
+  --au-info-light: #e8f3ff;
+
+  /* —— 中性色（文字 / 填充 / 描边） —— */
+  --au-text-1: #1d2129;
+  --au-text-2: #4e5969;
+  --au-text-3: #86909c;
+  --au-text-4: #c9cdd4;
+  --au-border: #e5e6eb;
+  --au-border-2: #c9cdd4;
+  --au-fill-1: #f7f8fa;
+  --au-fill-2: #f2f3f5;
+  --au-fill-3: #e5e6eb;
+  --au-bg: #f2f3f5;
+  --au-bg-container: #ffffff;
+
+  /* —— 分级语义（数据密级） —— */
+  --au-l1: #00b42a; --au-l1-bg: #e8ffea;
+  --au-l2: #165dff; --au-l2-bg: #e8f3ff;
+  --au-l3: #ff7d00; --au-l3-bg: #fff7e8;
+  --au-l4: #f53f3f; --au-l4-bg: #ffece8;
+
+  /* —— 圆角 / 阴影 / 间距 —— */
+  --au-radius-sm: 4px;
+  --au-radius: 6px;
+  --au-radius-lg: 8px;
+  --au-shadow-1: 0 1px 4px rgba(29, 33, 41, 0.06);
+  --au-shadow-2: 0 4px 16px rgba(29, 33, 41, 0.08);
+  --au-shadow-3: 0 8px 32px rgba(29, 33, 41, 0.12);
+  --au-motion: cubic-bezier(0.34, 0.69, 0.1, 1);
+
+  --au-font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
+    'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+.au-root, .au-root body { font-family: var(--au-font); color: var(--au-text-1); }
+
+/* ---------------- Typography ---------------- */
+.au-typography { margin: 0; }
+.au-typography-h1 { font-size: 24px; font-weight: 600; line-height: 1.3; margin: 0; }
+.au-typography-h2 { font-size: 20px; font-weight: 600; line-height: 1.35; margin: 0; }
+.au-typography-h3 { font-size: 16px; font-weight: 600; line-height: 1.4; margin: 0; }
+.au-typography-h4 { font-size: 14px; font-weight: 600; line-height: 1.45; margin: 0; }
+.au-typography-text { font-size: 14px; color: var(--au-text-1); }
+.au-typography-text.secondary { color: var(--au-text-3); font-size: 13px; }
+.au-typography-link { color: var(--au-primary); cursor: pointer; text-decoration: none; }
+.au-typography-link:hover { color: var(--au-primary-hover); }
+.au-typography-paragraph { margin: 0 0 12px; font-size: 14px; line-height: 1.7; color: var(--au-text-2); }
+
+/* ---------------- Button ---------------- */
+.au-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 15px; height: 32px; font-size: 14px; line-height: 1;
+  border-radius: var(--au-radius); border: 1px solid transparent; cursor: pointer;
+  background: var(--au-bg-container); color: var(--au-text-1); white-space: nowrap;
+  transition: all 0.18s var(--au-motion); user-select: none; font-family: inherit;
+}
+.au-btn:focus-visible { outline: 2px solid var(--au-primary-border); outline-offset: 1px; }
+.au-btn-default { background: #fff; border-color: var(--au-border-2); color: var(--au-text-2); }
+.au-btn-default:hover { border-color: var(--au-primary); color: var(--au-primary); background: #fff; }
+.au-btn-primary { background: var(--au-primary); border-color: var(--au-primary); color: #fff; }
+.au-btn-primary:hover { background: var(--au-primary-hover); border-color: var(--au-primary-hover); }
+.au-btn-primary:active { background: var(--au-primary-active); }
+.au-btn-text { background: transparent; border-color: transparent; color: var(--au-primary); padding: 0 6px; }
+.au-btn-text:hover { background: var(--au-primary-light); }
+.au-btn-link { background: transparent; border-color: transparent; color: var(--au-primary); padding: 0 4px; height: auto; }
+.au-btn-link:hover { color: var(--au-primary-hover); }
+.au-btn-dashed { background: #fff; border: 1px dashed var(--au-border-2); color: var(--au-text-2); }
+.au-btn-dashed:hover { border-color: var(--au-primary); color: var(--au-primary); }
+.au-btn-lg { height: 38px; padding: 0 19px; font-size: 15px; }
+.au-btn-sm { height: 26px; padding: 0 11px; font-size: 13px; border-radius: var(--au-radius-sm); }
+.au-btn-danger.au-btn-primary { background: var(--au-danger); border-color: var(--au-danger); }
+.au-btn-danger.au-btn-default { border-color: var(--au-danger); color: var(--au-danger); }
+.au-btn-danger.au-btn-default:hover { background: var(--au-danger-light); }
+.au-btn[disabled] { cursor: not-allowed; opacity: 0.45; pointer-events: none; }
+.au-btn-block { width: 100%; }
+.au-btn-group { display: inline-flex; }
+.au-btn-group .au-btn { border-radius: 0; }
+.au-btn-group .au-btn:first-child { border-radius: var(--au-radius) 0 0 var(--au-radius); }
+.au-btn-group .au-btn:last-child { border-radius: 0 var(--au-radius) var(--au-radius) 0; }
+
+/* ---------------- Space / Grid / Divider ---------------- */
+.au-space { display: inline-flex; align-items: center; }
+.au-space-vertical { flex-direction: column; align-items: flex-start; }
+.au-space-block { display: flex; width: 100%; }
+.au-row { display: flex; flex-wrap: wrap; }
+.au-col { box-sizing: border-box; }
+.au-divider { border: none; border-top: 1px solid var(--au-border); margin: 16px 0; }
+.au-divider-vertical { display: inline-block; width: 1px; height: 12px; background: var(--au-border); margin: 0 10px; vertical-align: middle; border: none; }
+
+/* ---------------- Layout ---------------- */
+.au-layout { display: flex; flex-direction: column; min-height: 100vh; background: var(--au-bg); }
+.au-layout-has-sider { flex-direction: row; }
+.au-header { height: 56px; flex: 0 0 56px; background: #fff; border-bottom: 1px solid var(--au-border);
+  display: flex; align-items: center; padding: 0 20px; gap: 16px; position: sticky; top: 0; z-index: 20; }
+.au-sider { width: 232px; flex: 0 0 232px; background: #fff; border-right: 1px solid var(--au-border);
+  height: calc(100vh - 56px); position: sticky; top: 56px; overflow-y: auto; padding: 8px 0; }
+.au-content { flex: 1; padding: 20px; min-width: 0; }
+.au-footer { padding: 16px 20px; text-align: center; color: var(--au-text-3); font-size: 12px; }
+
+/* ---------------- Menu ---------------- */
+.au-menu { list-style: none; margin: 0; padding: 0; }
+.au-menu-item-group-title { padding: 12px 20px 4px; font-size: 11px; color: var(--au-text-3); letter-spacing: .5px; }
+.au-menu-item { margin: 2px 8px; padding: 8px 12px; display: flex; align-items: center; gap: 10px;
+  border-radius: var(--au-radius); font-size: 14px; color: var(--au-text-2); cursor: pointer;
+  transition: background .15s, color .15s; }
+.au-menu-item:hover { background: var(--au-fill-2); color: var(--au-text-1); }
+.au-menu-item-selected { background: var(--au-primary-light); color: var(--au-primary); font-weight: 500; }
+.au-menu-item-selected:hover { background: var(--au-primary-light); color: var(--au-primary); }
+.au-menu-item-disabled { color: var(--au-text-4); cursor: not-allowed; }
+.au-menu-item-disabled:hover { background: transparent; }
+
+/* ---------------- Tabs ---------------- */
+.au-tabs-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--au-border); margin-bottom: 16px; overflow-x: auto; }
+.au-tab { padding: 10px 16px; cursor: pointer; color: var(--au-text-3); font-size: 14px;
+  border-bottom: 2px solid transparent; white-space: nowrap; transition: color .15s; background: none; border-top: 0; border-left: 0; border-right: 0; }
+.au-tab:hover { color: var(--au-text-1); }
+.au-tab-active { color: var(--au-primary); border-bottom-color: var(--au-primary); font-weight: 500; }
+
+/* ---------------- Card ---------------- */
+.au-card { background: #fff; border: 1px solid var(--au-border); border-radius: var(--au-radius-lg);
+  box-shadow: var(--au-shadow-1); overflow: hidden; }
+.au-card-head { padding: 14px 18px; border-bottom: 1px solid var(--au-border); display: flex;
+  align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; }
+.au-card-head-title { font-size: 15px; font-weight: 600; color: var(--au-text-1); display: flex; align-items: center; gap: 8px; }
+.au-card-body { padding: 18px; }
+.au-card-grid { display: grid; gap: 14px; }
+
+/* ---------------- Table ---------------- */
+.au-table-wrapper { width: 100%; overflow-x: auto; border: 1px solid var(--au-border); border-radius: var(--au-radius-lg); background: #fff; }
+.au-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.au-table th { text-align: left; font-weight: 500; color: var(--au-text-2); background: var(--au-fill-1);
+  padding: 12px 14px; border-bottom: 1px solid var(--au-border); white-space: nowrap; }
+.au-table td { padding: 12px 14px; border-bottom: 1px solid var(--au-fill-2); color: var(--au-text-2); vertical-align: middle; }
+.au-table tbody tr:last-child td { border-bottom: none; }
+.au-table tbody tr { transition: background .15s; }
+.au-table tbody tr:hover { background: var(--au-fill-1); }
+.au-table-row-clickable { cursor: pointer; }
+
+/* ---------------- Tag / Badge ---------------- */
+.au-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--au-radius-sm);
+  font-size: 12px; line-height: 20px; background: var(--au-fill-2); color: var(--au-text-2); border: 1px solid transparent; white-space: nowrap; }
+.au-tag-primary { background: var(--au-primary-light); color: var(--au-primary); }
+.au-tag-success { background: var(--au-success-light); color: var(--au-success); }
+.au-tag-warning { background: var(--au-warning-light); color: var(--au-warning); }
+.au-tag-danger { background: var(--au-danger-light); color: var(--au-danger); }
+.au-tag-l1 { background: var(--au-l1-bg); color: var(--au-l1); }
+.au-tag-l2 { background: var(--au-l2-bg); color: var(--au-l2); }
+.au-tag-l3 { background: var(--au-l3-bg); color: var(--au-l3); }
+.au-tag-l4 { background: var(--au-l4-bg); color: var(--au-l4); }
+.au-badge { position: relative; display: inline-flex; }
+.au-badge-count { position: absolute; top: -6px; right: -10px; background: var(--au-danger); color: #fff;
+  border-radius: 10px; font-size: 11px; line-height: 16px; padding: 0 5px; min-width: 16px; text-align: center; }
+
+/* ---------------- Form ---------------- */
+.au-form { display: flex; flex-direction: column; gap: 16px; }
+.au-form-item { display: flex; flex-direction: column; gap: 6px; }
+.au-form-item-row { flex-direction: row; align-items: center; }
+.au-form-label { font-size: 13px; color: var(--au-text-2); }
+.au-form-label-required::before { content: '*'; color: var(--au-danger); margin-right: 4px; }
+.au-input, .au-select .au-select-inner, .au-textarea {
+  width: 100%; height: 34px; padding: 0 12px; border: 1px solid var(--au-border-2); border-radius: var(--au-radius);
+  font-size: 14px; color: var(--au-text-1); background: #fff; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+.au-textarea { height: auto; padding: 8px 12px; resize: vertical; line-height: 1.6; }
+.au-input:hover, .au-select:hover .au-select-inner, .au-textarea:hover { border-color: var(--au-primary); }
+.au-input:focus, .au-select.au-select-open .au-select-inner, .au-textarea:focus { outline: none;
+  border-color: var(--au-primary); box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.1); }
+.au-input::placeholder, .au-textarea::placeholder { color: var(--au-text-4); }
+.au-select { position: relative; cursor: pointer; }
+.au-select .au-select-inner { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  white-space: nowrap; overflow: hidden; }
+.au-select-placeholder { color: var(--au-text-4); }
+.au-select-arrow { color: var(--au-text-3); font-size: 12px; transition: transform .15s; }
+.au-select-open .au-select-arrow { transform: rotate(180deg); }
+.au-select-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff;
+  border: 1px solid var(--au-border); border-radius: var(--au-radius); box-shadow: var(--au-shadow-2);
+  z-index: 50; max-height: 240px; overflow-y: auto; padding: 4px; }
+.au-select-option { padding: 7px 10px; border-radius: var(--au-radius-sm); font-size: 14px; color: var(--au-text-1); cursor: pointer; }
+.au-select-option:hover { background: var(--au-fill-2); }
+.au-select-option-selected { background: var(--au-primary-light); color: var(--au-primary); font-weight: 500; }
+.au-radio, .au-checkbox { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--au-text-2); }
+.au-radio input, .au-checkbox input { accent-color: var(--au-primary); width: 15px; height: 15px; }
+.au-switch { position: relative; width: 40px; height: 22px; background: var(--au-fill-3); border-radius: 11px; cursor: pointer; transition: background .2s; border: none; }
+.au-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff;
+  border-radius: 50%; transition: transform .2s; box-shadow: var(--au-shadow-1); }
+.au-switch.au-switch-checked { background: var(--au-primary); }
+.au-switch.au-switch-checked::after { transform: translateX(18px); }
+
+/* ---------------- Modal / Drawer ---------------- */
+.au-modal-mask { position: fixed; inset: 0; background: rgba(29, 33, 41, 0.45); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 24px; animation: au-fade .2s; }
+.au-modal { width: min(640px, 94vw); max-height: 90vh; background: #fff; border-radius: var(--au-radius-lg);
+  box-shadow: var(--au-shadow-3); display: flex; flex-direction: column; overflow: hidden; animation: au-zoom .22s var(--au-motion); }
+.au-modal-wide { width: min(1040px, 96vw); }
+.au-modal-header { padding: 18px 22px; border-bottom: 1px solid var(--au-border); display: flex;
+  align-items: flex-start; justify-content: space-between; gap: 12px; }
+.au-modal-title { font-size: 16px; font-weight: 600; color: var(--au-text-1); }
+.au-modal-close { background: none; border: none; font-size: 18px; color: var(--au-text-3); cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: var(--au-radius-sm); }
+.au-modal-close:hover { color: var(--au-danger); background: var(--au-danger-light); }
+.au-modal-body { padding: 20px 22px; overflow-y: auto; }
+.au-modal-footer { padding: 14px 22px; border-top: 1px solid var(--au-border); display: flex;
+  justify-content: flex-end; gap: 10px; background: var(--au-fill-1); }
+
+/* ---------------- Alert ---------------- */
+.au-alert { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: var(--au-radius);
+  font-size: 13px; line-height: 1.6; margin-bottom: 14px; border: 1px solid; }
+.au-alert-icon { font-size: 16px; line-height: 1.4; }
+.au-alert-info { background: var(--au-info-light); border-color: var(--au-primary-border); color: var(--au-primary); }
+.au-alert-success { background: var(--au-success-light); border-color: #aff0b5; color: var(--au-success); }
+.au-alert-warning { background: var(--au-warning-light); border-color: #ffcf8b; color: var(--au-warning); }
+.au-alert-error { background: var(--au-danger-light); border-color: #fdcdc5; color: var(--au-danger); }
+
+/* ---------------- message (toast) ---------------- */
+.au-message-container { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 2000;
+  display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
+.au-message { background: #fff; border-radius: var(--au-radius); box-shadow: var(--au-shadow-2); padding: 9px 16px;
+  font-size: 14px; display: flex; align-items: center; gap: 8px; animation: au-slide .25s var(--au-motion); }
+.au-message-success { color: var(--au-success); }
+.au-message-error { color: var(--au-danger); }
+.au-message-warning { color: var(--au-warning); }
+.au-message-info { color: var(--au-primary); }
+
+/* ---------------- Steps / Progress / Spin ---------------- */
+.au-steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.au-step { display: flex; align-items: center; gap: 8px; color: var(--au-text-3); font-size: 13px; }
+.au-step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--au-fill-2); border: 1px solid var(--au-border-2);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.au-step-active { color: var(--au-primary); font-weight: 600; }
+.au-step-active .au-step-num { background: var(--au-primary); color: #fff; border-color: var(--au-primary); }
+.au-step-finish { color: var(--au-success); }
+.au-step-finish .au-step-num { background: var(--au-success); color: #fff; border-color: var(--au-success); }
+.au-step-arrow { color: var(--au-text-4); }
+.au-progress { height: 8px; background: var(--au-fill-2); border-radius: 4px; overflow: hidden; }
+.au-progress-bar { height: 100%; background: var(--au-primary); border-radius: 4px; transition: width .4s var(--au-motion); }
+.au-spin { display: inline-block; width: 22px; height: 22px; border: 2px solid var(--au-fill-3); border-top-color: var(--au-primary);
+  border-radius: 50%; animation: au-spin .8s linear infinite; }
+.au-spin-container { display: flex; align-items: center; justify-content: center; padding: 40px; }
+
+/* ---------------- Statistic / Empty / Breadcrumb ---------------- */
+.au-statistic { display: flex; flex-direction: column; gap: 4px; }
+.au-statistic-title { font-size: 13px; color: var(--au-text-3); }
+.au-statistic-content { font-size: 28px; font-weight: 600; color: var(--au-text-1); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.au-statistic-prefix { margin-right: 6px; font-size: 20px; }
+.au-empty { text-align: center; color: var(--au-text-3); padding: 40px 20px; font-size: 13px; }
+.au-breadcrumb { font-size: 13px; color: var(--au-text-3); display: flex; gap: 8px; align-items: center; }
+.au-breadcrumb-sep { color: var(--au-text-4); }
+.au-breadcrumb-current { color: var(--au-text-1); }
+
+/* ---------------- Descriptions ---------------- */
+.au-descriptions { border: 1px solid var(--au-border); border-radius: var(--au-radius-lg); overflow: hidden; }
+.au-descriptions-row { display: flex; border-bottom: 1px solid var(--au-fill-2); }
+.au-descriptions-row:last-child { border-bottom: none; }
+.au-descriptions-item { display: flex; flex: 1; }
+.au-descriptions-item-label { width: 108px; flex: 0 0 108px; background: var(--au-fill-1); padding: 10px 14px;
+  color: var(--au-text-3); font-size: 13px; }
+.au-descriptions-item-value { padding: 10px 14px; color: var(--au-text-1); font-size: 13px; flex: 1; word-break: break-all; }
+
+@keyframes au-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes au-zoom { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes au-slide { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+@keyframes au-spin { to { transform: rotate(360deg); } }
