@@ -11,6 +11,8 @@ export const VIEWS = {
   },
   supplier: {
     name: '供给方 · Owner', icon: '📦', role: 'supplier', domain: '电商', wl: true,
+    /* 所属来源域：供给方工作台仅汇总本来源域的申请与收益；平台管理员不设此字段，可查看全部 */
+    ownSrc: '电商DMP',
     levels: ['开放', '通用', '受控', '高敏'],
     desc: '来源域管理员，汇总本域申请状态 + 跳转 Triton 审批 + 效果回收',
   },
@@ -353,12 +355,21 @@ export const APPROVALS = [
   { id: 'TKT-88055', applicant: '电商风控团队', tags: ['电商支付交易单数分层'], src: '电商DMP', level: '高敏', scene: '数据分析', at: '2026-09-07 08:30', status: '审批中', cross: false },
   { id: 'TKT-87990', applicant: '电商增长团队', tags: ['品类偏好序列 Top10'], src: '电商DMP', level: '受控', scene: '数据分析', at: '2026-09-03 11:05', status: '已通过', cross: false },
   { id: 'TKT-87965', applicant: '生服算法团队', tags: ['电商消费力分层'], src: '电商DMP', level: '受控', scene: '模型特征', at: '2026-09-02 15:40', status: '已拒绝', cross: false, reject: '用途说明不充分' },
+  { id: 'TKT-88070', applicant: '电商增长团队', tags: ['生服到店消费频次'], src: '生服LDMP', level: '高敏', scene: '人群圈选', at: '2026-09-06 11:20', status: '审批中', cross: true, up: '受控→高敏' },
+  { id: 'TKT-88083', applicant: '生服增长团队', tags: ['团购券核销率', '到店品类偏好'], src: '生服LDMP', level: '通用', scene: '营销投放', at: '2026-09-07 10:05', status: '已通过', cross: false },
+  { id: 'TKT-88096', applicant: '电商风控团队', tags: ['常驻商圈分层'], src: '生服LDMP', level: '高敏', scene: '数据分析', at: '2026-09-04 17:12', status: '已拒绝', cross: true, up: '高敏→高敏', reject: '位置类数据缺少法务意见' },
+  { id: 'TKT-88104', applicant: '电商数据团队', tags: ['品类兴趣（LLM 侧写）'], src: 'AI用户画像', level: '通用', scene: '模型特征', at: '2026-09-07 14:36', status: '审批中', cross: false },
+  { id: 'TKT-88117', applicant: '算法平台 · 融合', tags: ['LLM 深层心理画像'], src: 'AI用户画像', level: '高敏', scene: '模型特征', at: '2026-09-05 09:48', status: '已拒绝', cross: false, reject: '侧写标签未提供白名单授权依据' },
+  { id: 'TKT-88125', applicant: '电商增长团队', tags: ['跨域生命周期阶段'], src: '双域算法资产', level: '受控', scene: '营销投放', at: '2026-09-06 15:02', status: '审批中', cross: false },
+  { id: 'TKT-88138', applicant: '生服算法团队', tags: ['双域高价值人群包'], src: '双域算法资产', level: '高敏', scene: '人群圈选', at: '2026-09-03 13:27', status: '已通过', cross: true, up: '高敏→高敏' },
 ]
 
 /* 效果回收记录 */
 export const INITIAL_INCOME = [
   { assets: ['电商消费力分层'], scene: '营销投放', income: 'ROI +12%（618 大促）', doc: '收益测算-618大促.docx', docUrl: 'https://bytedance.larkoffice.com/docx/demo618', by: '电商增长团队', at: '2026-09-05 10:20' },
   { assets: ['品类偏好序列 Top10', '电商消费力分层'], scene: '推荐特征', income: 'CTR +5.3%', doc: 'AB实验报告-推荐特征.docx', docUrl: 'https://bytedance.larkoffice.com/docx/demoAB', by: '电商数据团队', at: '2026-09-03 16:40' },
+  { assets: ['团购券核销率'], scene: '营销投放', income: '到店核销率 +8.1%', doc: '本地生活券投放复盘.docx', docUrl: 'https://bytedance.larkoffice.com/docx/demoLife', by: '生服增长团队', at: '2026-09-04 11:15' },
+  { assets: ['跨域生命周期阶段'], scene: '人群圈选', income: '沉睡用户召回率 +6.4%', doc: '跨域召回实验小结.docx', docUrl: 'https://bytedance.larkoffice.com/docx/demoXD', by: '算法平台 · 融合', at: '2026-09-02 09:30' },
 ]
 
 /* 来源域合规文档 */
@@ -383,6 +394,16 @@ export const COMPLIANCE = {
     url: 'https://bytedance.larkoffice.com/wiki/demoXD',
     note: '融合双域信号的资产属跨域高权重，密级就高、审批更严。',
   },
+}
+
+/* 资产名 → 来源域：收益记录只存标签名，按名反查其所属来源域 */
+export function srcOfAsset(name) {
+  return TAGS.find((t) => t.name === name)?.src || ''
+}
+
+/* 一条收益记录涉及的全部来源域（一条记录可关联多个标签） */
+export function srcsOfIncome(record) {
+  return [...new Set((record.assets || [record.tag] || []).map(srcOfAsset).filter(Boolean))]
 }
 
 export function complianceOf(tag) {

@@ -2168,3 +2168,20 @@ border-bottom: none
 @media (max-width:768px){
   .search-bar .au-select{flex:1 1 140px;width:auto}
 }
+
+/* ---------- 供给方工作台：平台管理员的来源域切换条 ---------- */
+.src-switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.src-switcher-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+}

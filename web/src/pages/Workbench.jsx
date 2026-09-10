@@ -2,26 +2,40 @@ import { useState, useMemo } from 'react'
 import {
   Button, Card, Select, Table, Tabs, Tag, Statistic, Space, Typography, message,
 } from '@ecom/aurora'
-import { APPROVALS, LEVEL_ORDER } from '../data.js'
+import { APPROVALS, CATALOG, LEVEL_ORDER, srcsOfIncome } from '../data.js'
 import { LevelChip, CrossBadge, StatusTag, DocCell } from '../mvp-ui.jsx'
 
-export default function Workbench({ income }) {
-  const [filters, setFilters] = useState({ st: '', lvl: '' })
+export default function Workbench({ V, income }) {
+  const [filters, setFilters] = useState({ st: '', lvl: '', src: '' })
+  /* 供给方 Owner 只看本来源域；平台管理员不限域，可用下拉在来源域之间切换 */
+  const isPlatform = !V.ownSrc
+  const activeSrc = isPlatform ? filters.src : V.ownSrc
+
+  const scopedApprovals = useMemo(
+    () => (activeSrc ? APPROVALS.filter((m) => m.src === activeSrc) : APPROVALS),
+    [activeSrc],
+  )
+  const scopedIncome = useMemo(
+    () => (activeSrc ? income.filter((v) => srcsOfIncome(v).includes(activeSrc)) : income),
+    [income, activeSrc],
+  )
+
   const stats = useMemo(() => ({
-    inProg: APPROVALS.filter((m) => m.status === '审批中').length,
-    pass: APPROVALS.filter((m) => m.status === '已通过').length,
-    rej: APPROVALS.filter((m) => m.status === '已拒绝').length,
-    cross: APPROVALS.filter((m) => m.cross).length,
-  }), [])
-  const filtered = APPROVALS.filter(
+    inProg: scopedApprovals.filter((m) => m.status === '审批中').length,
+    pass: scopedApprovals.filter((m) => m.status === '已通过').length,
+    rej: scopedApprovals.filter((m) => m.status === '已拒绝').length,
+    cross: scopedApprovals.filter((m) => m.cross).length,
+  }), [scopedApprovals])
+  const filtered = scopedApprovals.filter(
     (m) => (!filters.st || m.status === filters.st) && (!filters.lvl || m.level === filters.lvl),
   )
   const harvest = useMemo(() => {
     const assetSet = new Set()
-    income.forEach((v) => (v.assets || [v.tag]).forEach((w) => assetSet.add(w)))
-    const sceneSet = new Set(income.map((v) => v.scene))
+    scopedIncome.forEach((v) => (v.assets || [v.tag]).forEach((w) => assetSet.add(w)))
+    const sceneSet = new Set(scopedIncome.map((v) => v.scene))
     return { assetSet, sceneSet }
-  }, [income])
+  }, [scopedIncome])
+  const scopeLabel = activeSrc || '全部来源域'
 
   const apprColumns = [
     { title: '申请单号', dataIndex: 'id', width: 110, render: (v) => <code style={{ fontSize: 11 }}>{v}</code> },
@@ -102,8 +116,26 @@ export default function Workbench({ income }) {
     },
   ]
 
+  const srcSwitcher = isPlatform && (
+    <div className="src-switcher">
+      <span className="src-switcher-label">来源域</span>
+      <Select
+        value={filters.src || undefined}
+        placeholder="全部来源域"
+        allowClear
+        style={{ width: 200 }}
+        onChange={(m) => setFilters((h) => ({ ...h, src: m || '' }))}
+        options={CATALOG.map((m) => ({ label: m.d, value: m.d }))}
+      />
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        当前查看：{scopeLabel}
+      </Typography.Text>
+    </div>
+  )
+
   const statusView = (
     <>
+      {srcSwitcher}
       <div className="kpi-row">
         <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '审批中' }))}>
           <Statistic title="⏳ 审批中" value={stats.inProg} valueStyle={{ color: 'var(--warn)' }} />
@@ -155,7 +187,7 @@ export default function Workbench({ income }) {
               options={LEVEL_ORDER.map((m) => ({ label: m, value: m }))}
             />
             {(filters.st || filters.lvl) && (
-              <Button size="small" onClick={() => setFilters({ st: '', lvl: '' })}>清空筛选</Button>
+              <Button size="small" onClick={() => setFilters((h) => ({ ...h, st: '', lvl: '' }))}>清空筛选</Button>
             )}
           </Space>
         }
@@ -167,9 +199,10 @@ export default function Workbench({ income }) {
 
   const harvestView = (
     <>
+      {srcSwitcher}
       <div className="kpi-row">
         <div className="kpi">
-          <Statistic title="💰 收益记录数" value={income.length} />
+          <Statistic title="💰 收益记录数" value={scopedIncome.length} />
           <div className="kpi-trend up">消费方手工录入</div>
         </div>
         <div className="kpi">
@@ -181,15 +214,15 @@ export default function Workbench({ income }) {
           <div className="kpi-trend">{[...harvest.sceneSet].join(' / ') || '—'}</div>
         </div>
         <div className="kpi">
-          <Statistic title="📄 佐证文档" value={income.filter((m) => m.docUrl).length} />
+          <Statistic title="📄 佐证文档" value={scopedIncome.filter((m) => m.docUrl).length} />
           <div className="kpi-trend">含飞书文档链接</div>
         </div>
       </div>
-      <Card title="本域消费收益明细">
+      <Card title={isPlatform ? `消费收益明细 · ${scopeLabel}` : '本域消费收益明细'}>
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
           同步展示消费方录入的场景、收益说明与佐证文档；一条记录可关联多个标签。
         </Typography.Text>
-        <Table dataSource={income} columns={incomeColumns} rowKey={(r, i) => i} pagination={false} />
+        <Table dataSource={scopedIncome} columns={incomeColumns} rowKey={(r, i) => i} pagination={false} />
       </Card>
     </>
   )
@@ -199,7 +232,7 @@ export default function Workbench({ income }) {
       <div className="page-head"><div className="page-title">供给方工作台</div></div>
       <Tabs
         items={[
-          { key: 'status', label: '📋 本域申请状态', children: statusView },
+          { key: 'status', label: isPlatform ? '📋 申请状态' : '📋 本域申请状态', children: statusView },
           { key: 'harvest', label: '💰 效果回收', children: harvestView },
         ]}
       />

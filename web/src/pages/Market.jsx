@@ -140,7 +140,6 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
               { label: '全部权限状态', value: '' },
               { label: '已授权', value: 'granted' },
               { label: '可申请', value: 'apply' },
-              { label: '仅可见', value: 'visible' },
             ]}
           />
         </div>

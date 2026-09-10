@@ -109,7 +109,7 @@ export default function App() {
       case 'income':
         return <Income V={view} income={income} addIncome={addIncome} pushAudit={pushAudit} />
       case 'workbench':
-        return <Workbench income={income} />
+        return <Workbench V={view} income={income} />
       case 'cfg':
         return <Placeholder kind="cfg" />
       case 'assetin':
