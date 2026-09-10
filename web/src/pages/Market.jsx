@@ -253,7 +253,7 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
       <Descriptions
         title="📋 元信息"
         bordered
-        column={2}
+        column={1}
         items={[
           { label: '口径描述', children: tag.desc },
           { label: '来源域 / 表', children: <span>{tag.src} · <code>{tag.table}</code></span> },
