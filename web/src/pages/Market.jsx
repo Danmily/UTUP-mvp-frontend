@@ -172,9 +172,8 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
                   </div>
                   <div className="tc-foot">
                     <span>{c.src} · {c.owner.split(' · ')[0]}{cov ? ' · ' + cov : ''}</span>
-                    {st === 'granted' ? <Tag color="success">✓ 已授权</Tag>
-                      : st === 'apply' ? <Tag color="primary">可申请</Tag>
-                      : <Tag>仅可见</Tag>}
+                    {st === 'granted' && <Tag color="success">✓ 已授权</Tag>}
+                    {st === 'apply' && <Tag color="primary">可申请</Tag>}
                   </div>
                 </div>
               )
