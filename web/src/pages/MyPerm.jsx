@@ -66,26 +66,26 @@ export default function MyPerm({ myperm }) {
       <div className="kpi-row">
         <div className="kpi">
           <Statistic title="✅ 生效中" value={stats.granted} valueStyle={{ color: 'var(--ok)' }} />
-          <div className="kpi-trend">按人聚合</div>
+          <div className="kpi-trend">按人聚合统计</div>
         </div>
         <div className="kpi">
           <Statistic title="⏳ 审批中" value={stats.pending} valueStyle={{ color: 'var(--p)' }} />
-          <div className="kpi-trend">状态只读回显</div>
+          <div className="kpi-trend">状态同步自来源系统</div>
         </div>
         <div className="kpi">
           <Statistic title="⚠️ 即将到期" value={stats.soon} valueStyle={{ color: 'var(--warn)' }} />
-          <div className="kpi-trend">到期前 N 天提醒</div>
+          <div className="kpi-trend">到期前提醒</div>
         </div>
         <div className="kpi">
           <Statistic title="✕ 已拒绝" value={stats.reject} valueStyle={{ color: 'var(--err)' }} />
-          <div className="kpi-trend">在来源系统重提</div>
+          <div className="kpi-trend">可在来源系统重新提交</div>
         </div>
       </div>
       {stats.soon > 0 && (
         <Alert
           type="warning"
           showIcon
-          message={`⚠️ 有 ${stats.soon} 条权限即将到期，避免调用断档请及时处理。门户无续期按钮，需外跳来源系统（Triton / DMP）重新发起（P1）。`}
+          message={`有 ${stats.soon} 条权限即将到期，请及时处理，避免调用中断。门户暂不支持续期，需前往来源系统（Triton / DMP）重新发起申请。`}
         />
       )}
       <div style={{ height: stats.soon ? 12 : 0 }} />
@@ -117,15 +117,15 @@ function PermDetail({ p, onClose }) {
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            门户不出现续期 / 回收 / 冻结按钮（P1）
+            续期 / 回收 / 冻结请前往来源系统操作
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
             <Button
               type="primary"
-              onClick={() => { message.info('已新开页深链跳转来源系统查看工单详情'); onClose() }}
+              onClick={() => { message.info('已在新页面打开来源系统的工单详情'); onClose() }}
             >
-              深链看详情 →
+              去来源系统查看 →
             </Button>
           </Space>
         </div>
@@ -134,7 +134,7 @@ function PermDetail({ p, onClose }) {
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>{p.id} · {p.src}</Typography.Text>
       <div style={{ height: 12 }} />
       <Descriptions
-        title="状态回显（只读镜像）"
+        title="状态信息（只读，同步自来源系统）"
         bordered
         column={1}
         items={[
@@ -152,12 +152,12 @@ function PermDetail({ p, onClose }) {
       <Alert
         type="info"
         showIcon
-        message={`⛔ 审批节点与审批人字段本期拿不到（P1）；${
+        message={`本期暂不展示审批节点与审批人；${
           p.status === '即将到期'
-            ? '续期需外跳来源系统重新发起。'
+            ? '续期需前往来源系统重新发起。'
             : p.status === '已拒绝'
-              ? '补充材料与重提在来源系统完成。'
-              : '审批中状态以来源系统工单为准。'
+              ? '补充材料与重新提交请在来源系统完成。'
+              : '审批中的状态以来源系统的工单为准。'
         }`}
       />
     </Modal>

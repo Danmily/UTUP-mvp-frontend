@@ -64,8 +64,8 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
         scene,
         parsedFile: `PRD_${tag.name}.docx`,
       }))
-      pushAudit(`智能小助手解析 Doc 预填申请字段：${tag.name}`, visibility(V, tag).eff)
-      message.success(`已解析 Doc 并智能预填：申请字段 / 申请人 / 使用场景（${scene}），请核对后提交`)
+      pushAudit(`智能小助手解析文档并预填申请字段：${tag.name}`, visibility(V, tag).eff)
+      message.success(`已解析文档并预填申请字段、申请人、使用场景（${scene}），请核对后提交`)
     }, 500)
   }
 
@@ -73,7 +73,7 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
     if (!apply) return
     const tag = apply.tag
     if (!apply.scene) {
-      message.warning('请先选择或由 Doc 解析预填「使用场景」')
+      message.warning('请先选择使用场景，或上传文档自动预填')
       return
     }
     const path = applyPath(tag)
@@ -95,7 +95,7 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
     pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
     pushAudit(`申请提交成功：${tag.name} · 单号 ${id}（场景=${apply.scene}）`, vis.eff)
     setApply(null)
-    message.success(`已携预填字段跳转 ${path.target} 建单（门户不落工单）：${id} 状态审批中，可在「我的申请 / 权限」查看进度`)
+    message.success(`已带预填内容跳转 ${path.target} 建单：单号 ${id}，状态为审批中，可在「我的申请 / 权限」查看进度`)
   }
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
@@ -148,9 +148,9 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
           <Empty
             description={
               <>
-                当前筛选无可见标签
+                当前筛选条件下没有可见的标签
                 <br />
-                <span style={{ fontSize: 12 }}>受控级 + 跨域需求可走本域 POC 前置收口入口</span>
+                <span style={{ fontSize: 12 }}>受控级或跨域的用数需求，请走本域 POC 入口申请</span>
               </>
             }
           />
@@ -233,14 +233,14 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            📝 本次查看已写入审计日志（who-when-what）
+            本次查看已记入审计日志
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
             {vis.canApply ? (
               <Button type="primary" onClick={onApply}>申请权限 →</Button>
             ) : (
-              <Button disabled>{V.wl ? '不可申请' : '走本域 POC 收口'}</Button>
+              <Button disabled>{V.wl ? '暂不可申请' : '需走本域 POC 申请'}</Button>
             )}
           </Space>
         </div>
@@ -266,7 +266,7 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
               <span>
                 <LevelChip level={tag.level} />{' '}
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                  由供给方判定 · 密级本期 Coral 兜底
+                  由供给方判定
                 </Typography.Text>
               </span>
             ),
@@ -286,7 +286,7 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
                 type="warning"
                 showIcon
                 message="*** （授权后可见真实值）"
-                description="高敏 / 受控标签对未授权者仅露元信息，数据值脱敏为 ***；授权后自动解密。"
+                description="未获授权时只展示元信息，数据值以 *** 脱敏；授权通过后自动显示真实值。"
               />
             ) : (
               <span>{tag.enums.map((a) => <Tag key={a} style={{ margin: 2 }}>{a}</Tag>)}</span>
@@ -319,7 +319,7 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
           style={{ marginTop: 12 }}
           type="warning"
           showIcon
-          message={`⚠️ ${vis.cross ? '跨域' : '高敏'}场景：申请须遵循源头合规审批流程，请提前准备合规材料。`}
+          message={`${vis.cross ? '跨域' : '高敏'}场景：需按来源方的合规流程审批，请提前准备合规材料。`}
         />
       )}
     </Modal>
@@ -353,7 +353,7 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            🤖 P1 能力：Doc 智能解析预填；门户不落工单，建单在 Triton 完成
+            门户不生成工单，最终建单在 Triton 完成
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>取消</Button>
@@ -366,14 +366,14 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
         type="info"
         showIcon
         message="🤖 智能小助手：表单智能预填"
-        description="自动带出申请字段 / 申请人 / 使用场景；上传 Doc（PRD / 需求单 / 收益测算）后自动解析并回填，确认无误一键跳转 Triton 建单。"
+        description="自动带出申请字段、申请人和使用场景；上传 PRD / 需求单 / 收益测算文档后会自动解析并回填，确认无误后一键跳转 Triton 建单。"
       />
       {vis.cross && (
         <Alert
           style={{ marginTop: 10 }}
           type="warning"
           showIcon
-          message={`⚡ 跨域申请：密级将升档为 ${eff}，审批路由为「${LEVELS[eff].approve}」，审批更严。`}
+          message={`跨域申请：密级将升档为 ${eff}，审批方式为「${LEVELS[eff].approve}」，审批更严格。`}
         />
       )}
       <div
@@ -383,15 +383,15 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
       >
         <div style={{ fontSize: 22 }}>📄⬆️</div>
         <div style={{ fontSize: 13, marginTop: 6 }}>
-          <b>{apply.parsing ? '解析中…' : apply.parsedFile ? '✓ 解析完成，可重新上传替换' : '点击上传 PRD / 需求单 / 收益测算 Doc'}</b>
+          <b>{apply.parsing ? '解析中…' : apply.parsedFile ? '解析完成，可重新上传替换' : '点击上传 PRD / 需求单 / 收益测算文档'}</b>
         </div>
         <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 4 }}>
-          小助手将自动解析并预填「申请字段 / 申请人 / 使用场景」
+          将自动解析并预填申请字段、申请人和使用场景
         </div>
       </div>
       {apply.parsedFile && (
         <div style={{ fontSize: 12, color: 'var(--ok)', marginTop: 8 }}>
-          ✓ 已解析 {apply.parsedFile}，字段已智能预填，请核对后提交。
+          已解析 {apply.parsedFile}，字段已预填，请核对后提交。
         </div>
       )}
       <Form layout="vertical" style={{ marginTop: 14 }}>
@@ -404,7 +404,7 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
         <Form.Item label="使用场景">
           <Select
             value={apply.scene || undefined}
-            placeholder="— 请选择或由 Doc 解析预填 —"
+            placeholder="请选择，或上传文档自动预填"
             onChange={(v) => setApply((d) => ({ ...d, scene: v || '' }))}
             options={SCENES.map((s) => ({ label: s, value: s }))}
           />
@@ -415,13 +415,13 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="受控 / 高敏：另需 PRD 链接、Meego 需求单、收益测算，可由上传 Doc 一并解析。"
+          message="受控 / 高敏标签还需提供 PRD 链接、Meego 需求单和收益测算，可由上传的文档一并解析。"
         />
       )}
-      <div className="flow-title">预判审批链路（4.1 / 4.2）</div>
+      <div className="flow-title">预计审批链路</div>
       <Steps items={steps} current={steps.length - 1} />
       <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 10 }}>
-        有效期：{LEVELS[eff].valid} · 审批人：{LEVELS[eff].approver} · 预填为辅助，最终必填与校验以 Triton 表单为准
+        有效期：{LEVELS[eff].valid} · 审批人：{LEVELS[eff].approver} · 预填内容仅供参考，实际必填项与校验以 Triton 表单为准
       </Typography.Text>
       <div style={{ marginTop: 14 }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>合规依据：</Typography.Text>{' '}

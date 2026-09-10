@@ -72,7 +72,7 @@ export default function Income({ income, addIncome, pushAudit }) {
       at: timeStamp(),
     })
     pushAudit(`录入消费收益：${selected.join('、')} · ${scene}`)
-    message.success('✓ 收益录入已保存，已镜像同步至供给方')
+    message.success('收益录入已保存，供给方可同步查看')
     reset()
   }
 
@@ -98,9 +98,6 @@ export default function Income({ income, addIncome, pushAudit }) {
     <>
       <div className="page-head"><div className="page-title">消费与收益录入</div></div>
       <Card title="新增收益录入">
-        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          数据资产支持单选 / 多选；每次录入可上传 1 份飞书文档作为佐证。
-        </Typography.Text>
         <Form layout="vertical">
           <Form.Item label="数据资产（单选 / 多选）">
             <div className="asset-picker">

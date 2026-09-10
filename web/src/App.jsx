@@ -17,8 +17,8 @@ const SOON_MAP = {
   dualq: {
     icon: '📊',
     title: '双 QI 看板',
-    tagline: '跨域质量指数（双 QI）看板 · V1 规划中',
-    desc: '该模块当前为占位入口，将在 V1 版本开放。规划纳入双 Q 业务达成情况与跨域数据质量监控：',
+    tagline: '跨域质量指数（双 QI）看板',
+    desc: 'V1 版本将纳入双 Q 业务达成情况与跨域数据质量监控：',
     points: [
       '双 Q 业务达成与目标追踪',
       '核心指标趋势（GMV / 订单 / 复购）',
@@ -29,8 +29,8 @@ const SOON_MAP = {
   llm: {
     icon: '🤖',
     title: 'LLM 侧写标签',
-    tagline: '大模型语义化用户标签 · V1 规划中',
-    desc: '该模块当前为占位入口，将在 V1 版本开放。规划接入由大模型自动挖掘的语义化标签：',
+    tagline: '大模型语义化用户标签',
+    desc: 'V1 版本将接入由大模型自动挖掘的语义化标签：',
     points: [
       'LLM 自动生成兴趣 / 意图 / 内容偏好标签',
       '侧写标签置信度与覆盖率展示',
@@ -91,7 +91,7 @@ export default function App() {
       setSoon(SOON_MAP[item.key] || {
         title: item.key,
         tagline: 'V1 规划中',
-        desc: '该模块将在 V1 版本开放。',
+        desc: 'V1 版本开放。',
         points: [],
       })
       pushAudit(`访问占位入口：${found.label}（V1 规划中）`)

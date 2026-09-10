@@ -71,7 +71,7 @@ export default function Workbench({ income }) {
         <Button
           type="link"
           size="small"
-          onClick={() => message.info('已新开页深链跳转 Triton 工单详情')}
+          onClick={() => message.info('已在新页面打开 Triton 工单详情')}
         >
           在 Triton 查看 →
         </Button>
@@ -111,26 +111,26 @@ export default function Workbench({ income }) {
         </div>
         <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '已通过' }))}>
           <Statistic title="✅ 已通过" value={stats.pass} valueStyle={{ color: 'var(--ok)' }} />
-          <div className="kpi-trend">Triton 同步</div>
+          <div className="kpi-trend">同步自 Triton</div>
         </div>
         <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '已拒绝' }))}>
           <Statistic title="✕ 已拒绝" value={stats.rej} valueStyle={{ color: 'var(--err)' }} />
-          <div className="kpi-trend">Triton 同步</div>
+          <div className="kpi-trend">同步自 Triton</div>
         </div>
         <div className="kpi">
           <Statistic title="⚡ 跨域升档" value={stats.cross} valueStyle={{ color: 'var(--p)' }} />
-          <div className="kpi-trend">就高审批</div>
+          <div className="kpi-trend">按高分级审批</div>
         </div>
       </div>
       <Card title="待审批 / 历史审批入口">
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          门户仅提供路由入口，实际审批（通过 / 拒绝 / 补充）全部在 Triton 侧完成；返回后列表状态按同步周期刷新。
+          门户只提供入口，通过 / 拒绝 / 补充材料等操作都在 Triton 完成；返回后列表状态会按同步周期刷新。
         </Typography.Text>
         <Space wrap>
-          <Button type="primary" onClick={() => message.info('已新开页深链跳转 Triton 待审批列表')}>
+          <Button type="primary" onClick={() => message.info('已在新页面打开 Triton 待审批列表')}>
             去 Triton 审批 →
           </Button>
-          <Button onClick={() => message.info('已新开页深链跳转 Triton 历史审批')}>
+          <Button onClick={() => message.info('已在新页面打开 Triton 历史审批')}>
             查看历史审批 →
           </Button>
         </Space>
@@ -170,7 +170,7 @@ export default function Workbench({ income }) {
       <div className="kpi-row">
         <div className="kpi">
           <Statistic title="💰 收益记录数" value={income.length} />
-          <div className="kpi-trend up">消费方手工录入 · 确定可得</div>
+          <div className="kpi-trend up">消费方手工录入</div>
         </div>
         <div className="kpi">
           <Statistic title="🏷️ 涉及资产数" value={harvest.assetSet.size} />
@@ -182,12 +182,12 @@ export default function Workbench({ income }) {
         </div>
         <div className="kpi">
           <Statistic title="📄 佐证文档" value={income.filter((m) => m.docUrl).length} />
-          <div className="kpi-trend">飞书 Doc 链接</div>
+          <div className="kpi-trend">含飞书文档链接</div>
         </div>
       </div>
       <Card title="本域消费收益明细">
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          镜像消费方录入的消费场景、收益说明与佐证飞书文档；一条记录可关联多个标签。
+          同步展示消费方录入的场景、收益说明与佐证文档；一条记录可关联多个标签。
         </Typography.Text>
         <Table dataSource={income} columns={incomeColumns} rowKey={(r, i) => i} pagination={false} />
       </Card>

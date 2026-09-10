@@ -13,8 +13,8 @@ export default function Audit({ audit }) {
         </span>
       ),
     },
-    { title: '操作人（who）', dataIndex: 'who', width: 130 },
-    { title: '动作（what）', dataIndex: 'what' },
+    { title: '操作人', dataIndex: 'who', width: 130 },
+    { title: '操作内容', dataIndex: 'what' },
     {
       title: '涉及分级',
       dataIndex: 'lvl',
