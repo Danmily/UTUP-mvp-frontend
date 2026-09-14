@@ -116,26 +116,24 @@ export default function Workbench({ V, income }) {
     },
   ]
 
+  /* 来源域选择器：放在页头右上角，与页面标题同一行，统一控制「申请状态」
+   * 和「效果回收」两个 Tab，而不是作为其中一个 Tab 的筛选项重复出现 */
   const srcSwitcher = isPlatform && (
-    <div className="src-switcher">
-      <span className="src-switcher-label">来源域</span>
+    <div className="wb-scope">
+      <span className="wb-scope-label">来源域</span>
       <Select
         value={filters.src || undefined}
         placeholder="全部来源域"
         allowClear
-        style={{ width: 200 }}
+        style={{ width: 180 }}
         onChange={(m) => setFilters((h) => ({ ...h, src: m || '' }))}
         options={CATALOG.map((m) => ({ label: m.d, value: m.d }))}
       />
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        当前查看：{scopeLabel}
-      </Typography.Text>
     </div>
   )
 
   const statusView = (
     <>
-      {srcSwitcher}
       <div className="kpi-row">
         <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '审批中' }))}>
           <Statistic title="⏳ 审批中" value={stats.inProg} valueStyle={{ color: 'var(--warn)' }} />
@@ -199,7 +197,6 @@ export default function Workbench({ V, income }) {
 
   const harvestView = (
     <>
-      {srcSwitcher}
       <div className="kpi-row">
         <div className="kpi">
           <Statistic title="💰 收益记录数" value={scopedIncome.length} />
@@ -229,7 +226,10 @@ export default function Workbench({ V, income }) {
 
   return (
     <>
-      <div className="page-head"><div className="page-title">供给方工作台</div></div>
+      <div className="page-head">
+        <div className="page-title">供给方工作台</div>
+        {srcSwitcher}
+      </div>
       <Tabs
         items={[
           { key: 'status', label: isPlatform ? '📋 申请状态' : '📋 本域申请状态', children: statusView },

@@ -2169,19 +2169,14 @@ border-bottom: none
   .search-bar .au-select{flex:1 1 140px;width:auto}
 }
 
-/* ---------- 供给方工作台：平台管理员的来源域切换条 ---------- */
-.src-switcher {
+/* ---------- 供给方工作台：平台管理员的来源域选择器（页头右上角） ---------- */
+.wb-scope {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  gap: 8px;
 }
-.src-switcher-label {
+.wb-scope-label {
   font-size: 13px;
-  font-weight: 600;
   color: var(--text2);
+  white-space: nowrap;
 }
