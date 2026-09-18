@@ -220,7 +220,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
           <LevelChip level={tag.level} />
           <span style={{ color: 'var(--mute)' }}>→</span>
           <LevelChip level={vis.eff} />
-          <CrossBadge>⚡ 跨域升档</CrossBadge>
+          <CrossBadge>跨域升档</CrossBadge>
         </>
       ) : (
         <LevelChip level={tag.level} />

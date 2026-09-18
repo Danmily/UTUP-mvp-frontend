@@ -70,7 +70,7 @@ export default function Workbench({ V, income }) {
         <div>
           <span>
             {v[0].name}
-            {r.cross && <> <CrossBadge>⚡ 跨域</CrossBadge></>}
+            {r.cross && <> <CrossBadge>跨域</CrossBadge></>}
           </span>
           {v.length > 1 && (
             <>

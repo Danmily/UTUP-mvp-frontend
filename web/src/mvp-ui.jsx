@@ -16,7 +16,7 @@ export function LevelChip({ level }) {
 export function CrossBadge({ children }) {
   return (
     <Tag style={{ background: '#F5E8FF', color: '#722ED1', border: '1px solid #D3ADF7' }}>
-      {children || '⚡ 跨域升档'}
+      {children || '跨域升档'}
     </Tag>
   )
 }
