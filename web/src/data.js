@@ -367,7 +367,7 @@ export const PERM_LIVE = {
 /* 生效中且剩余 ≤ N 天，给出续期提醒 */
 export const SOON_DAYS = 7
 
-export const INACTIVE_TIP = '可能是审批暂未通过，或权限已过期。可前往 Triton 查看申请进度或重新发起。'
+export const INACTIVE_TIP = '审批未通过或权限已过期，详情请至 Triton 查询。'
 
 export function livePerm(tagId) {
   return PERM_LIVE[tagId] || null
