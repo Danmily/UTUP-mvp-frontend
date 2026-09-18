@@ -61,7 +61,6 @@ export default function Workbench({ V, income }) {
       width: 140,
       render: (v) => <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v}</span>,
     },
-    { title: '申请单号', dataIndex: 'ticket', width: 110, render: (v) => <code style={{ fontSize: 11 }}>{v}</code> },
     { title: '申请人', dataIndex: 'applicant' },
     {
       title: '标签',
@@ -117,7 +116,7 @@ export default function Workbench({ V, income }) {
         <Button
           type="link"
           size="small"
-          onClick={() => message.info(`已在新页面打开 Triton 申请单 ${r.ticket}`)}
+          onClick={() => message.info('已在新页面打开 Triton 申请详情')}
         >
           在 Triton 查看 →
         </Button>

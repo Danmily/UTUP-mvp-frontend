@@ -186,7 +186,7 @@ export function useApplyFlow({ V, addApply, pushAudit }) {
     const at = nowStamp().slice(0, 16)
     addApply({ ticket, tagId: tag.id, at, scene: apply.scene })
     pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
-    pushAudit(`申请提交成功：${tag.name} · 单号 ${ticket}（场景=${apply.scene}）`, vis.eff)
+    pushAudit(`申请提交成功：${tag.name}（场景=${apply.scene}）`, vis.eff)
     setApply(null)
     message.success(`已带预填内容跳转 ${path.target} 建单，申请状态记为「已申请」；审批通过后生效状态会自动变为「生效中」`)
   }
