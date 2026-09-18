@@ -338,12 +338,13 @@ export const CATALOG = [
   { d: '双域算法资产', n: 57 },
 ]
 
-/* 我的申请 / 权限（0917 改版：用户 × 标签）
+/* 我的申请 / 权限（0917 / 0918 改版：用户标签权限列表）
  * Triton 申请单状态门户侧拿不到：状态消息只能按库配置，ecom 库粒度过大不下发；
  * 按单号主动拉取又要求调用账号在审批人列表里。故不再追踪申请单，改看「用户 × 标签」权限关系：
  *   · 申请状态：门户自己记录，点过申请即「已申请」，不关单、不跟审批流
- *   · 生效状态：按 uid × 标签实时查权限接口（含授权时间 / 有效期），只有「生效中 / 未生效」
- * 同一标签多次申请合并为一行，历次申请在详情中查看。 */
+ *   · 生效状态：按 uid × 标签实时查权限接口（含有效期），行内只有「生效中 / 未生效」，已过期计入 KPI
+ * 同一标签多次申请合并为一行，展示最新一次申请；消费方不展示申请单号。
+ * KPI：申请单数（门户记录条数）｜ 已生效 ｜ 已过期（均按用户 × 标签统计） */
 export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为 Triton 抽屉回调的申请单 ID，仅作记录
   { ticket: 'APP-24098', tagId: 14533, at: '2026-07-18 10:12', scene: '人群圈选' },
   { ticket: 'APP-24112', tagId: 14555, at: '2026-05-30 16:40', scene: '数据分析' },
@@ -351,13 +352,16 @@ export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为 Triton 抽屉
   { ticket: 'APP-24230', tagId: 14501, at: '2026-09-05 14:22', scene: '营销投放' },
   { ticket: 'APP-24255', tagId: 14580, at: '2026-06-09 09:30', scene: '模型特征' },
   { ticket: 'APP-24301', tagId: 14602, at: '2026-08-20 17:15', scene: '模型特征' },
+  { ticket: 'APP-23970', tagId: 14520, at: '2026-03-02 10:20', scene: '数据分析' },
 ]
 
-/* 当前用户 × 标签 实时权限（模拟权限接口返回）；无记录 = 当前无权限 */
+/* 当前用户 × 标签 实时权限（模拟权限接口返回）
+ * { valid, days } = 生效中；{ expired: true, valid } = 曾生效、已过期；无记录 = 从未生效（审批中 / 未通过） */
 export const PERM_LIVE = {
-  14533: { grantAt: '2026-07-20', valid: '2027-01-16', days: 131 },
-  14555: { grantAt: '2026-06-01', valid: '永久', days: 9999 },
-  14580: { grantAt: '2026-06-11', valid: '2026-09-11', days: 4 },
+  14533: { valid: '2027-01-16', days: 131 },
+  14555: { valid: '永久', days: 9999 },
+  14580: { valid: '2026-09-11', days: 4 },
+  14520: { expired: true, valid: '2026-09-01' },
 }
 
 /* 生效中且剩余 ≤ N 天，给出续期提醒 */
@@ -368,6 +372,8 @@ export const INACTIVE_TIP = '可能是审批暂未通过，或权限已过期。
 export function livePerm(tagId) {
   return PERM_LIVE[tagId] || null
 }
+export const isActive = (perm) => !!perm && !perm.expired
+export const isExpired = (perm) => !!perm && !!perm.expired
 
 const byAtDesc = (a, b) => b.at.localeCompare(a.at)
 
@@ -381,8 +387,9 @@ export function myPermRows(view, applies) {
   }).sort((a, b) => byAtDesc(a.last, b.last))
 }
 
-/* 供给方工作台 · 本域经门户提交的申请记录（示例数据）
- * 与消费方同一逻辑：不回显 Triton 审批单状态，按「申请人 × 标签」看申请状态 + 生效状态；审批动作仍跳 Triton */
+/* 供给方工作台 · 本域经门户提交的申请单（示例数据）
+ * 按申请单展示，申请状态只有「已申请」（拿不到 Triton 流转状态，进度跳 Triton 看）；
+ * 一单可含多个标签，分级按标签展开查看。KPI 的已生效 / 已过期按「申请人 × 标签」实时权限统计 */
 export const APPROVALS = [
   { ticket: 'TKT-88012', applicant: '电商增长团队', tagIds: [14501], scene: '营销投放', at: '2026-09-05 14:22' },
   { ticket: 'TKT-88030', applicant: '生服算法团队', tagIds: [14520, 14501], scene: '模型特征', at: '2026-09-06 09:10', cross: true },
@@ -397,15 +404,19 @@ export const APPROVALS = [
   { ticket: 'TKT-88117', applicant: '算法平台 · 融合', tagIds: [14602], scene: '模型特征', at: '2026-09-05 09:48' },
   { ticket: 'TKT-88125', applicant: '电商增长团队', tagIds: [14666], scene: '营销投放', at: '2026-09-06 15:02' },
   { ticket: 'TKT-88138', applicant: '生服算法团队', tagIds: [14672], scene: '人群圈选', at: '2026-09-03 13:27', cross: true },
+  { ticket: 'TKT-87412', applicant: '电商数据团队', tagIds: [14540], scene: '人群圈选', at: '2026-03-10 10:02' },
+  { ticket: 'TKT-87388', applicant: '算法平台 · 融合', tagIds: [14602], scene: '模型特征', at: '2026-03-05 16:18' },
 ]
 
-/* 申请人 × 标签 实时权限（模拟）；key = 申请人|tagId */
+/* 申请人 × 标签 实时权限（模拟）；key = 申请人|tagId，结构同 PERM_LIVE */
 export const DOMAIN_PERM_LIVE = {
-  '电商增长团队|14520': { grantAt: '2026-09-04', valid: '2027-03-03', days: 167 },
-  '生服算法团队|14520': { grantAt: '2026-09-08', valid: '2026-12-07', days: 80 },
-  '生服增长团队|14612': { grantAt: '2026-09-08', valid: '2027-03-07', days: 170 },
-  '生服增长团队|14618': { grantAt: '2026-09-08', valid: '2027-03-07', days: 170 },
-  '生服算法团队|14672': { grantAt: '2026-09-05', valid: '2026-12-04', days: 77 },
+  '电商增长团队|14520': { valid: '2027-03-03', days: 167 },
+  '生服算法团队|14520': { valid: '2026-12-07', days: 80 },
+  '生服增长团队|14612': { valid: '2027-03-07', days: 170 },
+  '生服增长团队|14618': { valid: '2027-03-07', days: 170 },
+  '生服算法团队|14672': { valid: '2026-12-04', days: 77 },
+  '电商数据团队|14540': { expired: true, valid: '2026-09-10' },
+  '算法平台 · 融合|14602': { expired: true, valid: '2026-09-06' },
 }
 
 /* 合并为「申请人 × 标签」一行：多标签申请单拆开，同人同标签多次申请合并 */

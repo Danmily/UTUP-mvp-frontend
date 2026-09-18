@@ -2227,3 +2227,20 @@ margin-top: 2px;
 font-size: 11px;
 color: var(--mute)
 }
+
+.tag-expand {
+margin-top: 6px;
+padding: 6px 10px;
+border-radius: var(--r-sm, 4px);
+background: var(--bg2, #F7F8FA);
+display: grid;
+gap: 4px
+}
+
+.tag-expand-row {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 10px;
+font-size: 12px
+}

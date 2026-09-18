@@ -3,7 +3,7 @@
  * LevelChip / CrossBadge / ApplyTag / EffectTag / ValidText / RiskTag / DocCell
  * ============================================================ */
 import { Tag, Tooltip, Typography } from '@ecom/aurora'
-import { LEVELS, SOON_DAYS, INACTIVE_TIP } from './data.js'
+import { LEVELS, SOON_DAYS, INACTIVE_TIP, isActive, isExpired } from './data.js'
 
 const LV_COLOR = { 开放: 'primary', 通用: 'warning', 受控: 'warning', 高敏: 'danger' }
 
@@ -28,7 +28,7 @@ export function ApplyTag() {
 
 /* 生效状态：按「用户 × 标签」实时查询的权限结果；已申请但未生效时附问号释义 */
 export function EffectTag({ perm, applied = true }) {
-  if (perm) return <Tag color="success">生效中</Tag>
+  if (isActive(perm)) return <Tag color="success">生效中</Tag>
   if (!applied) return <Tag>未生效</Tag>
   return (
     <span className="effect-tag">
@@ -40,9 +40,10 @@ export function EffectTag({ perm, applied = true }) {
   )
 }
 
-/* 有效期 / 剩余：临近到期标橙 */
+/* 有效期 / 剩余：临近到期标橙，已过期标红 */
 export function ValidText({ perm }) {
   if (!perm) return <span style={{ fontSize: 12, color: 'var(--mute)' }}>—</span>
+  if (isExpired(perm)) return <span style={{ fontSize: 12, color: 'var(--err)' }}>已于 {perm.valid} 过期</span>
   if (perm.valid === '永久') return <span style={{ fontSize: 12 }}>永久</span>
   const soon = perm.days <= SOON_DAYS
   return (

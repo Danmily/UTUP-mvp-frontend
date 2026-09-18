@@ -4,7 +4,7 @@ import {
   Form, Tag, Statistic, Empty, Space, Typography, message,
 } from '@ecom/aurora'
 import {
-  TAGS, CATALOG, LEVELS, visibility, applyPath, complianceOf, livePerm, nowStamp,
+  TAGS, CATALOG, LEVELS, visibility, applyPath, complianceOf, livePerm, isActive, nowStamp,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 
@@ -209,8 +209,9 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
   const comp = complianceOf(tag)
   // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
   const perm = livePerm(tag.id)
+  const active = isActive(perm)
   const lastApply = [...applies].sort((a, b) => b.at.localeCompare(a.at))[0]
-  const masked = (tag.level === '高敏' || tag.level === '受控') && !vis.real && !perm
+  const masked = (tag.level === '高敏' || tag.level === '受控') && !vis.real && !active
   const title = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {tag.name}
@@ -239,7 +240,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            {perm ? (
+            {active ? (
               <Button disabled>✓ 已有权限</Button>
             ) : vis.canApply ? (
               <Button type="primary" onClick={onApply}>{applies.length ? '再次申请 →' : '申请权限 →'}</Button>
@@ -295,12 +296,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
             ) : <Typography.Text type="secondary">未申请</Typography.Text>,
           },
           { label: '生效状态', children: <EffectTag perm={perm} applied={applies.length > 0} /> },
-          ...(perm
-            ? [
-                { label: '授权时间', children: perm.grantAt },
-                { label: '有效期', children: <ValidText perm={perm} /> },
-              ]
-            : []),
+          ...(perm ? [{ label: '有效期', children: <ValidText perm={perm} /> }] : []),
         ]}
       />
       <div style={{ height: 14 }} />
