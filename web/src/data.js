@@ -338,31 +338,100 @@ export const CATALOG = [
   { d: '双域算法资产', n: 57 },
 ]
 
-/* 我的申请 / 权限（消费方只读镜像） */
-export const INITIAL_MYPERM = [
-  { id: 'APP-24098', tagId: 14533, tag: '活跃天数分层（近 30 天）', level: '通用', src: '电商DMP', status: '生效中', grantAt: '2026-07-20', valid: '2027-01-16', days: 131, scene: '人群圈选' },
-  { id: 'APP-24112', tagId: 14555, tag: '聚合类目分布（脱敏）', level: '开放', src: '电商DMP', status: '生效中', grantAt: '2026-06-01', valid: '永久', days: 9999, scene: '数据分析' },
-  { id: 'APP-24230', tagId: 14501, tag: '电商消费力分层', level: '受控', src: '电商DMP', status: '审批中', grantAt: '—', valid: '—', days: 0, scene: '营销投放' },
-  { id: 'APP-24255', tagId: 14580, tag: '生服到店消费频次（跨域）', level: '高敏', src: '生服LDMP', status: '即将到期', grantAt: '2026-06-11', valid: '2026-09-11', days: 4, scene: '模型特征', cross: true },
-  { id: 'APP-24301', tagId: 14602, tag: 'LLM 深层心理画像', level: '高敏', src: 'AI用户画像', status: '已拒绝', grantAt: '—', valid: '—', days: 0, scene: '模型特征', reject: '未提供收益测算与法务意见' },
+/* 我的申请 / 权限（0917 改版：用户 × 标签）
+ * Triton 申请单状态门户侧拿不到：状态消息只能按库配置，ecom 库粒度过大不下发；
+ * 按单号主动拉取又要求调用账号在审批人列表里。故不再追踪申请单，改看「用户 × 标签」权限关系：
+ *   · 申请状态：门户自己记录，点过申请即「已申请」，不关单、不跟审批流
+ *   · 生效状态：按 uid × 标签实时查权限接口（含授权时间 / 有效期），只有「生效中 / 未生效」
+ * 同一标签多次申请合并为一行，历次申请在详情中查看。 */
+export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为 Triton 抽屉回调的申请单 ID，仅作记录
+  { ticket: 'APP-24098', tagId: 14533, at: '2026-07-18 10:12', scene: '人群圈选' },
+  { ticket: 'APP-24112', tagId: 14555, at: '2026-05-30 16:40', scene: '数据分析' },
+  { ticket: 'APP-24188', tagId: 14501, at: '2026-08-28 11:03', scene: '营销投放' },
+  { ticket: 'APP-24230', tagId: 14501, at: '2026-09-05 14:22', scene: '营销投放' },
+  { ticket: 'APP-24255', tagId: 14580, at: '2026-06-09 09:30', scene: '模型特征' },
+  { ticket: 'APP-24301', tagId: 14602, at: '2026-08-20 17:15', scene: '模型特征' },
 ]
 
-/* 供给方工作台 · 本域申请审批（示例数据） */
+/* 当前用户 × 标签 实时权限（模拟权限接口返回）；无记录 = 当前无权限 */
+export const PERM_LIVE = {
+  14533: { grantAt: '2026-07-20', valid: '2027-01-16', days: 131 },
+  14555: { grantAt: '2026-06-01', valid: '永久', days: 9999 },
+  14580: { grantAt: '2026-06-11', valid: '2026-09-11', days: 4 },
+}
+
+/* 生效中且剩余 ≤ N 天，给出续期提醒 */
+export const SOON_DAYS = 7
+
+export const INACTIVE_TIP = '可能是审批暂未通过，或权限已过期。可前往 Triton 查看申请进度或重新发起。'
+
+export function livePerm(tagId) {
+  return PERM_LIVE[tagId] || null
+}
+
+const byAtDesc = (a, b) => b.at.localeCompare(a.at)
+
+/* 合并为「当前用户 × 标签」一行 */
+export function myPermRows(view, applies) {
+  return [...new Set(applies.map((a) => a.tagId))].map((id) => {
+    const tag = TAGS.find((t) => t.id === id)
+    const vis = visibility(view, tag)
+    const apps = applies.filter((a) => a.tagId === id).sort(byAtDesc)
+    return { tagId: id, tag: tag.name, level: vis.eff, src: tag.src, cross: vis.cross, apps, last: apps[0], perm: livePerm(id) }
+  }).sort((a, b) => byAtDesc(a.last, b.last))
+}
+
+/* 供给方工作台 · 本域经门户提交的申请记录（示例数据）
+ * 与消费方同一逻辑：不回显 Triton 审批单状态，按「申请人 × 标签」看申请状态 + 生效状态；审批动作仍跳 Triton */
 export const APPROVALS = [
-  { id: 'TKT-88012', applicant: '电商增长团队', tags: ['电商消费力分层'], src: '电商DMP', level: '受控', scene: '营销投放', at: '2026-09-05 14:22', status: '审批中', cross: false },
-  { id: 'TKT-88030', applicant: '生服算法团队', tags: ['品类偏好序列 Top10', '电商消费力分层'], src: '电商DMP', level: '高敏', scene: '模型特征', at: '2026-09-06 09:10', status: '审批中', cross: true, up: '受控→高敏' },
-  { id: 'TKT-88041', applicant: '电商数据团队', tags: ['二级类目购买人群包'], src: '电商DMP', level: '通用', scene: '人群圈选', at: '2026-09-06 16:48', status: '审批中', cross: false },
-  { id: 'TKT-88055', applicant: '电商风控团队', tags: ['电商支付交易单数分层'], src: '电商DMP', level: '高敏', scene: '数据分析', at: '2026-09-07 08:30', status: '审批中', cross: false },
-  { id: 'TKT-87990', applicant: '电商增长团队', tags: ['品类偏好序列 Top10'], src: '电商DMP', level: '受控', scene: '数据分析', at: '2026-09-03 11:05', status: '已通过', cross: false },
-  { id: 'TKT-87965', applicant: '生服算法团队', tags: ['电商消费力分层'], src: '电商DMP', level: '受控', scene: '模型特征', at: '2026-09-02 15:40', status: '已拒绝', cross: false, reject: '用途说明不充分' },
-  { id: 'TKT-88070', applicant: '电商增长团队', tags: ['生服到店消费频次'], src: '生服LDMP', level: '高敏', scene: '人群圈选', at: '2026-09-06 11:20', status: '审批中', cross: true, up: '受控→高敏' },
-  { id: 'TKT-88083', applicant: '生服增长团队', tags: ['团购券核销率', '到店品类偏好'], src: '生服LDMP', level: '通用', scene: '营销投放', at: '2026-09-07 10:05', status: '已通过', cross: false },
-  { id: 'TKT-88096', applicant: '电商风控团队', tags: ['常驻商圈分层'], src: '生服LDMP', level: '高敏', scene: '数据分析', at: '2026-09-04 17:12', status: '已拒绝', cross: true, up: '高敏→高敏', reject: '位置类数据缺少法务意见' },
-  { id: 'TKT-88104', applicant: '电商数据团队', tags: ['品类兴趣（LLM 侧写）'], src: 'AI用户画像', level: '通用', scene: '模型特征', at: '2026-09-07 14:36', status: '审批中', cross: false },
-  { id: 'TKT-88117', applicant: '算法平台 · 融合', tags: ['LLM 深层心理画像'], src: 'AI用户画像', level: '高敏', scene: '模型特征', at: '2026-09-05 09:48', status: '已拒绝', cross: false, reject: '侧写标签未提供白名单授权依据' },
-  { id: 'TKT-88125', applicant: '电商增长团队', tags: ['跨域生命周期阶段'], src: '双域算法资产', level: '受控', scene: '营销投放', at: '2026-09-06 15:02', status: '审批中', cross: false },
-  { id: 'TKT-88138', applicant: '生服算法团队', tags: ['双域高价值人群包'], src: '双域算法资产', level: '高敏', scene: '人群圈选', at: '2026-09-03 13:27', status: '已通过', cross: true, up: '高敏→高敏' },
+  { ticket: 'TKT-88012', applicant: '电商增长团队', tagIds: [14501], scene: '营销投放', at: '2026-09-05 14:22' },
+  { ticket: 'TKT-88030', applicant: '生服算法团队', tagIds: [14520, 14501], scene: '模型特征', at: '2026-09-06 09:10', cross: true },
+  { ticket: 'TKT-88041', applicant: '电商数据团队', tagIds: [14540], scene: '人群圈选', at: '2026-09-06 16:48' },
+  { ticket: 'TKT-88055', applicant: '电商风控团队', tagIds: [14479], scene: '数据分析', at: '2026-09-07 08:30' },
+  { ticket: 'TKT-87990', applicant: '电商增长团队', tagIds: [14520], scene: '数据分析', at: '2026-09-03 11:05' },
+  { ticket: 'TKT-87965', applicant: '生服算法团队', tagIds: [14501], scene: '模型特征', at: '2026-09-02 15:40', cross: true },
+  { ticket: 'TKT-88070', applicant: '电商增长团队', tagIds: [14580], scene: '人群圈选', at: '2026-09-06 11:20', cross: true },
+  { ticket: 'TKT-88083', applicant: '生服增长团队', tagIds: [14612, 14618], scene: '营销投放', at: '2026-09-07 10:05' },
+  { ticket: 'TKT-88096', applicant: '电商风控团队', tagIds: [14624], scene: '数据分析', at: '2026-09-04 17:12', cross: true },
+  { ticket: 'TKT-88104', applicant: '电商数据团队', tagIds: [14610], scene: '模型特征', at: '2026-09-07 14:36' },
+  { ticket: 'TKT-88117', applicant: '算法平台 · 融合', tagIds: [14602], scene: '模型特征', at: '2026-09-05 09:48' },
+  { ticket: 'TKT-88125', applicant: '电商增长团队', tagIds: [14666], scene: '营销投放', at: '2026-09-06 15:02' },
+  { ticket: 'TKT-88138', applicant: '生服算法团队', tagIds: [14672], scene: '人群圈选', at: '2026-09-03 13:27', cross: true },
 ]
+
+/* 申请人 × 标签 实时权限（模拟）；key = 申请人|tagId */
+export const DOMAIN_PERM_LIVE = {
+  '电商增长团队|14520': { grantAt: '2026-09-04', valid: '2027-03-03', days: 167 },
+  '生服算法团队|14520': { grantAt: '2026-09-08', valid: '2026-12-07', days: 80 },
+  '生服增长团队|14612': { grantAt: '2026-09-08', valid: '2027-03-07', days: 170 },
+  '生服增长团队|14618': { grantAt: '2026-09-08', valid: '2027-03-07', days: 170 },
+  '生服算法团队|14672': { grantAt: '2026-09-05', valid: '2026-12-04', days: 77 },
+}
+
+/* 合并为「申请人 × 标签」一行：多标签申请单拆开，同人同标签多次申请合并 */
+export function domainPermRows(approvals = APPROVALS) {
+  const map = new Map()
+  approvals.forEach((a) => a.tagIds.forEach((id) => {
+    const key = `${a.applicant}|${id}`
+    if (!map.has(key)) map.set(key, { key, applicant: a.applicant, tagId: id, apps: [], cross: false })
+    const row = map.get(key)
+    row.apps.push(a)
+    row.cross = row.cross || !!a.cross
+  }))
+  return [...map.values()].map((r) => {
+    const tag = TAGS.find((t) => t.id === r.tagId)
+    const apps = r.apps.sort(byAtDesc)
+    return {
+      ...r,
+      apps,
+      tag: tag.name,
+      src: tag.src,
+      level: r.cross ? upgrade(tag.level) : tag.level,
+      last: apps[0],
+      perm: DOMAIN_PERM_LIVE[r.key] || null,
+    }
+  }).sort((a, b) => byAtDesc(a.last, b.last))
+}
 
 /* 效果回收记录 */
 export const INITIAL_INCOME = [

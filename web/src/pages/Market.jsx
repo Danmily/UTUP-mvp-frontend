@@ -3,19 +3,22 @@ import {
   Button, Card, Input, Select, Modal, Descriptions, Alert, Steps,
   Form, Tag, Statistic, Empty, Space, Typography, message,
 } from '@ecom/aurora'
-import { TAGS, CATALOG, LEVELS, visibility, applyPath, complianceOf } from '../data.js'
-import { LevelChip, CrossBadge } from '../mvp-ui.jsx'
+import {
+  TAGS, CATALOG, LEVELS, visibility, applyPath, complianceOf, livePerm, nowStamp,
+} from '../data.js'
+import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 
 const SCENES = ['人群圈选', '用户360', '模型特征', '营销投放', '数据分析']
 
-export default function Market({ V, myperm, addPerm, pushAudit }) {
+export default function Market({ V, myapply, addApply, pushAudit }) {
   const [filters, setFilters] = useState({ q: '', src: '', lvl: '', st: '' })
   const [detailId, setDetailId] = useState(null)
-  const [apply, setApply] = useState(null)
+  const applyFlow = useApplyFlow({ V, addApply, pushAudit })
 
-  const permStatus = (tag) =>
-    myperm.find((p) => p.tagId === tag.id && p.status === '生效中')
-      ? 'granted'
+  /* 列表只看门户自记录的申请状态，不逐卡实时查权限；是否生效进详情再查 */
+  const applyStatus = (tag) =>
+    myapply.some((a) => a.tagId === tag.id)
+      ? 'applied'
       : visibility(V, tag).canApply ? 'apply' : 'visible'
 
   const list = useMemo(() => TAGS.filter((c) => {
@@ -24,10 +27,10 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
     if (filters.q && !(c.name.includes(filters.q) || c.desc.includes(filters.q))) return false
     if (filters.src && c.src !== filters.src) return false
     if (filters.lvl && c.level !== filters.lvl) return false
-    if (filters.st && permStatus(c) !== filters.st) return false
+    if (filters.st && applyStatus(c) !== filters.st) return false
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [V, filters, myperm])
+  }), [V, filters, myapply])
 
   function openTag(id) {
     const tag = TAGS.find((t) => t.id === id)
@@ -35,67 +38,6 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
       pushAudit('查看标签详情：' + tag.name, tag.level)
       setDetailId(id)
     }
-  }
-
-  function startApply(id) {
-    const tag = TAGS.find((t) => t.id === id)
-    if (!tag) return
-    setDetailId(null)
-    setApply({
-      tag,
-      fields: tag.name,
-      applicant: `user（${V.name} · ${V.domain}）`,
-      scene: '',
-      parsedFile: null,
-      parsing: false,
-    })
-  }
-
-  function onParse() {
-    if (!apply || apply.parsing) return
-    setApply((d) => ({ ...d, parsing: true }))
-    const tag = apply.tag
-    setTimeout(() => {
-      const scene = SCENES[tag.id % SCENES.length]
-      setApply((p) => ({
-        ...p,
-        parsing: false,
-        fields: `${tag.name}（含枚举：${(tag.enums || []).slice(0, 2).join(' / ') || '—'}）`,
-        scene,
-        parsedFile: `PRD_${tag.name}.docx`,
-      }))
-      pushAudit(`智能小助手解析文档并预填申请字段：${tag.name}`, visibility(V, tag).eff)
-      message.success(`已解析文档并预填申请字段、申请人、使用场景（${scene}），请核对后提交`)
-    }, 500)
-  }
-
-  function onSubmit() {
-    if (!apply) return
-    const tag = apply.tag
-    if (!apply.scene) {
-      message.warning('请先选择使用场景，或上传文档自动预填')
-      return
-    }
-    const path = applyPath(tag)
-    const vis = visibility(V, tag)
-    const id = 'TKT-' + (88100 + Math.floor(Math.random() * 800))
-    addPerm({
-      id,
-      tagId: tag.id,
-      tag: tag.name + (vis.cross ? '（跨域）' : ''),
-      level: vis.eff,
-      src: tag.src,
-      status: '审批中',
-      grantAt: '—',
-      valid: '—',
-      days: 0,
-      scene: apply.scene,
-      cross: vis.cross,
-    })
-    pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
-    pushAudit(`申请提交成功：${tag.name} · 单号 ${id}（场景=${apply.scene}）`, vis.eff)
-    setApply(null)
-    message.success(`已带预填内容跳转 ${path.target} 建单：单号 ${id}，状态为审批中，可在「我的申请 / 权限」查看进度`)
   }
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
@@ -137,8 +79,8 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
             value={filters.st}
             onChange={(v) => setFilters((d) => ({ ...d, st: v || '' }))}
             options={[
-              { label: '全部权限状态', value: '' },
-              { label: '已授权', value: 'granted' },
+              { label: '全部申请状态', value: '' },
+              { label: '已申请', value: 'applied' },
               { label: '可申请', value: 'apply' },
             ]}
           />
@@ -157,7 +99,7 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
           <div className="tag-cards">
             {list.map((c) => {
               const vis = visibility(V, c)
-              const st = permStatus(c)
+              const st = applyStatus(c)
               const cov = c.cov ? `覆盖率 ${c.cov}%` : ''
               return (
                 <div key={c.id} className="tag-card" onClick={() => openTag(c.id)}>
@@ -172,7 +114,7 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
                   </div>
                   <div className="tc-foot">
                     <span>{c.src} · {c.owner.split(' · ')[0]}{cov ? ' · ' + cov : ''}</span>
-                    {st === 'granted' && <Tag color="success">✓ 已授权</Tag>}
+                    {st === 'applied' && <ApplyTag />}
                     {st === 'apply' && <Tag color="primary">可申请</Tag>}
                   </div>
                 </div>
@@ -185,28 +127,90 @@ export default function Market({ V, myperm, addPerm, pushAudit }) {
         <TagDetailModal
           V={V}
           tag={detailTag}
+          applies={myapply.filter((a) => a.tagId === detailTag.id)}
           onClose={() => setDetailId(null)}
-          onApply={() => startApply(detailTag.id)}
+          onApply={() => { setDetailId(null); applyFlow.start(detailTag.id) }}
         />
       )}
-      {apply && (
-        <ApplyGuideModal
-          V={V}
-          apply={apply}
-          setApply={setApply}
-          onClose={() => setApply(null)}
-          onParse={onParse}
-          onSubmit={onSubmit}
-        />
-      )}
+      {applyFlow.modal}
     </>
   )
 }
 
-function TagDetailModal({ V, tag, onClose, onApply }) {
+/* 申请流程（智能助手预填 → 跳 Triton 建单）：标签广场与「我的申请 / 权限」共用
+ * 门户只记一条申请记录（申请状态 = 已申请），不追踪 Triton 单据状态 */
+export function useApplyFlow({ V, addApply, pushAudit }) {
+  const [apply, setApply] = useState(null)
+
+  function start(id) {
+    const tag = TAGS.find((t) => t.id === id)
+    if (!tag) return
+    setApply({
+      tag,
+      fields: tag.name,
+      applicant: `user（${V.name} · ${V.domain}）`,
+      scene: '',
+      parsedFile: null,
+      parsing: false,
+    })
+  }
+
+  function onParse() {
+    if (!apply || apply.parsing) return
+    setApply((d) => ({ ...d, parsing: true }))
+    const tag = apply.tag
+    setTimeout(() => {
+      const scene = SCENES[tag.id % SCENES.length]
+      setApply((p) => ({
+        ...p,
+        parsing: false,
+        fields: `${tag.name}（含枚举：${(tag.enums || []).slice(0, 2).join(' / ') || '—'}）`,
+        scene,
+        parsedFile: `PRD_${tag.name}.docx`,
+      }))
+      pushAudit(`智能小助手解析文档并预填申请字段：${tag.name}`, visibility(V, tag).eff)
+      message.success(`已解析文档并预填申请字段、申请人、使用场景（${scene}），请核对后提交`)
+    }, 500)
+  }
+
+  function onSubmit() {
+    if (!apply) return
+    const tag = apply.tag
+    if (!apply.scene) {
+      message.warning('请先选择使用场景，或上传文档自动预填')
+      return
+    }
+    const path = applyPath(tag)
+    const vis = visibility(V, tag)
+    const ticket = 'APP-' + (24400 + Math.floor(Math.random() * 500))
+    const at = nowStamp().slice(0, 16)
+    addApply({ ticket, tagId: tag.id, at, scene: apply.scene })
+    pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
+    pushAudit(`申请提交成功：${tag.name} · 单号 ${ticket}（场景=${apply.scene}）`, vis.eff)
+    setApply(null)
+    message.success(`已带预填内容跳转 ${path.target} 建单，申请状态记为「已申请」；审批通过后生效状态会自动变为「生效中」`)
+  }
+
+  const modal = apply && (
+    <ApplyGuideModal
+      V={V}
+      apply={apply}
+      setApply={setApply}
+      onClose={() => setApply(null)}
+      onParse={onParse}
+      onSubmit={onSubmit}
+    />
+  )
+  return { start, modal }
+}
+
+function TagDetailModal({ V, tag, applies, onClose, onApply }) {
   const vis = visibility(V, tag)
   const comp = complianceOf(tag)
-  const masked = (tag.level === '高敏' || tag.level === '受控') && !vis.real
+  // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
+  const perm = livePerm(tag.id)
+  const lastApply = [...applies].sort((a, b) => b.at.localeCompare(a.at))[0]
+  const masked = (tag.level === '高敏' || tag.level === '受控') && !vis.real && !perm
   const title = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {tag.name}
@@ -235,8 +239,10 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            {vis.canApply ? (
-              <Button type="primary" onClick={onApply}>申请权限 →</Button>
+            {perm ? (
+              <Button disabled>✓ 已有权限</Button>
+            ) : vis.canApply ? (
+              <Button type="primary" onClick={onApply}>{applies.length ? '再次申请 →' : '申请权限 →'}</Button>
             ) : (
               <Button disabled>{V.wl ? '暂不可申请' : '需走本域 POC 申请'}</Button>
             )}
@@ -269,6 +275,32 @@ function TagDetailModal({ V, tag, onClose, onApply }) {
               </span>
             ),
           },
+        ]}
+      />
+      <div style={{ height: 14 }} />
+      <Descriptions
+        title="🔑 我的权限（实时查询）"
+        bordered
+        column={1}
+        items={[
+          {
+            label: '申请状态',
+            children: lastApply ? (
+              <span>
+                <ApplyTag />{' '}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  最近 {lastApply.at}{applies.length > 1 ? ` · 共 ${applies.length} 次` : ''}
+                </Typography.Text>
+              </span>
+            ) : <Typography.Text type="secondary">未申请</Typography.Text>,
+          },
+          { label: '生效状态', children: <EffectTag perm={perm} applied={applies.length > 0} /> },
+          ...(perm
+            ? [
+                { label: '授权时间', children: perm.grantAt },
+                { label: '有效期', children: <ValidText perm={perm} /> },
+              ]
+            : []),
         ]}
       />
       <div style={{ height: 14 }} />

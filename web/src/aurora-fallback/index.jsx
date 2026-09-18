@@ -8,6 +8,7 @@
 import React, {
   createContext, useContext, useState, useEffect, useRef, useCallback,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import './aurora.css'
 
@@ -415,8 +416,28 @@ export function Descriptions({ items = [], column = 1, bordered = true, title })
     </div>
   )
 }
+/* 悬停 / 聚焦时在锚点上方弹出；浮层挂到 body，避免被表格横向滚动等 overflow 容器裁切 */
 export function Tooltip({ title, children }) {
-  return <span title={title}>{children}</span>
+  const [pos, setPos] = useState(null)
+  const show = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setPos({ left: r.left + r.width / 2, top: r.top })
+  }
+  const hide = () => setPos(null)
+  useEffect(() => {
+    if (!pos) return undefined
+    window.addEventListener('scroll', hide, true)
+    return () => window.removeEventListener('scroll', hide, true)
+  }, [pos])
+  return (
+    <span className="au-tooltip-anchor" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
+      {children}
+      {pos && title && createPortal(
+        <span className="au-tooltip" role="tooltip" style={{ left: pos.left, top: pos.top }}>{title}</span>,
+        document.body,
+      )}
+    </span>
+  )
 }
 
 /* ---------------- Table（含客户端分页） ---------------- */

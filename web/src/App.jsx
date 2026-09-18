@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { Button, Tag, Menu, Breadcrumb, Modal } from '@ecom/aurora'
 import {
   VIEWS, NAV, NAV_LABELS,
-  INITIAL_MYPERM, INITIAL_INCOME, INITIAL_AUDIT, nowStamp,
+  INITIAL_MYAPPLY, INITIAL_INCOME, INITIAL_AUDIT, nowStamp,
 } from './data.js'
 import Login from './pages/Login.jsx'
 import Market from './pages/Market.jsx'
@@ -43,7 +43,7 @@ const SOON_MAP = {
 export default function App() {
   const [viewKey, setViewKey] = useState(null)
   const [nav, setNav] = useState('market')
-  const [myperm, setMyperm] = useState(INITIAL_MYPERM)
+  const [myapply, setMyapply] = useState(INITIAL_MYAPPLY)
   const [income, setIncome] = useState(INITIAL_INCOME)
   const [audit, setAudit] = useState(INITIAL_AUDIT)
   const [soon, setSoon] = useState(null)
@@ -54,7 +54,7 @@ export default function App() {
       ...list,
     ].slice(0, 200))
   }, [])
-  const addPerm = useCallback((p) => setMyperm((list) => [p, ...list]), [])
+  const addApply = useCallback((a) => setMyapply((list) => [a, ...list]), [])
   const addIncome = useCallback((r) => setIncome((list) => [r, ...list]), [])
 
   function handleLogin(key) {
@@ -103,9 +103,9 @@ export default function App() {
   function renderView() {
     switch (nav) {
       case 'market':
-        return <Market V={view} myperm={myperm} addPerm={addPerm} pushAudit={pushAudit} />
+        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
       case 'myperm':
-        return <MyPerm V={view} myperm={myperm} />
+        return <MyPerm V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
       case 'income':
         return <Income V={view} income={income} addIncome={addIncome} pushAudit={pushAudit} />
       case 'workbench':
@@ -117,7 +117,7 @@ export default function App() {
       case 'audit':
         return <Audit audit={audit} />
       default:
-        return <Market V={view} myperm={myperm} addPerm={addPerm} pushAudit={pushAudit} />
+        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
     }
   }
 

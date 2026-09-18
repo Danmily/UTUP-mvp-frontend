@@ -2,8 +2,12 @@ import { useState, useMemo } from 'react'
 import {
   Button, Card, Select, Table, Tabs, Tag, Statistic, Space, Typography, message,
 } from '@ecom/aurora'
-import { APPROVALS, CATALOG, LEVEL_ORDER, srcsOfIncome } from '../data.js'
-import { LevelChip, CrossBadge, StatusTag, DocCell } from '../mvp-ui.jsx'
+import { CATALOG, LEVEL_ORDER, srcsOfIncome, domainPermRows } from '../data.js'
+import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText, DocCell } from '../mvp-ui.jsx'
+
+/* 申请状态 Tab（0917 改版）：Triton 审批单状态门户拿不到，改为「申请人 × 标签」维度；
+ * 申请状态取门户记录，生效状态按申请人 × 标签实时查权限。多标签申请单拆行，同人同标签多次申请合并。 */
+const ALL_ROWS = domainPermRows()
 
 export default function Workbench({ V, income }) {
   const [filters, setFilters] = useState({ st: '', lvl: '', src: '' })
@@ -11,8 +15,8 @@ export default function Workbench({ V, income }) {
   const isPlatform = !V.ownSrc
   const activeSrc = isPlatform ? filters.src : V.ownSrc
 
-  const scopedApprovals = useMemo(
-    () => (activeSrc ? APPROVALS.filter((m) => m.src === activeSrc) : APPROVALS),
+  const scopedRows = useMemo(
+    () => (activeSrc ? ALL_ROWS.filter((m) => m.src === activeSrc) : ALL_ROWS),
     [activeSrc],
   )
   const scopedIncome = useMemo(
@@ -20,14 +24,18 @@ export default function Workbench({ V, income }) {
     [income, activeSrc],
   )
 
-  const stats = useMemo(() => ({
-    inProg: scopedApprovals.filter((m) => m.status === '审批中').length,
-    pass: scopedApprovals.filter((m) => m.status === '已通过').length,
-    rej: scopedApprovals.filter((m) => m.status === '已拒绝').length,
-    cross: scopedApprovals.filter((m) => m.cross).length,
-  }), [scopedApprovals])
-  const filtered = scopedApprovals.filter(
-    (m) => (!filters.st || m.status === filters.st) && (!filters.lvl || m.level === filters.lvl),
+  const stats = useMemo(() => {
+    const active = scopedRows.filter((m) => m.perm).length
+    return {
+      applied: scopedRows.length,
+      active,
+      inactive: scopedRows.length - active,
+      cross: scopedRows.filter((m) => m.cross).length,
+    }
+  }, [scopedRows])
+  const filtered = scopedRows.filter(
+    (m) => (!filters.st || (filters.st === 'active' ? !!m.perm : !m.perm))
+      && (!filters.lvl || m.level === filters.lvl),
   )
   const harvest = useMemo(() => {
     const assetSet = new Set()
@@ -38,54 +46,45 @@ export default function Workbench({ V, income }) {
   const scopeLabel = activeSrc || '全部来源域'
 
   const apprColumns = [
-    { title: '申请单号', dataIndex: 'id', width: 110, render: (v) => <code style={{ fontSize: 11 }}>{v}</code> },
-    { title: '申请人', dataIndex: 'applicant' },
     {
-      title: '标签（可多个）',
-      dataIndex: 'tags',
-      render: (v, r) => {
-        const list = v || [r.tag]
-        return (
-          <span>
-            {list.length > 1 ? (
-              <>
-                {list[0]}{' '}
-                <Tag title={list.join(' / ')}>+{list.length - 1}</Tag>
-              </>
-            ) : list[0]}
-            {r.cross && <> <CrossBadge>⚡ {r.up || '跨域'}</CrossBadge></>}
-          </span>
-        )
-      },
-    },
-    { title: '分级', dataIndex: 'level', render: (v) => <LevelChip level={v} /> },
-    { title: '场景', dataIndex: 'scene' },
-    {
-      title: '提交时间',
-      dataIndex: 'at',
-      render: (v) => <Typography.Text type="secondary" style={{ fontSize: 12 }}>{v}</Typography.Text>,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
+      title: '申请时间',
+      dataIndex: 'last',
+      width: 150,
       render: (v, r) => (
-        <span>
-          <StatusTag status={v} />
-          {r.reject && (
-            <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 2 }}>{r.reject}</div>
-          )}
+        <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+          {v.at}
+          <span className="row-sub">
+            <code style={{ fontSize: 11 }}>{v.ticket}</code>
+            {r.apps.length > 1 && ` · 共 ${r.apps.length} 次`}
+          </span>
         </span>
       ),
     },
+    { title: '申请人', dataIndex: 'applicant' },
+    {
+      title: '标签',
+      dataIndex: 'tag',
+      render: (v, r) => (
+        <span>
+          {v}
+          {r.cross && <> <CrossBadge>⚡ 跨域</CrossBadge></>}
+        </span>
+      ),
+    },
+    { title: '分级', dataIndex: 'level', render: (v) => <LevelChip level={v} /> },
+    { title: '场景', dataIndex: 'last', key: 'scene', render: (v) => v.scene },
+    { title: '申请状态', key: 'apply', render: () => <ApplyTag /> },
+    { title: '生效状态', dataIndex: 'perm', render: (v) => <EffectTag perm={v} /> },
+    { title: '有效期 / 剩余', dataIndex: 'perm', key: 'valid', render: (v) => <ValidText perm={v} /> },
     {
       title: '操作',
       key: 'op',
       width: 130,
-      render: () => (
+      render: (v, r) => (
         <Button
           type="link"
           size="small"
-          onClick={() => message.info('已在新页面打开 Triton 工单详情')}
+          onClick={() => message.info(`已在新页面打开 Triton 申请单 ${r.last.ticket}`)}
         >
           在 Triton 查看 →
         </Button>
@@ -135,17 +134,17 @@ export default function Workbench({ V, income }) {
   const statusView = (
     <>
       <div className="kpi-row">
-        <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '审批中' }))}>
-          <Statistic title="⏳ 审批中" value={stats.inProg} valueStyle={{ color: 'var(--warn)' }} />
-          <div className="kpi-trend">经门户提交</div>
+        <div className={`kpi domain-kpi${!filters.st ? ' kpi-on' : ''}`} onClick={() => setFilters((m) => ({ ...m, st: '' }))}>
+          <Statistic title="📝 已申请" value={stats.applied} />
+          <div className="kpi-trend">申请人 × 标签，经门户提交</div>
         </div>
-        <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '已通过' }))}>
-          <Statistic title="✅ 已通过" value={stats.pass} valueStyle={{ color: 'var(--ok)' }} />
-          <div className="kpi-trend">同步自 Triton</div>
+        <div className={`kpi domain-kpi${filters.st === 'active' ? ' kpi-on' : ''}`} onClick={() => setFilters((m) => ({ ...m, st: 'active' }))}>
+          <Statistic title="✅ 生效中" value={stats.active} valueStyle={{ color: 'var(--ok)' }} />
+          <div className="kpi-trend">实时查询权限</div>
         </div>
-        <div className="kpi domain-kpi" onClick={() => setFilters((m) => ({ ...m, st: '已拒绝' }))}>
-          <Statistic title="✕ 已拒绝" value={stats.rej} valueStyle={{ color: 'var(--err)' }} />
-          <div className="kpi-trend">同步自 Triton</div>
+        <div className={`kpi domain-kpi${filters.st === 'inactive' ? ' kpi-on' : ''}`} onClick={() => setFilters((m) => ({ ...m, st: 'inactive' }))}>
+          <Statistic title="⏸ 已申请未生效" value={stats.inactive} valueStyle={{ color: 'var(--err)' }} />
+          <div className="kpi-trend">待审批 / 被拒 / 已过期</div>
         </div>
         <div className="kpi">
           <Statistic title="⚡ 跨域升档" value={stats.cross} valueStyle={{ color: 'var(--p)' }} />
@@ -154,7 +153,7 @@ export default function Workbench({ V, income }) {
       </div>
       <Card title="待审批 / 历史审批入口">
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          门户只提供入口，通过 / 拒绝 / 补充材料等操作都在 Triton 完成；返回后列表状态会按同步周期刷新。
+          门户只提供入口，通过 / 拒绝 / 补充材料等操作都在 Triton 完成。门户不显示审批单状态，生效状态按「申请人 × 标签」实时查询权限。
         </Typography.Text>
         <Space wrap>
           <Button type="primary" onClick={() => message.info('已在新页面打开 Triton 待审批列表')}>
@@ -167,15 +166,15 @@ export default function Workbench({ V, income }) {
       </Card>
       <div style={{ height: 14 }} />
       <Card
-        title="申请状态明细"
+        title="申请明细"
         extra={
           <Space>
             <Select
               value={filters.st || undefined}
-              placeholder="全部状态"
-              style={{ width: 130 }}
+              placeholder="全部生效状态"
+              style={{ width: 140 }}
               onChange={(m) => setFilters((h) => ({ ...h, st: m || '' }))}
-              options={['审批中', '已通过', '已拒绝'].map((m) => ({ label: m, value: m }))}
+              options={[{ label: '生效中', value: 'active' }, { label: '未生效', value: 'inactive' }]}
             />
             <Select
               value={filters.lvl || undefined}
@@ -190,7 +189,10 @@ export default function Workbench({ V, income }) {
           </Space>
         }
       >
-        <Table dataSource={filtered} columns={apprColumns} rowKey="id" pagination={false} />
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+          一行对应一位申请人的一个标签：多标签申请单会拆开，同一人对同一标签的多次申请会合并。
+        </Typography.Text>
+        <Table dataSource={filtered} columns={apprColumns} rowKey="key" pagination={false} />
       </Card>
     </>
   )

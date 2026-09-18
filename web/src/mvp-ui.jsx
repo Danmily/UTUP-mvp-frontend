@@ -1,9 +1,9 @@
 /* ============================================================
  * 业务通用展示组件（全部基于 @ecom/aurora 组件封装）
- * LevelChip / CrossBadge / StatusTag / RiskTag / DocCell
+ * LevelChip / CrossBadge / ApplyTag / EffectTag / ValidText / RiskTag / DocCell
  * ============================================================ */
-import { Tag, Typography } from '@ecom/aurora'
-import { LEVELS } from './data.js'
+import { Tag, Tooltip, Typography } from '@ecom/aurora'
+import { LEVELS, SOON_DAYS, INACTIVE_TIP } from './data.js'
 
 const LV_COLOR = { 开放: 'primary', 通用: 'warning', 受控: 'warning', 高敏: 'danger' }
 
@@ -21,16 +21,35 @@ export function CrossBadge({ children }) {
   )
 }
 
-const ST_COLOR = {
-  生效中: 'success',
-  已通过: 'success',
-  审批中: 'primary',
-  即将到期: 'warning',
-  已拒绝: 'danger',
+/* 申请状态：门户只记录「是否提交过申请」，所以只有一种取值 */
+export function ApplyTag() {
+  return <Tag color="primary">已申请</Tag>
 }
 
-export function StatusTag({ status }) {
-  return <Tag color={ST_COLOR[status]}>{status}</Tag>
+/* 生效状态：按「用户 × 标签」实时查询的权限结果；已申请但未生效时附问号释义 */
+export function EffectTag({ perm, applied = true }) {
+  if (perm) return <Tag color="success">生效中</Tag>
+  if (!applied) return <Tag>未生效</Tag>
+  return (
+    <span className="effect-tag">
+      <Tag color="danger">未生效</Tag>
+      <Tooltip title={INACTIVE_TIP}>
+        <span className="q-icon" tabIndex={0} aria-label={INACTIVE_TIP}>?</span>
+      </Tooltip>
+    </span>
+  )
+}
+
+/* 有效期 / 剩余：临近到期标橙 */
+export function ValidText({ perm }) {
+  if (!perm) return <span style={{ fontSize: 12, color: 'var(--mute)' }}>—</span>
+  if (perm.valid === '永久') return <span style={{ fontSize: 12 }}>永久</span>
+  const soon = perm.days <= SOON_DAYS
+  return (
+    <span style={{ fontSize: 12, color: soon ? 'var(--warn)' : undefined }}>
+      {perm.valid} · 剩 {perm.days} 天
+    </span>
+  )
 }
 
 export function RiskTag({ risk }) {

@@ -2180,3 +2180,50 @@ border-bottom: none
   color: var(--text2);
   white-space: nowrap;
 }
+
+/* ---------- 我的申请 / 权限 · 供给方工作台（0917 改版：用户 × 标签） ---------- */
+@media (min-width:769px) {
+.kpi-row.kpi-row-3 {
+grid-template-columns: repeat(3, 1fr)
+}
+}
+
+.kpi.kpi-on {
+border-color: var(--p);
+box-shadow: 0 0 0 2px rgba(51, 112, 255, .14), var(--shadow)
+}
+
+.effect-tag {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+white-space: nowrap
+}
+
+.q-icon {
+display: inline-grid;
+place-items: center;
+width: 16px;
+height: 16px;
+border-radius: 50%;
+border: 1px solid var(--mute2);
+color: var(--mute);
+font-size: 11px;
+font-weight: 600;
+line-height: 1;
+cursor: help
+}
+
+.q-icon:hover,
+.q-icon:focus-visible {
+color: var(--p);
+border-color: var(--p);
+outline: none
+}
+
+.row-sub {
+display: block;
+margin-top: 2px;
+font-size: 11px;
+color: var(--mute)
+}
