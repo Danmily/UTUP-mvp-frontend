@@ -8,7 +8,7 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, DocCell } from '../mvp-ui.jsx'
 
 /* 申请状态 Tab（0918 改版）：按申请单展示。
- * 风神平台流转状态拿不到，申请状态只有「已申请」，进度跳风神平台查看；
+ * Triton 流转状态拿不到，申请状态只有「已申请」，进度跳 Triton 查看；
  * 一单可含多个标签，点击「展开」看每个标签的分级；分级筛选只要单内任一标签命中即返回。
  * KPI：申请单数 ｜ 已生效 ｜ 已过期（后两者按「申请人 × 标签」实时权限统计） */
 const TICKETS = APPROVALS.map((a) => {
@@ -116,9 +116,9 @@ export default function Workbench({ V, income }) {
         <Button
           type="link"
           size="small"
-          onClick={() => message.info('已在新页面打开风神平台申请详情')}
+          onClick={() => message.info('已在新页面打开 Triton 申请详情')}
         >
-          在风神平台查看 →
+          在 Triton 查看 →
         </Button>
       ),
     },
@@ -181,13 +181,13 @@ export default function Workbench({ V, income }) {
       </div>
       <Card title="待审批 / 历史审批入口">
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          门户只提供入口，通过 / 拒绝 / 补充材料等操作都在风神平台完成。门户拿不到审批流转状态，申请单进度请在风神平台查看。
+          门户只提供入口，通过 / 拒绝 / 补充材料等操作都在 Triton 完成。门户拿不到审批流转状态，申请单进度请在 Triton 查看。
         </Typography.Text>
         <Space wrap>
-          <Button type="primary" onClick={() => message.info('已在新页面打开风神平台待审批列表')}>
-            去风神平台审批 →
+          <Button type="primary" onClick={() => message.info('已在新页面打开 Triton 待审批列表')}>
+            去 Triton 审批 →
           </Button>
-          <Button onClick={() => message.info('已在新页面打开风神平台历史审批')}>
+          <Button onClick={() => message.info('已在新页面打开 Triton 历史审批')}>
             查看历史审批 →
           </Button>
         </Space>

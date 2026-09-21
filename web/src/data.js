@@ -1,6 +1,6 @@
 /* ============================================================
  * UTUP · 数据与业务判定（单一事实源）
- * 3 视角权限 / 4 档分级 / 跨域升档 / 可见性矩阵 / 风神平台·DMP 路由
+ * 3 视角权限 / 4 档分级 / 跨域升档 / 可见性矩阵 / Triton·DMP 路由
  * ============================================================ */
 
 export const VIEWS = {
@@ -14,7 +14,7 @@ export const VIEWS = {
     /* 所属来源域：供给方工作台仅汇总本来源域的申请与收益；平台管理员不设此字段，可查看全部 */
     ownSrc: '电商DMP',
     levels: ['开放', '通用', '受控', '高敏'],
-    desc: '来源域管理员，汇总本域申请状态 + 跳转风神平台审批 + 效果回收',
+    desc: '来源域管理员，汇总本域申请状态 + 跳转 Triton 审批 + 效果回收',
   },
   platform: {
     name: '平台管理员', icon: '🛡️', role: 'platform', domain: '平台', wl: true,
@@ -122,7 +122,7 @@ export function upgrade(level) {
   return CROSS_CFG[level] || level
 }
 
-/* 审批路由：PSM 系统间调用走 DMP / LDMP；人消费标签走风神平台（门户不落工单） */
+/* 审批路由：PSM 系统间调用走 DMP / LDMP；人消费标签走 Triton（门户不落工单） */
 export function applyPath(tag) {
   return tag.callType === 'psm'
     ? {
@@ -132,8 +132,8 @@ export function applyPath(tag) {
       }
     : {
         name: '人消费标签',
-        target: '风神平台',
-        detail: `标签申请 → 定位上游 Hive 表 ${tag.table} → 深链跳转风神平台发起`,
+        target: 'Triton',
+        detail: `标签申请 → 定位上游 Hive 表 ${tag.table} → 深链跳转 Triton 发起`,
       }
 }
 
@@ -339,13 +339,13 @@ export const CATALOG = [
 ]
 
 /* 我的申请 / 权限（0917 / 0918 改版：用户标签权限列表）
- * 风神平台申请单状态门户侧拿不到：状态消息只能按库配置，ecom 库粒度过大不下发；
+ * Triton 申请单状态门户侧拿不到：状态消息只能按库配置，ecom 库粒度过大不下发；
  * 按单号主动拉取又要求调用账号在审批人列表里。故不再追踪申请单，改看「用户 × 标签」权限关系：
  *   · 申请状态：门户自己记录，点过申请即「已申请」，不关单、不跟审批流
  *   · 生效状态：按 uid × 标签实时查权限接口（含有效期），行内只有「生效中 / 未生效」，已过期计入 KPI
  * 同一标签多次申请合并为一行，展示最新一次申请；页面不展示申请单号。
  * KPI：申请单数（门户记录条数）｜ 已生效 ｜ 已过期（均按用户 × 标签统计） */
-export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为风神平台抽屉回调的申请单 ID，仅作记录
+export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为 Triton 抽屉回调的申请单 ID，仅作记录
   { ticket: 'APP-24098', tagId: 14533, at: '2026-07-18 10:12', scene: '人群圈选' },
   { ticket: 'APP-24112', tagId: 14555, at: '2026-05-30 16:40', scene: '数据分析' },
   { ticket: 'APP-24188', tagId: 14501, at: '2026-08-28 11:03', scene: '营销投放' },
@@ -367,7 +367,7 @@ export const PERM_LIVE = {
 /* 生效中且剩余 ≤ N 天，给出续期提醒 */
 export const SOON_DAYS = 7
 
-export const INACTIVE_TIP = '审批未通过或权限已过期，详情请至风神平台查询。'
+export const INACTIVE_TIP = '审批未通过或权限已过期，详情请至 Triton 查询。'
 
 export function livePerm(tagId) {
   return PERM_LIVE[tagId] || null
@@ -388,7 +388,7 @@ export function myPermRows(view, applies) {
 }
 
 /* 供给方工作台 · 本域经门户提交的申请单（示例数据）
- * 按申请单展示（单号仅作内部标识，页面不展示），申请状态只有「已申请」（拿不到风神平台流转状态，进度跳风神平台看）；
+ * 按申请单展示（单号仅作内部标识，页面不展示），申请状态只有「已申请」（拿不到 Triton 流转状态，进度跳 Triton 看）；
  * 一单可含多个标签，分级按标签展开查看。KPI 的已生效 / 已过期按「申请人 × 标签」实时权限统计 */
 export const APPROVALS = [
   { ticket: 'TKT-88012', applicant: '电商增长团队', tagIds: [14501], scene: '营销投放', at: '2026-09-05 14:22' },

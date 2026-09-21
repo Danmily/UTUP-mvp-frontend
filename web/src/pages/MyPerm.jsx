@@ -94,7 +94,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
           <Alert
             type="warning"
             showIcon
-            message={`${stats.soon.map((r) => `「${r.tag}」剩 ${r.perm.days} 天`).join('、')}到期。门户暂不支持续期，需前往来源系统（风神平台 / DMP）重新发起申请。`}
+            message={`${stats.soon.map((r) => `「${r.tag}」剩 ${r.perm.days} 天`).join('、')}到期。门户暂不支持续期，需前往来源系统（Triton / DMP）重新发起申请。`}
           />
           <div style={{ height: 12 }} />
         </>
@@ -142,8 +142,8 @@ function PermDetail({ r, onClose, onReapply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            <Button onClick={() => { message.info('已在新页面打开风神平台申请记录'); onClose() }}>
-              去风神平台查看 →
+            <Button onClick={() => { message.info('已在新页面打开 Triton 申请记录'); onClose() }}>
+              去 Triton 查看 →
             </Button>
             {!active && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
           </Space>
