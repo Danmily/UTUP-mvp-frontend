@@ -142,9 +142,16 @@ function PermDetail({ r, onClose, onReapply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            <Button onClick={() => { message.info('已在新页面打开 Triton 申请记录'); onClose() }}>
-              去 Triton 查看 →
-            </Button>
+            {/* 已申请且权限生效 → 去风神平台用数；尚未生效 → 去 Triton 看申请进度 */}
+            {active ? (
+              <Button onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
+                去风神平台查看 →
+              </Button>
+            ) : (
+              <Button onClick={() => { message.info('已在新页面打开 Triton 申请记录'); onClose() }}>
+                去 Triton 查看 →
+              </Button>
+            )}
             {!active && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
           </Space>
         </div>
