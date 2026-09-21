@@ -137,8 +137,8 @@ export default function Market({ V, myapply, addApply, pushAudit }) {
   )
 }
 
-/* 申请流程（智能助手预填 → 跳 Triton 建单）：标签广场与「我的申请 / 权限」共用
- * 门户只记一条申请记录（申请状态 = 已申请），不追踪 Triton 单据状态 */
+/* 申请流程（智能助手预填 → 跳风神平台建单）：标签广场与「我的申请 / 权限」共用
+ * 门户只记一条申请记录（申请状态 = 已申请），不追踪风神平台单据状态 */
 export function useApplyFlow({ V, addApply, pushAudit }) {
   const [apply, setApply] = useState(null)
 
@@ -185,10 +185,10 @@ export function useApplyFlow({ V, addApply, pushAudit }) {
     const ticket = 'APP-' + (24400 + Math.floor(Math.random() * 500))
     const at = nowStamp().slice(0, 16)
     addApply({ ticket, tagId: tag.id, at, scene: apply.scene })
-    pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
+    pushAudit(`去${path.target}申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
     pushAudit(`申请提交成功：${tag.name}（场景=${apply.scene}）`, vis.eff)
     setApply(null)
-    message.success(`已带预填内容跳转 ${path.target} 建单，申请状态记为「已申请」；审批通过后生效状态会自动变为「生效中」`)
+    message.success(`已带预填内容跳转${path.target}建单，申请状态记为「已申请」；审批通过后生效状态会自动变为「生效中」`)
   }
 
   const modal = apply && (
@@ -379,11 +379,11 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            门户不生成工单，最终建单在 Triton 完成
+            门户不生成工单，最终建单在风神平台完成
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>取消</Button>
-            <Button type="primary" onClick={onSubmit}>去 Triton 申请 →</Button>
+            <Button type="primary" onClick={onSubmit}>去风神平台申请 →</Button>
           </Space>
         </div>
       }
@@ -392,7 +392,7 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
         type="info"
         showIcon
         message="🤖 智能小助手：表单智能预填"
-        description="自动带出申请字段、申请人和使用场景；上传 PRD / 需求单 / 收益测算文档后会自动解析并回填，确认无误后一键跳转 Triton 建单。"
+        description="自动带出申请字段、申请人和使用场景；上传 PRD / 需求单 / 收益测算文档后会自动解析并回填，确认无误后一键跳转风神平台建单。"
       />
       {vis.cross && (
         <Alert
@@ -447,7 +447,7 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
       <div className="flow-title">预计审批链路</div>
       <Steps items={steps} current={steps.length - 1} />
       <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 10 }}>
-        有效期：{LEVELS[eff].valid} · 审批人：{LEVELS[eff].approver} · 预填内容仅供参考，实际必填项与校验以 Triton 表单为准
+        有效期：{LEVELS[eff].valid} · 审批人：{LEVELS[eff].approver} · 预填内容仅供参考，实际必填项与校验以风神平台表单为准
       </Typography.Text>
       <div style={{ marginTop: 14 }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>合规依据：</Typography.Text>{' '}
