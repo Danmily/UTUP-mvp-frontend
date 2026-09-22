@@ -3,7 +3,7 @@ import {
   Button, Card, Select, Table, Tabs, Tag, Statistic, Space, Typography, message,
 } from '@ecom/aurora'
 import {
-  TAGS, APPROVALS, CATALOG, LEVEL_ORDER, upgrade, srcsOfIncome, domainPermRows, isActive, isExpired,
+  TAGS, APPROVALS, CATALOG, LEVEL_ORDER, levelLabel, upgrade, srcsOfIncome, domainPermRows, isActive, isExpired,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, DocCell } from '../mvp-ui.jsx'
 
@@ -203,7 +203,7 @@ export default function Workbench({ V, income }) {
               allowClear
               style={{ width: 130 }}
               onChange={(m) => setFilters((h) => ({ ...h, lvl: m || '' }))}
-              options={LEVEL_ORDER.map((m) => ({ label: m, value: m }))}
+              options={LEVEL_ORDER.map((m) => ({ label: levelLabel(m), value: m }))}
             />
           </Space>
         }

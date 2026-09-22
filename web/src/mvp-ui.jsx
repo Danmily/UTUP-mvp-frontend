@@ -3,14 +3,20 @@
  * LevelChip / CrossBadge / ApplyTag / EffectTag / ValidText / RiskTag / DocCell
  * ============================================================ */
 import { Tag, Tooltip, Typography } from '@ecom/aurora'
-import { LEVELS, SOON_DAYS, INACTIVE_TIP, isActive, isExpired } from './data.js'
+import { LEVELS, SOON_DAYS, INACTIVE_TIP, levelLabel, isActive, isExpired } from './data.js'
 
-const LV_COLOR = { 开放: 'primary', 通用: 'warning', 受控: 'warning', 高敏: 'danger' }
+/* 分级色板：开放绿 / 通用黄 / 受控橙 / 高敏红，四档一眼可分 */
+const lvStyle = (k) => ({
+  background: `var(--lv-${k}-bg)`,
+  color: `var(--lv-${k})`,
+  border: `1px solid var(--lv-${k}-bd)`,
+  whiteSpace: 'nowrap',
+})
 
 export function LevelChip({ level }) {
   const lv = LEVELS[level]
   if (!lv) return null
-  return <Tag color={LV_COLOR[level]}>{level} · {lv.code}</Tag>
+  return <Tag style={lvStyle(lv.cls)}>{levelLabel(level)}</Tag>
 }
 
 export function CrossBadge({ children }) {

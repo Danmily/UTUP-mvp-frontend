@@ -2244,3 +2244,19 @@ justify-content: space-between;
 gap: 10px;
 font-size: 12px
 }
+
+/* ---------- 分级色板：开放绿 / 通用黄 / 受控橙 / 高敏红 ---------- */
+:root {
+--lv-open: #00A63A;
+--lv-open-bg: #E8FFEA;
+--lv-open-bd: rgba(0, 180, 42, .3);
+--lv-base: #B8860B;
+--lv-base-bg: #FFFBE6;
+--lv-base-bd: rgba(216, 170, 20, .38);
+--lv-ctrl: #E07000;
+--lv-ctrl-bg: #FFF7E8;
+--lv-ctrl-bd: rgba(255, 125, 0, .32);
+--lv-high: #F53F3F;
+--lv-high-bg: #FFECE8;
+--lv-high-bd: rgba(245, 63, 63, .3)
+}

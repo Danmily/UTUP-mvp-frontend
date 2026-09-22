@@ -100,15 +100,21 @@ export const NAV_LABELS = {
   audit: '审计日志',
 }
 
-/* 四档分级规范 */
+/* 四档分级规范：展示格式对齐数据表「档位/密级」写法，颜色 开放绿 → 通用黄 → 受控橙 → 高敏红 */
 export const LEVELS = {
-  开放: { code: 'L2', cls: 'l2', approve: '免审批 · 自助订阅', approver: '—', valid: '永久（默认 180 天）' },
-  通用: { code: 'L3-基础', cls: 'l3', approve: '自助申请 + 留痕', approver: '平台自动通过', valid: '180 天' },
-  受控: { code: 'L3-高', cls: 'l3', approve: '来源方 Owner 审批', approver: '标签 Owner / 团队', valid: '90 天' },
-  高敏: { code: 'L4', cls: 'l4', approve: '来源方合规流程', approver: '跳转来源方审批系统 + 法务加签', valid: '30 天' },
+  开放: { code: 'L2', cls: 'open', approve: '免审批 · 自助订阅', approver: '—', valid: '永久（默认 180 天）' },
+  通用: { code: 'L3基础', cls: 'base', approve: '自助申请 + 留痕', approver: '平台自动通过', valid: '180 天' },
+  受控: { code: 'L3高', cls: 'ctrl', approve: '来源方 Owner 审批', approver: '标签 Owner / 团队', valid: '90 天' },
+  高敏: { code: 'L4', cls: 'high', approve: '来源方合规流程', approver: '跳转来源方审批系统 + 法务加签', valid: '30 天' },
 }
 
 export const LEVEL_ORDER = ['开放', '通用', '受控', '高敏']
+
+/* 分级展示文案：开放/L2、通用/L3基础、受控/L3高、高敏/L4 */
+export function levelLabel(level) {
+  const lv = LEVELS[level]
+  return lv ? `${level}/${lv.code}` : level
+}
 
 /* 跨域升档映射：跨来源域调用时密级就高 */
 export const CROSS_CFG = {

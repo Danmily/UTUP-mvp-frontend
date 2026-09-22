@@ -4,7 +4,7 @@ import {
   Form, Tag, Statistic, Empty, Space, Typography, message,
 } from '@ecom/aurora'
 import {
-  TAGS, CATALOG, LEVELS, visibility, applyPath, complianceOf, livePerm, isActive, nowStamp,
+  TAGS, CATALOG, LEVELS, LEVEL_ORDER, levelLabel, visibility, applyPath, complianceOf, livePerm, isActive, nowStamp,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 
@@ -73,7 +73,7 @@ export default function Market({ V, myapply, addApply, pushAudit }) {
           <Select
             value={filters.lvl}
             onChange={(v) => setFilters((d) => ({ ...d, lvl: v || '' }))}
-            options={[{ label: '全部分级', value: '' }, ...['开放', '通用', '受控', '高敏'].map((x) => ({ label: x, value: x }))]}
+            options={[{ label: '全部分级', value: '' }, ...LEVEL_ORDER.map((x) => ({ label: levelLabel(x), value: x }))]}
           />
           <Select
             value={filters.st}
