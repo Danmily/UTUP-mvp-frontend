@@ -2260,3 +2260,114 @@ font-size: 12px
 --lv-high-bg: #FFECE8;
 --lv-high-bd: rgba(245, 63, 63, .3)
 }
+
+/* ---------- 标签广场：来源域卡片以域名为主，数量降为辅助信息 ---------- */
+.src-kpi {
+padding: 16px 18px
+}
+
+.src-name {
+font-size: 20px;
+font-weight: 600;
+color: var(--text);
+letter-spacing: -.01em
+}
+
+.src-sub {
+margin-top: 6px;
+font-size: 12px;
+color: var(--mute)
+}
+
+/* ---------- 标签卡：已申请角标 + 批量选择 ---------- */
+.tag-card {
+position: relative
+}
+
+
+.tag-card.is-checked {
+border-color: var(--p);
+box-shadow: 0 0 0 2px rgba(51, 112, 255, .14)
+}
+
+/* 已申请角标挂在右下角，避开右上角的「官方」标记 */
+.tc-ribbon {
+position: absolute;
+right: -32px;
+bottom: 12px;
+width: 112px;
+transform: rotate(-38deg);
+background: var(--p);
+color: #fff;
+font-size: 11px;
+line-height: 20px;
+letter-spacing: .04em;
+text-align: center;
+box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+pointer-events: none
+}
+
+/* 已申请卡片的底栏右侧留出角标空间，避免压住「去使用」 */
+.tag-card.is-applied .tc-foot {
+padding-right: 58px
+}
+
+/* 标题占满剩余宽度，勾选框与「官方」分列两端 */
+.tag-card .tc-name {
+flex: 1 1 auto;
+min-width: 0
+}
+
+.tag-card.is-applied {
+background: linear-gradient(0deg, #F5F9FF 0, #fff 72px)
+}
+
+.tc-check {
+display: inline-flex;
+align-items: center;
+margin-right: 2px
+}
+
+.batch-bar {
+position: sticky;
+bottom: 12px;
+z-index: 20;
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 16px;
+margin-top: 14px;
+padding: 10px 16px;
+border: 1px solid var(--line);
+border-radius: var(--r-md);
+background: #fff;
+box-shadow: var(--shadow-xl, 0 8px 24px rgba(0, 0, 0, .12));
+font-size: 13px
+}
+
+/* ---------- 必填标识与字段级报错 ---------- */
+.req-star {
+color: var(--err);
+margin-right: 4px
+}
+
+.field-err {
+margin-top: 6px;
+font-size: 12px;
+color: var(--err)
+}
+
+/* ---------- 侧边栏红点 ---------- */
+.nav-label {
+display: inline-flex;
+align-items: center;
+gap: 6px
+}
+
+.nav-dot {
+width: 6px;
+height: 6px;
+border-radius: 50%;
+background: var(--err);
+display: inline-block
+}

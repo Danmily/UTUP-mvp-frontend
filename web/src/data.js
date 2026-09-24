@@ -110,6 +110,9 @@ export const LEVELS = {
 
 export const LEVEL_ORDER = ['开放', '通用', '受控', '高敏']
 
+/* 使用场景枚举：申请与收益录入共用同一份，避免两页选项不一致 */
+export const SCENES = ['人群圈选', '用户360', '模型特征', '营销投放', '数据分析']
+
 /* 分级展示文案：开放/L2、通用/L3基础、受控/L3高、高敏/L4 */
 export function levelLabel(level) {
   const lv = LEVELS[level]

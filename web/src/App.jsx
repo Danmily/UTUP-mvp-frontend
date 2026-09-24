@@ -47,6 +47,7 @@ export default function App() {
   const [income, setIncome] = useState(INITIAL_INCOME)
   const [audit, setAudit] = useState(INITIAL_AUDIT)
   const [soon, setSoon] = useState(null)
+  const [newApply, setNewApply] = useState(false) // 申请成功后在「我的申请」菜单上打红点
 
   const pushAudit = useCallback((what, lvl) => {
     setAudit((list) => [
@@ -54,7 +55,7 @@ export default function App() {
       ...list,
     ].slice(0, 200))
   }, [])
-  const addApply = useCallback((a) => setMyapply((list) => [a, ...list]), [])
+  const addApply = useCallback((a) => { setMyapply((list) => [a, ...list]); setNewApply(true) }, [])
   const addIncome = useCallback((r) => setIncome((list) => [r, ...list]), [])
 
   function handleLogin(key) {
@@ -81,7 +82,15 @@ export default function App() {
               </span>
             ),
           }
-        : { key: it.key, label: it.label }
+        : {
+            key: it.key,
+            label: (
+              <span className="nav-label">
+                {it.label}
+                {it.key === 'myperm' && newApply && <span className="nav-dot" aria-label="有新的申请" />}
+              </span>
+            ),
+          }
     )),
   }))
 
@@ -97,13 +106,14 @@ export default function App() {
       pushAudit(`访问占位入口：${found.label}（V1 规划中）`)
       return
     }
+    if (item.key === 'myperm') setNewApply(false)
     setNav(item.key)
   }
 
   function renderView() {
     switch (nav) {
       case 'market':
-        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
+        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
       case 'myperm':
         return <MyPerm V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
       case 'income':
@@ -117,7 +127,7 @@ export default function App() {
       case 'audit':
         return <Audit audit={audit} />
       default:
-        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
+        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
     }
   }
 

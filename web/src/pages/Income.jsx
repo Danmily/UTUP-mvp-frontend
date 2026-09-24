@@ -2,10 +2,9 @@ import { useState, useMemo, useRef } from 'react'
 import {
   Button, Card, Input, Select, Table, Form, Checkbox, Tag, Space, Typography, message,
 } from '@ecom/aurora'
-import { TAGS } from '../data.js'
+import { TAGS, SCENES } from '../data.js'
 import { LevelChip, DocCell } from '../mvp-ui.jsx'
 
-const SCENES = ['人群圈选', '用户360', '模型特征', '营销投放', '数据分析']
 
 function timeStamp() {
   const d = new Date()

@@ -64,7 +64,16 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
           <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setDetailId(r.tagId) }}>
             详情
           </Button>
-          {!isActive(r.perm) && (
+          {/* 生效中只给「去使用」；未生效 / 已过期才给「再次申请」 */}
+          {isActive(r.perm) ? (
+            <Button
+              type="link"
+              size="small"
+              onClick={(e) => { e.stopPropagation(); message.info('已在新页面打开风神平台') }}
+            >
+              去使用
+            </Button>
+          ) : (
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
               再次申请
             </Button>
@@ -144,8 +153,8 @@ function PermDetail({ r, onClose, onReapply }) {
             <Button onClick={onClose}>关闭</Button>
             {/* 已申请且权限生效 → 去风神平台用数；尚未生效 → 去 Triton 看申请进度 */}
             {active ? (
-              <Button onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
-                去风神平台查看 →
+              <Button type="primary" onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
+                去使用 →
               </Button>
             ) : (
               <Button onClick={() => { message.info('已在新页面打开 Triton 申请记录'); onClose() }}>
