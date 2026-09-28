@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import {
-  Button, Card, Input, Select, Checkbox, Modal, Descriptions, Alert, Steps,
+  Button, Card, Input, Select, Checkbox, Table, Modal, Descriptions, Alert, Steps,
   Form, Tag, Empty, Space, Typography, message,
 } from '@ecom/aurora'
 import {
@@ -14,6 +14,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
+  const [viewMode, setViewMode] = useState('card') // card | list
   const applyFlow = useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone: () => setSel([]) })
 
   /* 列表只看门户自记录的申请状态，不逐卡实时查权限；是否生效进详情再查 */
@@ -45,6 +46,12 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const selectable = (tag) => visibility(V, tag).canApply && !isActive(livePerm(tag.id))
   function toggleSel(id) {
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  }
+  const selectableList = list.filter(selectable)
+  function toggleSelAll() {
+    const ids = selectableList.map((t) => t.id)
+    const all = ids.length > 0 && ids.every((id) => sel.includes(id))
+    setSel((s) => (all ? s.filter((x) => !ids.includes(x)) : [...new Set([...s, ...ids])]))
   }
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
@@ -129,6 +136,15 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               { label: '可申请', value: 'apply' },
             ]}
           />
+        {/* 视图切换：卡片用于浏览发现，列表用于按条件快速比对（C-10） */}
+        <div className="view-switch" role="group" aria-label="视图">
+          {[['card', '⊞ 卡片'], ['list', '☰ 列表']].map(([k, label]) => (
+            <button key={k} type="button" className={viewMode === k ? 'on' : ''}
+              aria-pressed={viewMode === k} onClick={() => setViewMode(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
         </div>
         {demo === 'fail' ? (
           <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
@@ -145,6 +161,84 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               desc="受控级或跨域的用数需求，请走本域 POC 入口申请"
             />
           )
+        ) : viewMode === 'list' ? (
+          /* 列表视图：去掉恒定值（覆盖率）与重复信息（团队），把宽度留给名称与口径 */
+          <Table
+            dataSource={list}
+            rowKey="id"
+            pagination={false}
+            onRow={(r) => openTag(r.id)}
+            columns={[
+              {
+                title: (
+                  <Checkbox
+                    checked={selectableList.length > 0 && selectableList.every((t) => sel.includes(t.id))}
+                    onChange={toggleSelAll}
+                  />
+                ),
+                key: 'sel',
+                width: 40,
+                render: (v, r) => (
+                  selectable(r) ? (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <Checkbox checked={sel.includes(r.id)} onChange={() => toggleSel(r.id)} />
+                    </span>
+                  ) : null
+                ),
+              },
+              {
+                title: '标签名称',
+                dataIndex: 'name',
+                render: (v, r) => (
+                  <span className="lt-name" title={v}>
+                    {v}
+                    {visibility(V, r).cross && <> <CrossBadge>跨域</CrossBadge></>}
+                  </span>
+                ),
+              },
+              { title: '统一分级', dataIndex: 'level', width: 118, render: (v) => <LevelChip level={v} /> },
+              {
+                title: '口径描述',
+                dataIndex: 'desc',
+                render: (v, r) => (
+                  v && v !== r.name
+                    ? <span className="lt-desc" title={v}>{v}</span>
+                    : <span className="tc-desc-empty">暂无口径说明</span>
+                ),
+              },
+              { title: '来源域', dataIndex: 'src', width: 112 },
+              { title: '更新频率', dataIndex: 'freq', width: 92 },
+              {
+                title: '我的状态',
+                key: 'st',
+                width: 104,
+                render: (v, r) => {
+                  const perm = livePerm(r.id)
+                  if (isActive(perm)) return <Tag color="success">生效中</Tag>
+                  if (isExpired(perm)) return <Tag color="danger">已过期</Tag>
+                  return applyStatus(r) === 'applied' ? <ApplyTag /> : <span style={{ color: 'var(--mute2)' }}>—</span>
+                },
+              },
+              {
+                title: '操作',
+                key: 'op',
+                width: 96,
+                render: (v, r) => (
+                  isActive(livePerm(r.id)) ? (
+                    <Button type="link" size="small"
+                      onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
+                      去使用
+                    </Button>
+                  ) : visibility(V, r).canApply ? (
+                    <Button type="link" size="small"
+                      onClick={(e) => { e.stopPropagation(); applyFlow.start([r.id]) }}>
+                      申请
+                    </Button>
+                  ) : <span style={{ color: 'var(--mute2)' }}>—</span>
+                ),
+              },
+            ]}
+          />
         ) : (
           <div className="tag-cards">
             {list.map((c) => {
