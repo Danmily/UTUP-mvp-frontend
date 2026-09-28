@@ -15,7 +15,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const [detailId, setDetailId] = useState(null)
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const [viewMode, setViewMode] = useState('card') // card | list
-  const applyFlow = useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone: () => setSel([]) })
+  /* 批量模式：默认关闭，卡片保持干净；开启后才出现勾选框，点卡片即选中 */
+  const [batchMode, setBatchMode] = useState(false)
+  function exitBatch() {
+    setBatchMode(false)
+    setSel([])
+  }
+  const applyFlow = useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone: () => exitBatch() })
 
   /* 列表只看门户自记录的申请状态，不逐卡实时查权限；是否生效进详情再查 */
   const applyStatus = (tag) =>
@@ -144,6 +150,12 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               { label: '可申请', value: 'apply' },
             ]}
           />
+        {/* 批量申请入口：进入批量模式后卡片与列表才出现勾选框 */}
+        {batchMode ? (
+          <Button size="small" onClick={exitBatch}>退出批量</Button>
+        ) : (
+          <Button size="small" onClick={() => setBatchMode(true)}>☑ 批量申请</Button>
+        )}
         {/* 视图切换：卡片用于浏览发现，列表用于按条件快速比对（C-10） */}
         <div className="view-switch" role="group" aria-label="视图">
           {[['card', '⊞ 卡片'], ['list', '☰ 列表']].map(([k, label]) => (
@@ -177,7 +189,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             pagination={false}
             onRow={(r) => openTag(r.id)}
             columns={[
-              {
+              ...(batchMode ? [{
                 title: (
                   <Checkbox
                     checked={selectableList.length > 0 && selectableList.every((t) => sel.includes(t.id))}
@@ -193,7 +205,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                     </span>
                   ) : null
                 ),
-              },
+              }] : []),
               {
                 title: '标签名称',
                 dataIndex: 'name',
@@ -258,15 +270,16 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               return (
                 <div
                   key={c.id}
-                  className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`}
-                  onClick={() => openTag(c.id)}
+                  className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
+                    + (batchMode && !canSel ? ' is-disabled' : '')}
+                  onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
                   {/* 已申请用角标表达，不再占用一个 tag 位；可申请为默认态，不额外标记 */}
                   {applied && <span className="tc-ribbon">已申请</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}
-                    {canSel && (
+                    {batchMode && canSel && (
                       <span className="tc-check" onClick={(e) => e.stopPropagation()}>
                         <Checkbox checked={checked} onChange={() => toggleSel(c.id)} />
                       </span>
@@ -302,6 +315,17 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           </div>
         )}
       </Card>
+      {batchMode && (
+        <div className="batch-hint">
+          <span>批量模式：勾选或直接点击卡片来选择标签；已有权限的标签不可选</span>
+          <Space>
+            <Button size="small" onClick={toggleSelAll}>
+              {selectableList.length > 0 && selectableList.every((t) => sel.includes(t.id)) ? '取消全选' : `全选当前 ${selectableList.length} 个`}
+            </Button>
+            <Button size="small" onClick={exitBatch}>退出</Button>
+          </Space>
+        </div>
+      )}
       {sel.length > 0 && (
         /* 批量操作条：固定在视口底部，选中后始终可见，不用滚到页尾找按钮 */
         <div className="batch-bar" role="region" aria-label="批量申请">
@@ -319,10 +343,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             <div className="batch-names" title={selNames.join('、')}>{selNames.join('、')}</div>
           </div>
           <div className="batch-actions">
-            {restSelectable > 0 && (
-              <Button size="small" onClick={toggleSelAll}>全选当前 {selectableList.length} 个</Button>
-            )}
             <Button size="small" onClick={() => setSel([])}>清空</Button>
+            <Button size="small" onClick={exitBatch}>退出批量</Button>
             <Button type="primary" onClick={() => applyFlow.start(sel)}>批量申请 {sel.length} 个 →</Button>
           </div>
         </div>
