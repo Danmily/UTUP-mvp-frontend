@@ -10,7 +10,7 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 
-export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo }) {
+export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, onAudience }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
@@ -86,6 +86,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   return (
     <>
       <div className="page-head"><div className="page-title">标签广场</div></div>
+      {onAudience && <div className="aud-market-cta"><div><strong>从业务目标出发，找到合适的人群</strong><p>带入这里的资产，按六步完成需求确认、策略选择、执行评估与归档。</p></div><button type="button" onClick={() => onAudience()}>开始圈人 ↗</button></div>}
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
@@ -355,6 +356,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <TagDetailModal
           V={V}
           tag={detailTag}
+          onAudience={onAudience ? () => { setDetailId(null); onAudience(detailTag) } : undefined}
           applies={myapply.filter((a) => a.tagId === detailTag.id)}
           onClose={() => setDetailId(null)}
           onApply={() => { setDetailId(null); applyFlow.start([detailTag.id]) }}
@@ -498,7 +500,7 @@ export function useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone }) {
   return { start, modal }
 }
 
-function TagDetailModal({ V, tag, applies, onClose, onApply }) {
+function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
   const vis = visibility(V, tag)
   const comp = complianceOf(tag)
   // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
@@ -534,6 +536,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
+            {onAudience && <Button onClick={onAudience}>带入圈人任务 →</Button>}
             {active ? (
               <Button disabled>✓ 已有权限</Button>
             ) : vis.canApply ? (

@@ -28,12 +28,12 @@ export default function Login({ onLogin }) {
           className="login-btn"
           onClick={() => onLogin(viewKey)}
         >
-          飞书 SSO 登录 →
+          进入交互演示 →
         </Button>
         <Typography.Paragraph
           style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--mute)' }}
         >
-          白名单账号 · 登录与操作全程审计留痕
+          本地角色演示 · 未连接飞书 SSO 或真实审批
         </Typography.Paragraph>
       </div>
     </div>

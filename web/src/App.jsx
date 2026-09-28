@@ -11,6 +11,7 @@ import Income from './pages/Income.jsx'
 import Workbench from './pages/Workbench.jsx'
 import Audit from './pages/Audit.jsx'
 import Placeholder from './pages/Placeholder.jsx'
+import Audience from './pages/Audience.jsx'
 
 /* 占位入口：灰色不可用态 + 「V1 规划中」弹窗（本期不真实开发） */
 const SOON_MAP = {
@@ -43,6 +44,7 @@ const SOON_MAP = {
 export default function App() {
   const [viewKey, setViewKey] = useState(null)
   const [nav, setNav] = useState('market')
+  const [audienceSeed, setAudienceSeed] = useState(null)
   const [myapply, setMyapply] = useState(INITIAL_MYAPPLY)
   const [income, setIncome] = useState(INITIAL_INCOME)
   const [audit, setAudit] = useState(INITIAL_AUDIT)
@@ -62,7 +64,9 @@ export default function App() {
   function handleLogin(key) {
     const v = VIEWS[key]
     setViewKey(key)
-    setNav(NAV[v.role][0].items[0].key)
+    const requested = window.location.hash.slice(1)
+    const permitted = NAV[v.role].flatMap(g => g.items).some(it => it.key === requested)
+    setNav(permitted ? requested : NAV[v.role][0].items[0].key)
     pushAudit(`登录成功 · 视角=${v.name}`)
   }
 
@@ -107,14 +111,24 @@ export default function App() {
       pushAudit(`访问占位入口：${found.label}（V1 规划中）`)
       return
     }
+    setAudienceSeed(null)
     if (item.key === 'myperm') setNewApply(false)
     setNav(item.key)
   }
 
+  function startAudience(asset = null) {
+    setAudienceSeed(asset ? { id: asset.id, name: asset.name } : { newTask: true })
+    setNav('audience')
+    pushAudit(asset ? `资产带入圈人任务：${asset.name}（参考，未授权）` : '进入圈人 Agent')
+  }
+
   function renderView() {
     switch (nav) {
+      case 'audience':
+      case 'audiences':
+        return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} />
       case 'market':
-        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market onAudience={startAudience} V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
       case 'myperm':
         return <MyPerm V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMarket={() => setNav('market')} />
       case 'income':
@@ -128,7 +142,7 @@ export default function App() {
       case 'audit':
         return <Audit audit={audit} />
       default:
-        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market onAudience={startAudience} V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
     }
   }
 
@@ -141,7 +155,7 @@ export default function App() {
         </div>
         <div className="topbar-right">
           {/* 演示态开关：便于评审时查看空数据与接口异常的兜底页面 */}
-          <div className="demo-switch" role="group" aria-label="演示态">
+          <div className="demo-switch" role="group" aria-label="演示态" style={{ display: ['audience', 'audiences'].includes(nav) ? 'none' : undefined }}>
             {[['normal', '正常'], ['empty', '空数据'], ['fail', '接口异常']].map(([k, label]) => (
               <button
                 key={k}
