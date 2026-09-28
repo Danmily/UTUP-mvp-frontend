@@ -2329,20 +2329,103 @@ margin-right: 2px
 }
 
 .batch-bar {
-position: sticky;
-bottom: 12px;
-z-index: 20;
+position: fixed;
+left: 50%;
+bottom: 24px;
+transform: translateX(-50%);
+z-index: 60;
 display: flex;
 align-items: center;
-justify-content: space-between;
-gap: 16px;
-margin-top: 14px;
-padding: 10px 16px;
+gap: 14px;
+max-width: min(760px, calc(100vw - 48px));
+padding: 10px 14px 10px 10px;
 border: 1px solid var(--line);
-border-radius: var(--r-md);
+border-radius: 12px;
 background: #fff;
-box-shadow: var(--shadow-xl, 0 8px 24px rgba(0, 0, 0, .12));
-font-size: 13px
+box-shadow: 0 8px 28px rgba(29, 33, 41, .18);
+animation: batch-in .18s ease-out
+}
+
+@keyframes batch-in {
+from {
+opacity: 0;
+transform: translate(-50%, 12px)
+}
+
+to {
+opacity: 1;
+transform: translate(-50%, 0)
+}
+}
+
+@media (prefers-reduced-motion:reduce) {
+.batch-bar {
+animation: none
+}
+}
+
+.batch-count {
+flex: none;
+width: 38px;
+height: 38px;
+border-radius: 9px;
+display: grid;
+place-items: center;
+background: var(--p-light);
+color: var(--p);
+font-size: 17px;
+font-weight: 600
+}
+
+.batch-info {
+min-width: 0;
+flex: 1 1 auto
+}
+
+.batch-title {
+display: flex;
+align-items: center;
+gap: 5px;
+font-size: 13px;
+color: var(--text);
+white-space: nowrap
+}
+
+.batch-sep {
+color: var(--mute2)
+}
+
+.batch-names {
+margin-top: 2px;
+font-size: 12px;
+color: var(--mute);
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis
+}
+
+.batch-actions {
+flex: none;
+display: flex;
+align-items: center;
+gap: 8px
+}
+
+@media (max-width:768px) {
+.batch-bar {
+left: 12px;
+right: 12px;
+bottom: 12px;
+transform: none;
+max-width: none;
+flex-wrap: wrap;
+animation: none
+}
+
+.batch-actions {
+width: 100%;
+justify-content: flex-end
+}
 }
 
 /* ---------- 必填标识与字段级报错 ---------- */

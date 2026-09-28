@@ -48,6 +48,14 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
   }
   const selectableList = list.filter(selectable)
+  const selTags = sel.map((id) => TAGS.find((t) => t.id === id)).filter(Boolean)
+  const selNames = selTags.map((t) => t.name)
+  /* 批量申请按其中最高分级走流程，先在操作条上告知，避免提交后才发现要走法务加签 */
+  const selTopLevel = selTags.length
+    ? selTags.map((t) => visibility(V, t).eff)
+      .reduce((m, l) => (LEVEL_ORDER.indexOf(l) > LEVEL_ORDER.indexOf(m) ? l : m), '开放')
+    : null
+  const restSelectable = selectableList.filter((t) => !sel.includes(t.id)).length
   function toggleSelAll() {
     const ids = selectableList.map((t) => t.id)
     const all = ids.length > 0 && ids.every((id) => sel.includes(id))
@@ -293,12 +301,28 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         )}
       </Card>
       {sel.length > 0 && (
-        <div className="batch-bar">
-          <span>已选 <b>{sel.length}</b> 个标签</span>
-          <Space>
+        /* 批量操作条：固定在视口底部，选中后始终可见，不用滚到页尾找按钮 */
+        <div className="batch-bar" role="region" aria-label="批量申请">
+          <div className="batch-count"><b>{sel.length}</b></div>
+          <div className="batch-info">
+            <div className="batch-title">
+              已选 {sel.length} 个标签
+              {selTopLevel && (
+                <>
+                  <span className="batch-sep">·</span>
+                  按最高分级 <LevelChip level={selTopLevel} /> 审批
+                </>
+              )}
+            </div>
+            <div className="batch-names" title={selNames.join('、')}>{selNames.join('、')}</div>
+          </div>
+          <div className="batch-actions">
+            {restSelectable > 0 && (
+              <Button size="small" onClick={toggleSelAll}>全选当前 {selectableList.length} 个</Button>
+            )}
             <Button size="small" onClick={() => setSel([])}>清空</Button>
-            <Button type="primary" size="small" onClick={() => applyFlow.start(sel)}>批量申请 →</Button>
-          </Space>
+            <Button type="primary" onClick={() => applyFlow.start(sel)}>批量申请 {sel.length} 个 →</Button>
+          </div>
         </div>
       )}
       {detailTag && (
