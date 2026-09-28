@@ -11,21 +11,28 @@ import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallb
  * 一行 = 当前用户 × 一个标签，展示最新一次申请；不展示申请单号。
  * 申请状态取门户记录（只有「已申请」）；生效状态每次进入页面实时查询权限接口。
  * KPI：申请单数 ｜ 已生效 ｜ 已过期 */
-const FILTER_LABEL = { active: '已生效', expired: '已过期' }
+const FILTER_LABEL = { active: '已生效', pending: '未生效', expired: '已过期' }
 
 export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal', setDemo, goMarket }) {
   const [detailId, setDetailId] = useState(null)
-  const [st, setSt] = useState('') // '' 全部 | active 已生效 | expired 已过期
+  const [st, setSt] = useState('') // '' 全部 | active 已生效 | pending 未生效（从未拿到权限）| expired 已过期
   const applyFlow = useApplyFlow({ V, addApply, pushAudit })
 
   const rows = useMemo(() => myPermRows(V, myapply), [V, myapply])
   const stats = useMemo(() => ({
     tickets: myapply.length,
     active: rows.filter((r) => isActive(r.perm)).length,
+    /* 未生效：申请过但从未拿到权限（审批中或被拒）；与「已过期」区分开 */
+    pending: rows.filter((r) => !r.perm).length,
     expired: rows.filter((r) => isExpired(r.perm)).length,
     soon: rows.filter((r) => isActive(r.perm) && r.perm.valid !== '永久' && r.perm.days <= SOON_DAYS),
   }), [rows, myapply])
-  const list = rows.filter((r) => !st || (st === 'active' ? isActive(r.perm) : isExpired(r.perm)))
+  const list = rows.filter((r) => {
+    if (!st) return true
+    if (st === 'active') return isActive(r.perm)
+    if (st === 'pending') return !r.perm
+    return isExpired(r.perm)
+  })
   const detail = detailId ? rows.find((r) => r.tagId === detailId) : null
 
   function reapply(tagId) {
@@ -94,10 +101,11 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
   return (
     <>
       <div className="page-head"><div className="page-title">我的申请 / 权限</div></div>
-      <div className="kpi-row kpi-row-3">
+      <div className="kpi-row">
         {kpi('', '📝 申请单数', stats.tickets, '经门户提交的申请次数')}
         {kpi('active', '✅ 已生效', stats.active, '当前有权限的标签', 'var(--ok)')}
-        {kpi('expired', '⌛ 已过期', stats.expired, '权限已过期的标签，可再次申请续期', stats.expired ? 'var(--err)' : undefined)}
+        {kpi('pending', '⏳ 未生效', stats.pending, '已申请但尚未拿到权限', stats.pending ? 'var(--warn)' : undefined)}
+        {kpi('expired', '⌛ 已过期', stats.expired, '权限已过期，可再次申请续期', stats.expired ? 'var(--err)' : undefined)}
       </div>
       {stats.soon.length > 0 && (
         <>

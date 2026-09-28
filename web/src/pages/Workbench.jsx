@@ -44,6 +44,7 @@ export default function Workbench({ V, income, demo = 'normal', setDemo }) {
     return {
       tickets: scopedTickets.length,
       active: perms.filter((m) => isActive(m.perm)).length,
+      pending: perms.filter((m) => !m.perm).length,
       expired: perms.filter((m) => isExpired(m.perm)).length,
     }
   }, [scopedTickets, activeSrc])
@@ -178,7 +179,7 @@ export default function Workbench({ V, income, demo = 'normal', setDemo }) {
 
   const statusView = (
     <>
-      <div className="kpi-row kpi-row-3">
+      <div className="kpi-row">
         <div className="kpi">
           <Statistic title="📝 申请单数" value={stats.tickets} />
           <div className="kpi-trend">经门户提交</div>
@@ -188,8 +189,12 @@ export default function Workbench({ V, income, demo = 'normal', setDemo }) {
           <div className="kpi-trend">申请人 × 标签，当前有权限</div>
         </div>
         <div className="kpi">
+          <Statistic title="⏳ 未生效" value={stats.pending} valueStyle={{ color: 'var(--warn)' }} />
+          <div className="kpi-trend">已申请但尚未拿到权限</div>
+        </div>
+        <div className="kpi">
           <Statistic title="⌛ 已过期" value={stats.expired} valueStyle={{ color: 'var(--err)' }} />
-          <div className="kpi-trend">申请人 × 标签，权限已过期</div>
+          <div className="kpi-trend">权限已过期</div>
         </div>
       </div>
       <Card title="待审批 / 历史审批入口">
