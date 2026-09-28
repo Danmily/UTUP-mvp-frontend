@@ -5,6 +5,7 @@ import {
 import { LEVELS, SOON_DAYS, INACTIVE_TIP, myPermRows, isActive, isExpired } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from './Market.jsx'
+import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallback.jsx'
 
 /* 我的申请 / 权限（0918 改版）：用户标签权限列表
  * 一行 = 当前用户 × 一个标签，展示最新一次申请；不展示申请单号。
@@ -12,7 +13,7 @@ import { useApplyFlow } from './Market.jsx'
  * KPI：申请单数 ｜ 已生效 ｜ 已过期 */
 const FILTER_LABEL = { active: '已生效', expired: '已过期' }
 
-export default function MyPerm({ V, myapply, addApply, pushAudit }) {
+export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal', setDemo, goMarket }) {
   const [detailId, setDetailId] = useState(null)
   const [st, setSt] = useState('') // '' 全部 | active 已生效 | expired 已过期
   const applyFlow = useApplyFlow({ V, addApply, pushAudit })
@@ -69,7 +70,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
             <Button
               type="link"
               size="small"
-              onClick={(e) => { e.stopPropagation(); message.info('已在新页面打开风神平台') }}
+              onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
             >
               去使用
             </Button>
@@ -116,10 +117,22 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
           </Tag>
         )}
       >
-        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          每行是你对一个标签的权限；同一标签申请过多次时，展示最新一次申请。生效状态每次进入页面实时查询。
-        </Typography.Text>
-        {/* A-07：生效状态用整行底色承载，不再依赖列顺序去抢视觉 */}
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+            每行是你对一个标签的权限；同一标签申请过多次时，展示最新一次申请。生效状态每次进入页面实时查询。
+          </Typography.Text>
+          <SyncDelayTip />
+        </div>
+        {demo === 'fail' ? (
+          <LoadFailed what="权限状态" onRetry={() => setDemo?.('normal')} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title="还没有申请记录"
+            desc="到标签广场找到需要的标签并提交申请后，这里会显示你的权限与有效期"
+            action={goMarket && <Button type="primary" size="small" onClick={goMarket}>去标签广场 →</Button>}
+          />
+        ) : (
+        /* A-07：生效状态用整行底色承载，不再依赖列顺序去抢视觉 */
         <Table
           dataSource={list}
           columns={columns}
@@ -128,6 +141,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
           rowClassName={(r) => (isActive(r.perm) ? 'row-active' : isExpired(r.perm) ? 'row-expired' : 'row-pending')}
           onRow={(r) => setDetailId(r.tagId)}
         />
+        )}
       </Card>
       {detail && (
         <PermDetail r={detail} onClose={() => setDetailId(null)} onReapply={() => reapply(detail.tagId)} />

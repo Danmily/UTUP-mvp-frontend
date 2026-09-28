@@ -7,6 +7,7 @@ import {
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, DocCell } from '../mvp-ui.jsx'
 import { IncomeValue } from './Income.jsx'
+import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallback.jsx'
 
 /* 申请状态 Tab（0918 改版）：按申请单展示。
  * Triton 流转状态拿不到，申请状态只有「已申请」，进度跳 Triton 查看；
@@ -22,7 +23,7 @@ const TICKETS = APPROVALS.map((a) => {
 }).sort((a, b) => b.at.localeCompare(a.at))
 const PERM_ROWS = domainPermRows()
 
-export default function Workbench({ V, income }) {
+export default function Workbench({ V, income, demo = 'normal', setDemo }) {
   const [filters, setFilters] = useState({ lvl: '', src: '' })
   const [open, setOpen] = useState({}) // 展开的申请单
   /* 供给方 Owner 只看本来源域；平台管理员不限域，可用下拉在来源域之间切换 */
@@ -117,7 +118,7 @@ export default function Workbench({ V, income }) {
         <Button
           type="link"
           size="small"
-          onClick={() => message.info('已在新页面打开 Triton 申请详情')}
+          onClick={() => jumpExternal('Triton 申请详情', demo !== 'fail')}
         >
           在 Triton 查看 →
         </Button>
@@ -196,10 +197,10 @@ export default function Workbench({ V, income }) {
           门户只提供入口，通过 / 拒绝 / 补充材料等操作都在 Triton 完成。门户拿不到审批流转状态，申请单进度请在 Triton 查看。
         </Typography.Text>
         <Space wrap>
-          <Button type="primary" onClick={() => message.info('已在新页面打开 Triton 待审批列表')}>
+          <Button type="primary" onClick={() => jumpExternal('Triton 待审批列表', demo !== 'fail')}>
             去 Triton 审批 →
           </Button>
-          <Button onClick={() => message.info('已在新页面打开 Triton 历史审批')}>
+          <Button onClick={() => jumpExternal('Triton 历史审批', demo !== 'fail')}>
             查看历史审批 →
           </Button>
         </Space>
@@ -220,10 +221,25 @@ export default function Workbench({ V, income }) {
           </Space>
         }
       >
-        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          一单可含多个标签，点「展开」查看每个标签的分级；按分级筛选时，单内任一标签符合即显示。
-        </Typography.Text>
-        <Table dataSource={filtered} columns={apprColumns} rowKey="ticket" pagination={false} />
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+            一单可含多个标签，点「展开」查看每个标签的分级；按分级筛选时，单内任一标签符合即显示。
+          </Typography.Text>
+          <SyncDelayTip />
+        </div>
+        {demo === 'fail' ? (
+          <LoadFailed what="本域申请数据" onRetry={() => setDemo?.('normal')} />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title={scopedTickets.length === 0 ? '本域还没有经门户提交的申请' : '没有符合当前筛选条件的申请单'}
+            desc={scopedTickets.length === 0 ? '消费方在标签广场提交申请后，这里会出现对应记录' : '可以调整分级筛选再试'}
+            action={scopedTickets.length > 0 && (
+              <Button size="small" onClick={() => setFilters((h) => ({ ...h, lvl: '' }))}>清空筛选条件</Button>
+            )}
+          />
+        ) : (
+          <Table dataSource={filtered} columns={apprColumns} rowKey="ticket" pagination={false} />
+        )}
       </Card>
     </>
   )
@@ -252,7 +268,13 @@ export default function Workbench({ V, income }) {
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
           同步展示消费方录入的场景、收益说明与佐证文档；一条记录可关联多个标签。
         </Typography.Text>
-        <Table dataSource={scopedIncome} columns={incomeColumns} rowKey={(r, i) => i} pagination={false} />
+        {demo === 'fail' ? (
+          <LoadFailed what="收益数据" onRetry={() => setDemo?.('normal')} />
+        ) : scopedIncome.length === 0 ? (
+          <EmptyState title="暂无收益记录" desc="消费方在「消费与收益录入」提交后，这里会同步展示" />
+        ) : (
+          <Table dataSource={scopedIncome} columns={incomeColumns} rowKey={(r, i) => i} pagination={false} />
+        )}
       </Card>
     </>
   )

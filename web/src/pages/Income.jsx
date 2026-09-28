@@ -4,6 +4,7 @@ import {
 } from '@ecom/aurora'
 import { TAGS, SCENES, METRICS, METRIC_UNITS, DIRECTIONS, incomeText } from '../data.js'
 import { LevelChip, DocCell } from '../mvp-ui.jsx'
+import { LoadFailed, EmptyState } from '../mvp-fallback.jsx'
 
 function timeStamp() {
   const d = new Date()
@@ -22,7 +23,7 @@ export function IncomeValue({ record }) {
   )
 }
 
-export default function Income({ income, addIncome, pushAudit, myapply = [] }) {
+export default function Income({ income, addIncome, pushAudit, myapply = [], demo = 'normal' }) {
   /* E-05：只列已申请过的标签，并带出该标签最近一次申请填的消费场景，减少事后回忆 */
   const applied = useMemo(() => {
     const latest = new Map()
@@ -261,7 +262,13 @@ export default function Income({ income, addIncome, pushAudit, myapply = [] }) {
       </Card>
       <div style={{ height: 14 }} />
       <Card title="我的收益录入记录">
-        <Table dataSource={income} columns={columns} rowKey={(r, i) => i} pagination={false} />
+        {demo === 'fail' ? (
+          <LoadFailed what="收益记录" />
+        ) : income.length === 0 ? (
+          <EmptyState title="还没有收益录入记录" desc="用过的标签产生效果后，在上方表单登记，供给方即可看到" />
+        ) : (
+          <Table dataSource={income} columns={columns} rowKey={(r, i) => i} pagination={false} />
+        )}
       </Card>
     </>
   )

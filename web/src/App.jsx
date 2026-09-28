@@ -48,6 +48,7 @@ export default function App() {
   const [audit, setAudit] = useState(INITIAL_AUDIT)
   const [soon, setSoon] = useState(null)
   const [newApply, setNewApply] = useState(false) // 申请成功后在「我的申请」菜单上打红点
+  const [demo, setDemo] = useState('normal') // 演示态：normal | empty | fail，用于评审时查看兜底页面
 
   const pushAudit = useCallback((what, lvl) => {
     setAudit((list) => [
@@ -113,13 +114,13 @@ export default function App() {
   function renderView() {
     switch (nav) {
       case 'market':
-        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
       case 'myperm':
-        return <MyPerm V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
+        return <MyPerm V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMarket={() => setNav('market')} />
       case 'income':
-        return <Income V={view} income={income} addIncome={addIncome} pushAudit={pushAudit} myapply={myapply} />
+        return <Income V={view} income={demo === 'empty' ? [] : income} addIncome={addIncome} pushAudit={pushAudit} myapply={demo === 'empty' ? [] : myapply} demo={demo} />
       case 'workbench':
-        return <Workbench V={view} income={income} />
+        return <Workbench V={view} income={demo === 'empty' ? [] : income} demo={demo} setDemo={setDemo} />
       case 'cfg':
         return <Placeholder kind="cfg" />
       case 'assetin':
@@ -127,7 +128,7 @@ export default function App() {
       case 'audit':
         return <Audit audit={audit} />
       default:
-        return <Market V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
     }
   }
 
@@ -139,6 +140,20 @@ export default function App() {
           <Breadcrumb items={[{ title: '统一交易画像门户' }, { title: NAV_LABELS[nav] || nav }]} />
         </div>
         <div className="topbar-right">
+          {/* 演示态开关：便于评审时查看空数据与接口异常的兜底页面 */}
+          <div className="demo-switch" role="group" aria-label="演示态">
+            {[['normal', '正常'], ['empty', '空数据'], ['fail', '接口异常']].map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                className={demo === k ? 'on' : ''}
+                aria-pressed={demo === k}
+                onClick={() => setDemo(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <Tag color="primary">{view.name}</Tag>
           <div className="user-info">
             <div className="avatar">U</div>

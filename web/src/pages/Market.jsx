@@ -8,8 +8,9 @@ import {
   complianceOf, livePerm, isActive, isExpired, nowStamp,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
+import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 
-export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
+export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
@@ -21,7 +22,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
       ? 'applied'
       : visibility(V, tag).canApply ? 'apply' : 'visible'
 
-  const list = useMemo(() => TAGS.filter((c) => {
+  const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
     const vis = visibility(V, c)
     if (!vis.visible) return false
     if (filters.q && !(c.name.includes(filters.q) || c.desc.includes(filters.q))) return false
@@ -30,7 +31,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
     if (filters.st && applyStatus(c) !== filters.st) return false
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [V, filters, myapply])
+  }), [V, filters, myapply, demo])
 
   function openTag(id) {
     const tag = TAGS.find((t) => t.id === id)
@@ -47,6 +48,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
   }
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
+  const hasFilter = !!filters.q || filters.srcs.length > 0 || filters.lvls.length > 0 || !!filters.st
+  const clearFilters = () => setFilters({ q: '', srcs: [], lvls: [], st: '' })
 
   /* A-08：到期与过期在标签广场做全局提醒，详情与「我的申请」再给具体状态 */
   const expiring = useMemo(() => {
@@ -127,16 +130,21 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
             ]}
           />
         </div>
-        {list.length === 0 ? (
-          <Empty
-            description={
-              <>
-                当前筛选条件下没有可见的标签
-                <br />
-                <span style={{ fontSize: 12 }}>受控级或跨域的用数需求，请走本域 POC 入口申请</span>
-              </>
-            }
-          />
+        {demo === 'fail' ? (
+          <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
+        ) : list.length === 0 ? (
+          hasFilter ? (
+            <EmptyState
+              title="没有符合当前筛选条件的标签"
+              desc="可以放宽来源域或分级，再看看其他标签"
+              action={<Button size="small" onClick={clearFilters}>清空筛选条件</Button>}
+            />
+          ) : (
+            <EmptyState
+              title="当前没有你可见的标签"
+              desc="受控级或跨域的用数需求，请走本域 POC 入口申请"
+            />
+          )
         ) : (
           <div className="tag-cards">
             {list.map((c) => {
@@ -177,7 +185,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
                       <Button
                         type="link"
                         size="small"
-                        onClick={(e) => { e.stopPropagation(); message.info('已在新页面打开风神平台') }}
+                        onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
                       >
                         去使用 →
                       </Button>
