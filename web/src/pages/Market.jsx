@@ -264,8 +264,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   {/* 已申请用角标表达，不再占用一个 tag 位；可申请为默认态，不额外标记 */}
                   {applied && <span className="tc-ribbon">已申请</span>}
                   <div className="tc-top">
+                    {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
+                        否则点在勾选框正中间会触发两次、相互抵消 */}
                     {canSel && (
-                      <span className="tc-check" onClick={(e) => { e.stopPropagation(); toggleSel(c.id) }}>
+                      <span className="tc-check" onClick={(e) => e.stopPropagation()}>
                         <Checkbox checked={checked} onChange={() => toggleSel(c.id)} />
                       </span>
                     )}
@@ -341,6 +343,21 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
 
 /* 申请流程（智能助手预填 → 跳 Triton 建单）：标签广场与「我的申请 / 权限」共用
  * 支持单个与批量：门户为每个标签各记一条申请记录，不追踪 Triton 单据状态 */
+/* 批量申请拆单：同一来源域 + 同一生效分级的标签合成一张单，
+ * 不同分级不混装——一张单里混了高敏，整单都要等法务加签，会拖慢本可自动通过的标签 */
+function splitTickets(V, tags) {
+  const map = new Map()
+  tags.forEach((t) => {
+    const eff = visibility(V, t).eff
+    const key = `${t.src}|${eff}`
+    if (!map.has(key)) map.set(key, { src: t.src, eff, cross: false, tags: [] })
+    const g = map.get(key)
+    g.tags.push(t)
+    g.cross = g.cross || visibility(V, t).cross
+  })
+  return [...map.values()].sort((a, b) => LEVEL_ORDER.indexOf(b.eff) - LEVEL_ORDER.indexOf(a.eff))
+}
+
 export function useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone }) {
   const [apply, setApply] = useState(null)
   const [done, setDone] = useState(null)
@@ -385,16 +402,20 @@ export function useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone }) {
       return
     }
     const at = nowStamp().slice(0, 16)
-    apply.tags.forEach((tag, i) => {
-      const vis = visibility(V, tag)
-      const path = applyPath(tag)
-      addApply({ ticket: `APP-${24400 + Math.floor(Math.random() * 500) + i}`, tagId: tag.id, at, scene: apply.scene })
-      pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
-      pushAudit(`申请提交成功：${tag.name}（场景=${apply.scene}）`, vis.eff)
+    const groups = splitTickets(V, apply.tags)
+    groups.forEach((g, gi) => {
+      const ticket = `APP-${24400 + Math.floor(Math.random() * 400) + gi}`
+      g.tags.forEach((tag) => {
+        const vis = visibility(V, tag)
+        const path = applyPath(tag)
+        addApply({ ticket, tagId: tag.id, at, scene: apply.scene })
+        pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
+      })
+      pushAudit(`申请提交成功：${g.src} · ${levelLabel(g.eff)} · ${g.tags.length} 个标签（场景=${apply.scene}）`, g.eff)
     })
     const names = apply.tags.map((t) => t.name)
     setApply(null)
-    setDone({ names, scene: apply.scene })
+    setDone({ names, scene: apply.scene, groups })
     onDone?.()
   }
 
@@ -428,7 +449,8 @@ export function useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone }) {
           }
         >
           <Typography.Text>
-            已提交 {done.names.length} 个标签的申请，使用场景「{done.scene}」。
+            已提交 {done.names.length} 个标签的申请，使用场景「{done.scene}」
+            {done.groups && done.groups.length > 1 && <>，按来源域与分级拆成 <b>{done.groups.length}</b> 张申请单并行审批</>}。
           </Typography.Text>
           <div style={{ height: 8 }} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -617,6 +639,7 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
             { title: '法务 + 合规加签' },
           ]
   const comp = complianceOf(tags[0])
+  const groups = splitTickets(V, tags)
   return (
     <Modal
       open
@@ -647,12 +670,22 @@ function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
         description="自动带出申请字段、申请人和使用场景；上传 PRD / 需求单 / 收益测算文档后会自动解析并回填，确认无误后一键跳转 Triton 建单。"
       />
       {multi && (
-        <Alert
-          style={{ marginTop: 10 }}
-          type="info"
-          showIcon
-          message={`本次申请包含 ${tags.length} 个标签，按其中最高分级「${levelLabel(eff)}」走审批流程，门户为每个标签各记一条申请记录。`}
-        />
+        /* 提交前预检：让申请人看清会拆成几张单、各自走什么审批，而不是提交后才知道 */
+        <div className="precheck">
+          <div className="precheck-head">
+            提交预检 · {tags.length} 个标签将拆成 <b>{groups.length}</b> 张申请单
+            <span className="precheck-tip">按「来源域 × 分级」拆分，各单并行审批，高敏不拖慢其他标签</span>
+          </div>
+          {groups.map((g) => (
+            <div key={`${g.src}|${g.eff}`} className="precheck-row">
+              <span className="precheck-src">{g.src}</span>
+              <LevelChip level={g.eff} />
+              {g.cross && <CrossBadge>跨域升档</CrossBadge>}
+              <span className="precheck-n">{g.tags.length} 个标签</span>
+              <span className="precheck-approve">{LEVELS[g.eff].approve}</span>
+            </div>
+          ))}
+        </div>
       )}
       {cross && (
         <Alert

@@ -2610,3 +2610,52 @@ color: var(--text2);
 font-size: 12px;
 line-height: 1.6
 }
+
+/* ---------- 批量申请提交预检 ---------- */
+.precheck {
+margin-top: 10px;
+padding: 10px 12px;
+border: 1px solid var(--line);
+border-radius: var(--r-sm);
+background: var(--bg2)
+}
+
+.precheck-head {
+font-size: 13px;
+color: var(--text);
+margin-bottom: 8px
+}
+
+.precheck-tip {
+display: block;
+margin-top: 2px;
+font-size: 11.5px;
+color: var(--mute);
+font-weight: 400
+}
+
+.precheck-row {
+display: flex;
+align-items: center;
+gap: 8px;
+flex-wrap: wrap;
+padding: 7px 0;
+border-top: 1px solid var(--line);
+font-size: 12px
+}
+
+.precheck-src {
+font-weight: 500;
+color: var(--text2);
+min-width: 90px
+}
+
+.precheck-n {
+color: var(--text2)
+}
+
+.precheck-approve {
+margin-left: auto;
+color: var(--mute);
+font-size: 11.5px
+}
