@@ -249,13 +249,55 @@ export function TextArea({ value, onChange, placeholder, rows = 4, style }) {
   return <textarea className="au-textarea" rows={rows} value={value || ''} placeholder={placeholder}
     style={style} onChange={(e) => onChange?.(e.target.value)} />
 }
-export function Select({ value, onChange, options = [], placeholder, style, allowClear, disabled }) {
+export function Select({ value, onChange, options = [], placeholder, style, allowClear, disabled, mode }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  /* 多选：值为数组，选项前带勾选框，点选后不收起，便于连续勾选 */
+  if (mode === 'multiple') {
+    const picked = Array.isArray(value) ? value : []
+    const toggle = (v) => onChange?.(picked.includes(v) ? picked.filter((x) => x !== v) : [...picked, v])
+    const labels = options.filter((o) => picked.includes(o.value)).map((o) => o.label)
+    return (
+      <div ref={ref} className={`au-select au-select-multiple ${open ? 'au-select-open' : ''}`} style={style}
+        onClick={() => !disabled && setOpen(true)}>
+        <div className="au-select-inner">
+          {labels.length === 0 ? (
+            <span className="au-select-placeholder">{placeholder || '请选择'}</span>
+          ) : (
+            <span className="au-select-tags">
+              {labels.map((l, i) => (
+                <span key={l} className="au-select-tag">
+                  {l}
+                  <span className="au-select-tag-x" onClick={(e) => { e.stopPropagation(); toggle(options.filter((o) => picked.includes(o.value))[i].value) }}>✕</span>
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="au-select-arrow" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>▾</span>
+        </div>
+        {open && (
+          <div className="au-select-dropdown">
+            {picked.length > 0 && (
+              <div className="au-select-option au-select-clear" onClick={(e) => { e.stopPropagation(); onChange?.([]) }}>清空已选</div>
+            )}
+            {options.map((o) => (
+              <div key={o.value} className="au-select-option au-select-option-check"
+                onClick={(e) => { e.stopPropagation(); toggle(o.value) }}>
+                <span className={`au-check-box ${picked.includes(o.value) ? 'au-check-box-on' : ''}`} />
+                <span>{o.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const selected = options.find((o) => o.value === value)
   return (
     <div ref={ref} className={`au-select ${open ? 'au-select-open' : ''}`} style={style}
@@ -278,6 +320,7 @@ export function Select({ value, onChange, options = [], placeholder, style, allo
     </div>
   )
 }
+
 export function Radio({ checked, onChange, children, disabled }) {
   return <label className="au-radio" style={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
     <input type="radio" checked={!!checked} disabled={disabled} onChange={(e) => onChange?.(e.target.checked)} />{children}

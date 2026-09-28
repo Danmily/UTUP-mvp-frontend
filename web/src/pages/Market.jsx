@@ -4,13 +4,13 @@ import {
   Form, Tag, Empty, Space, Typography, message,
 } from '@ecom/aurora'
 import {
-  TAGS, CATALOG, LEVELS, LEVEL_ORDER, SCENES, levelLabel, visibility, applyPath,
-  complianceOf, livePerm, isActive, upgrade, nowStamp,
+  TAGS, CATALOG, LEVELS, LEVEL_ORDER, SCENES, SOON_DAYS, levelLabel, visibility, applyPath,
+  complianceOf, livePerm, isActive, isExpired, nowStamp,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 
 export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
-  const [filters, setFilters] = useState({ q: '', src: '', lvl: '', st: '' })
+  const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const applyFlow = useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone: () => setSel([]) })
@@ -25,8 +25,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
     const vis = visibility(V, c)
     if (!vis.visible) return false
     if (filters.q && !(c.name.includes(filters.q) || c.desc.includes(filters.q))) return false
-    if (filters.src && c.src !== filters.src) return false
-    if (filters.lvl && c.level !== filters.lvl) return false
+    if (filters.srcs.length && !filters.srcs.includes(c.src)) return false
+    if (filters.lvls.length && !filters.lvls.includes(c.level)) return false
     if (filters.st && applyStatus(c) !== filters.st) return false
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -48,15 +48,46 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
 
+  /* A-08：到期与过期在标签广场做全局提醒，详情与「我的申请」再给具体状态 */
+  const expiring = useMemo(() => {
+    const ids = [...new Set(myapply.map((a) => a.tagId))]
+    const soon = ids.filter((id) => {
+      const p = livePerm(id)
+      return isActive(p) && p.valid !== '永久' && p.days <= SOON_DAYS
+    })
+    const gone = ids.filter((id) => isExpired(livePerm(id)))
+    return { soon, gone }
+  }, [myapply])
+
   return (
     <>
       <div className="page-head"><div className="page-title">标签广场</div></div>
+      {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
+        <>
+          <Alert
+            type="warning"
+            showIcon
+            message={
+              <span>
+                你有 {expiring.soon.length} 个标签即将到期、{expiring.gone.length} 个已过期，过期后相关实验与投放会中断。
+                {goMyPerm && (
+                  <Button type="link" size="small" onClick={goMyPerm}>去我的申请处理 →</Button>
+                )}
+              </span>
+            }
+          />
+          <div style={{ height: 12 }} />
+        </>
+      )}
       <div className="kpi-row">
         {CATALOG.map((c) => (
           <div
             key={c.d}
-            className={`kpi domain-kpi src-kpi${filters.src === c.d ? ' kpi-on' : ''}`}
-            onClick={() => setFilters((d) => ({ ...d, src: d.src === c.d ? '' : c.d }))}
+            className={`kpi domain-kpi src-kpi${filters.srcs.includes(c.d) ? ' kpi-on' : ''}`}
+            onClick={() => setFilters((d) => ({
+              ...d,
+              srcs: d.srcs.includes(c.d) ? d.srcs.filter((x) => x !== c.d) : [...d.srcs, c.d],
+            }))}
           >
             <div className="src-name">{c.d}</div>
             <div className="src-sub">{c.n.toLocaleString()} 个标签 · 点击筛选</div>
@@ -71,15 +102,20 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
             value={filters.q}
             onChange={(v) => setFilters((d) => ({ ...d, q: v }))}
           />
+          {/* 来源域与分级支持多选：跨域场景常常要同时看多个域 */}
           <Select
-            value={filters.src}
-            onChange={(v) => setFilters((d) => ({ ...d, src: v || '' }))}
-            options={[{ label: '全部来源域', value: '' }, ...CATALOG.map((c) => ({ label: c.d, value: c.d }))]}
+            mode="multiple"
+            value={filters.srcs}
+            placeholder="全部来源域"
+            onChange={(v) => setFilters((d) => ({ ...d, srcs: v }))}
+            options={CATALOG.map((c) => ({ label: c.d, value: c.d }))}
           />
           <Select
-            value={filters.lvl}
-            onChange={(v) => setFilters((d) => ({ ...d, lvl: v || '' }))}
-            options={[{ label: '全部分级', value: '' }, ...LEVEL_ORDER.map((x) => ({ label: levelLabel(x), value: x }))]}
+            mode="multiple"
+            value={filters.lvls}
+            placeholder="全部分级"
+            onChange={(v) => setFilters((d) => ({ ...d, lvls: v }))}
+            options={LEVEL_ORDER.map((x) => ({ label: levelLabel(x), value: x }))}
           />
           <Select
             value={filters.st}
@@ -124,14 +160,17 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm }) {
                       </span>
                     )}
                     <div className="tc-name" title={c.name}>{c.name}</div>
-                    {c.official && <Tag color="warning">官方</Tag>}
                   </div>
                   {/* 字段顺序：名称 → 分级 → 业务含义 → 来源与更新频率 */}
                   <div className="tc-tags">
                     <LevelChip level={c.level} />
                     {vis.cross && <CrossBadge />}
                   </div>
-                  <div className="tc-desc">{c.desc}</div>
+                  <div className="tc-desc">
+                    {c.desc && c.desc !== c.name
+                      ? c.desc
+                      : <span className="tc-desc-empty">暂无口径说明，可联系 {c.owner.split(' · ')[0]} 补充</span>}
+                  </div>
                   <div className="tc-foot">
                     <span>{c.src} · 更新 {c.freq}</span>
                     {isActive(perm) && (

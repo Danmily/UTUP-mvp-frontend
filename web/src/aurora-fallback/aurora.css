@@ -289,3 +289,17 @@
 .au-tooltip { position: fixed; z-index: 2000; transform: translate(-50%, calc(-100% - 8px)); max-width: 260px;
   padding: 6px 10px; border-radius: var(--au-radius); background: rgba(29, 33, 41, .92); color: #fff;
   font-size: 12px; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, .15); pointer-events: none; white-space: normal; }
+
+/* Select 多选 */
+.au-select-multiple .au-select-inner { min-height: 34px; height: auto; padding-top: 4px; padding-bottom: 4px; }
+.au-select-tags { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.au-select-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: var(--au-radius-sm);
+  background: var(--au-fill-2); border: 1px solid var(--au-border); font-size: 12px; line-height: 18px; }
+.au-select-tag-x { color: var(--au-text-3); cursor: pointer; font-size: 10px; }
+.au-select-tag-x:hover { color: var(--au-danger, #f53f3f); }
+.au-select-option-check { display: flex; align-items: center; gap: 8px; }
+.au-select-clear { color: var(--au-text-3); font-size: 12px; border-bottom: 1px solid var(--au-border); border-radius: 0; margin-bottom: 4px; }
+.au-check-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--au-border-dark, #c9cdd4); flex: none; position: relative; }
+.au-check-box-on { background: var(--au-primary); border-color: var(--au-primary); }
+.au-check-box-on::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }

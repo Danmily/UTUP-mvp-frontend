@@ -113,6 +113,18 @@ export const LEVEL_ORDER = ['开放', '通用', '受控', '高敏']
 /* 使用场景枚举：申请与收益录入共用同一份，避免两页选项不一致 */
 export const SCENES = ['人群圈选', '用户360', '模型特征', '营销投放', '数据分析']
 
+/* 收益指标枚举：收益说明由自由文本改为结构化填写（指标 + 方向 + 数值 + 单位） */
+export const METRICS = ['ROI', 'GMV', 'CTR', 'CVR', '券核销率', 'MAC', '客单价', '复购率', '其他']
+export const METRIC_UNITS = ['%', 'pp', '万元', '倍']
+export const DIRECTIONS = ['提升', '下降']
+
+/* 结构化收益 → 展示文案，供列表与供给方页面统一使用 */
+export function incomeText(r) {
+  if (!r) return '—'
+  if (r.metric) return `${r.metric} ${r.direction === '下降' ? '-' : '+'}${r.value}${r.unit}`
+  return r.income || '—'
+}
+
 /* 分级展示文案：开放/L2、通用/L3基础、受控/L3高、高敏/L4 */
 export function levelLabel(level) {
   const lv = LEVELS[level]

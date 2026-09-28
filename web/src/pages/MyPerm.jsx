@@ -49,12 +49,12 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
         </span>
       ),
     },
+    { title: '生效状态', dataIndex: 'perm', render: (v) => <EffectTag perm={v} /> },
+    { title: '有效期', dataIndex: 'perm', key: 'valid', render: (v) => <ValidText perm={v} /> },
     { title: '分级', dataIndex: 'level', render: (v) => <LevelChip level={v} /> },
     { title: '来源域', dataIndex: 'src' },
     { title: '消费场景', dataIndex: 'last', key: 'scene', render: (v) => v.scene },
     { title: '申请状态', key: 'apply', render: () => <ApplyTag /> },
-    { title: '生效状态', dataIndex: 'perm', render: (v) => <EffectTag perm={v} /> },
-    { title: '有效期', dataIndex: 'perm', key: 'valid', render: (v) => <ValidText perm={v} /> },
     {
       title: '操作',
       key: 'op',
@@ -119,11 +119,13 @@ export default function MyPerm({ V, myapply, addApply, pushAudit }) {
         <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
           每行是你对一个标签的权限；同一标签申请过多次时，展示最新一次申请。生效状态每次进入页面实时查询。
         </Typography.Text>
+        {/* A-07：生效状态用整行底色承载，不再依赖列顺序去抢视觉 */}
         <Table
           dataSource={list}
           columns={columns}
           rowKey="tagId"
           pagination={false}
+          rowClassName={(r) => (isActive(r.perm) ? 'row-active' : isExpired(r.perm) ? 'row-expired' : 'row-pending')}
           onRow={(r) => setDetailId(r.tagId)}
         />
       </Card>

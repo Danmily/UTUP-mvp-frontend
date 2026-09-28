@@ -6,6 +6,7 @@ import {
   TAGS, APPROVALS, CATALOG, LEVEL_ORDER, levelLabel, upgrade, srcsOfIncome, domainPermRows, isActive, isExpired,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, DocCell } from '../mvp-ui.jsx'
+import { IncomeValue } from './Income.jsx'
 
 /* 申请状态 Tab（0918 改版）：按申请单展示。
  * Triton 流转状态拿不到，申请状态只有「已申请」，进度跳 Triton 查看；
@@ -126,6 +127,18 @@ export default function Workbench({ V, income }) {
 
   const incomeColumns = [
     {
+      /* E-02：供给方最关心收益，放在第一列并加重视觉 */
+      title: '收益',
+      key: 'income',
+      width: 160,
+      render: (v, r) => (
+        <span>
+          <IncomeValue record={r} />
+          {r.note && <span className="row-sub">{r.note}</span>}
+        </span>
+      ),
+    },
+    {
       title: '数据资产（可多个）',
       dataIndex: 'assets',
       render: (v, r) => (
@@ -133,7 +146,6 @@ export default function Workbench({ V, income }) {
       ),
     },
     { title: '场景', dataIndex: 'scene' },
-    { title: '收益说明', dataIndex: 'income' },
     { title: '佐证飞书文档', dataIndex: 'doc', render: (v, r) => <DocCell record={r} /> },
     {
       title: '录入人',

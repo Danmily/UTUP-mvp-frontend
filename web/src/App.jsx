@@ -117,7 +117,7 @@ export default function App() {
       case 'myperm':
         return <MyPerm V={view} myapply={myapply} addApply={addApply} pushAudit={pushAudit} />
       case 'income':
-        return <Income V={view} income={income} addIncome={addIncome} pushAudit={pushAudit} />
+        return <Income V={view} income={income} addIncome={addIncome} pushAudit={pushAudit} myapply={myapply} />
       case 'workbench':
         return <Workbench V={view} income={income} />
       case 'cfg':
