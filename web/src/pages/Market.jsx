@@ -225,7 +225,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 width: 96,
                 render: (v, r) => (
                   isActive(livePerm(r.id)) ? (
-                    <Button type="link" size="small"
+                    <Button type="link" size="small" style={{ color: 'var(--ok)' }}
                       onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                       去使用
                     </Button>
@@ -279,6 +279,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                       <Button
                         type="link"
                         size="small"
+                        style={{ color: 'var(--ok)' }}
                         onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
                       >
                         去使用 →

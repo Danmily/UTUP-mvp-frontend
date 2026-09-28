@@ -2411,32 +2411,8 @@ grid-template-columns: 1fr
 }
 }
 
-/* ---------- 我的申请：整行底色承载生效状态 ---------- */
-.au-table tr.row-active td {
-background: rgba(0, 180, 42, .05)
-}
-
-.au-table tr.row-expired td {
-background: rgba(245, 63, 63, .05)
-}
-
-.au-table tr.row-pending td {
-background: rgba(255, 125, 0, .05)
-}
-
-.au-table tr.row-active td:first-child {
-box-shadow: inset 3px 0 0 var(--ok)
-}
-
-.au-table tr.row-expired td:first-child {
-box-shadow: inset 3px 0 0 var(--err)
-}
-
-.au-table tr.row-pending td:first-child {
-box-shadow: inset 3px 0 0 var(--warn)
-}
-
-/* 生效状态是主信息，分级 tag 在该表中弱化 */
+/* ---------- 我的申请：生效状态靠状态列本身表达，不再给整行上底色 ---------- */
+/* 分级不是这张表的主信息，弱化字重让生效状态更突出 */
 .au-table tr.row-active .au-tag,
 .au-table tr.row-expired .au-tag,
 .au-table tr.row-pending .au-tag {

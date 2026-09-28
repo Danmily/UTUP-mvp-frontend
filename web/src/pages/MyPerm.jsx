@@ -77,6 +77,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
             <Button
               type="link"
               size="small"
+              style={{ color: 'var(--ok)' }}
               onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
             >
               去使用
@@ -177,7 +178,8 @@ function PermDetail({ r, onClose, onReapply }) {
             <Button onClick={onClose}>关闭</Button>
             {/* 已申请且权限生效 → 去风神平台用数；尚未生效 → 去 Triton 看申请进度 */}
             {active ? (
-              <Button type="primary" onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
+              <Button type="primary" style={{ background: 'var(--ok)', borderColor: 'var(--ok)' }}
+                onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
                 去使用 →
               </Button>
             ) : (
