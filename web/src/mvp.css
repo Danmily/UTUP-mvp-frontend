@@ -2813,3 +2813,74 @@ display: none
 .au-modal-mask.au-drawer-mask{justify-content:flex-end;align-items:stretch;padding:0}.au-drawer-mask .au-modal{height:100dvh;max-height:100dvh;max-width:100vw;border-radius:0;margin:0;display:flex;flex-direction:column;box-shadow:-10px 0 40px #192d4726}.au-drawer-mask .au-modal-header{padding:22px 24px;flex:none}.au-drawer-mask .au-modal-body{flex:1;min-height:0;padding:20px 24px;background:#fbfcfe}.au-drawer-mask .au-modal-footer{flex:none;background:#fff}
 .pending-list-intro{font-size:13px;color:#55637a;line-height:1.85;margin:0 0 7px}.pending-tag-list{display:grid;gap:12px;margin:20px 0}.pending-tag-list article{background:#fff;padding:17px;border:1px solid #e3e8f1;border-radius:9px}.pending-tag-heading{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap}.pending-tag-heading>span:first-child{font-size:11px;color:#97a1b2;line-height:22px}.pending-tag-heading strong{font-size:14px;line-height:1.7;flex:1;min-width:160px;color:#293c55}.pending-tag-list article>p{font-size:12px;line-height:1.8;color:#768299;margin:10px 0}.pending-tag-source{font-size:11px;color:#929bad}.pending-tag-actions{display:flex;justify-content:flex-end;gap:16px;border-top:1px solid #eef1f6;margin-top:13px;padding-top:11px}.pending-list-footer{display:grid;gap:13px;width:100%}.pending-list-footer>span{color:#97a0ae;font-size:11px}.pending-list-footer .au-space{justify-content:flex-end}.pending-list-empty{padding:50px 12px;text-align:center;color:#65738a}.pending-list-empty b{font-size:15px;color:#34435a}.pending-list-empty p{font-size:12px;line-height:1.8;margin:12px 0 20px}
 @media(max-width:700px){.pending-list-launcher{right:16px;bottom:20px}.pending-list-launcher.above-batch{bottom:168px}.au-drawer-mask .au-modal-header,.au-drawer-mask .au-modal-body{padding:18px}.au-modal-footer>.au-space{flex-wrap:wrap}}
+
+/* ===== AI 标签智能搜索 · 方案 A / B 对比 ===== */
+.ai-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ai-variant-switch{display:inline-flex;align-items:center;gap:4px;padding:3px;border:1px dashed #c9cdd4;border-radius:8px;background:#fafbfc;font-size:12px}
+.ai-variant-switch span{color:var(--au-text-3);padding:0 6px}
+.ai-variant-switch button{border:0;background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--au-text-2);font-size:12px}
+.ai-variant-switch button.on{background:#fff;color:var(--au-primary);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
+/* 方案 A：顶部两张入口卡 */
+.ai-entry-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.ai-entry{display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--au-border);border-radius:12px;padding:14px 18px;background:#fff;font:inherit;color:var(--au-text-1)}
+.ai-entry b{font-size:15px;display:flex;align-items:center;gap:6px}
+.ai-entry p{margin:0;font-size:12px;color:var(--au-text-3)}
+.ai-entry span{font-size:12px;color:var(--au-text-3);margin-top:2px}
+.ai-entry.is-current{border-color:var(--au-primary-border);background:var(--au-primary-light)}
+.ai-entry.is-ai{cursor:pointer;background:linear-gradient(120deg,#f3f0ff,#eef4ff);border-color:#d9d1ff;transition:box-shadow .15s,transform .15s}
+.ai-entry.is-ai:hover{box-shadow:0 6px 18px rgba(96,74,220,.14);transform:translateY(-1px)}
+.ai-entry.is-ai i{font-style:normal;color:#6a4fe0}
+.ai-entry.is-ai span{color:#6a4fe0;font-weight:600}
+.ai-page{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}
+.ai-history{display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--au-border);border-radius:12px;padding:12px;position:sticky;top:12px}
+.ai-history>b{font-size:12px;color:var(--au-text-3);margin:8px 2px 2px;font-weight:500}
+.ai-history p{font-size:12px;color:var(--au-text-3);margin:4px 2px}
+.ai-history button{display:flex;flex-direction:column;gap:2px;text-align:left;border:0;background:transparent;border-radius:8px;padding:8px;cursor:pointer;font:inherit;color:var(--au-text-1)}
+.ai-history button span{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.ai-history button small{font-size:11px;color:var(--au-text-3)}
+.ai-history button.on,.ai-history button:hover{background:var(--au-fill-1)}
+.ai-history .ai-back{flex-direction:row;color:var(--au-primary);font-size:13px}
+.ai-main{background:#fff;border:1px solid var(--au-border);border-radius:12px;padding:20px 22px;min-width:0}
+.ai-main-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.ai-main-head h2{margin:0;font-size:18px}
+.ai-main-head p{margin:2px 0 0;font-size:13px;color:var(--au-text-3)}
+.ai-spark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#6a4fe0,#3370ff);color:#fff;flex:none}
+.ai-empty{padding:36px 0;text-align:center;color:var(--au-text-3);font-size:13px}
+/* 输入与思考过程（两个方案共用） */
+.ai-composer{border:1px solid #d9d1ff;border-radius:12px;padding:10px 12px;background:#fcfbff;margin-bottom:14px}
+.ai-composer textarea{width:100%;border:0;background:transparent;resize:none;font:inherit;font-size:14px;outline:none;color:var(--au-text-1)}
+.ai-composer-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.ai-examples{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.ai-examples button{border:1px solid var(--au-border);background:#fff;border-radius:14px;padding:3px 10px;font-size:12px;color:var(--au-text-2);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-examples button:hover{border-color:#b9acf5;color:#6a4fe0}
+.ai-composer.compact .ai-examples{display:none}
+.ai-thinking{display:flex;flex-wrap:wrap;gap:14px;padding:18px 4px;font-size:13px;color:var(--au-text-3)}
+.ai-thinking .on{color:#6a4fe0;font-weight:600}
+.ai-thinking .done{color:var(--au-success)}
+/* 推荐结果 */
+.ai-result-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.ai-result-head p{margin:4px 0 0;font-size:13px;color:var(--au-text-2)}
+.ai-scene{display:inline-block;font-size:11px;color:#6a4fe0;background:#f1edff;border-radius:4px;padding:2px 6px}
+.ai-group{margin-top:12px}
+.ai-group h4{margin:0 0 6px;font-size:13px;display:flex;align-items:baseline;gap:8px}
+.ai-group h4 small{font-weight:400;color:var(--au-text-3);font-size:12px}
+.ai-group-exclude h4{color:#b54708}
+.ai-tag-row{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--au-border);border-radius:10px;padding:10px 12px;margin-bottom:6px;background:#fff}
+.ai-tag-main{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.ai-tag-main p{flex-basis:100%;margin:0;font-size:12px;color:var(--au-text-2)}
+.ai-tag-main p span{color:var(--au-text-3)}
+.ai-tag-name{border:0;background:none;padding:0;font:inherit;font-weight:600;font-size:14px;color:var(--au-text-1);cursor:pointer;text-align:left}
+.ai-tag-name:hover{color:var(--au-primary);text-decoration:underline}
+.ai-tag-action{flex:none}
+.ai-tag-state{font-size:12px;color:var(--au-text-3)}
+.ai-foot{margin:12px 0 0;font-size:11px;color:var(--au-text-3)}
+/* 方案 B：搜索框切换 */
+.search-mode{display:inline-flex;padding:3px;background:var(--au-fill-2);border-radius:8px;flex:none}
+.search-mode button{border:0;background:transparent;border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--au-text-2);white-space:nowrap}
+.search-mode button.on{background:#fff;color:var(--au-primary);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
+.search-bar.is-ai .search-mode button.on{color:#6a4fe0}
+.search-bar.is-ai>span:not(.search-mode){flex:1}
+.search-bar.is-ai input{border-color:#cfc4fb;background:#fcfbff}
+.ai-inline-send{border:0;background:#6a4fe0;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;pointer-events:auto}
+.ai-inline-send:disabled{opacity:.4;cursor:not-allowed}
+@media (max-width:760px){.ai-entry-row,.ai-page{grid-template-columns:1fr}.ai-history{position:static}.ai-result-head{flex-direction:column}}

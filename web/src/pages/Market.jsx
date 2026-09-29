@@ -12,6 +12,9 @@ import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
 import { assetState, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
+import { useAiSearch, AiSearchPage, AiSidePanel, AiRecommendation } from './AiTagSearch.jsx'
+
+const AI_VARIANT_KEY = 'utup.ai-search-variant'
 
 export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, fromAgent = false, backToAgent }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
@@ -20,6 +23,12 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const pendingKey = pendingKeyOf(V)
   const [pending, setPending] = useState(() => {try{return parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id))}catch{return []}})
   const [storageNotice,setStorageNotice]=useState('')
+  /* AI 智能检索：两种入口方案并存，评审时切换对比 */
+  const [aiVariant,setAiVariant]=useState(()=>{try{return localStorage.getItem(AI_VARIANT_KEY)==='B'?'B':'A'}catch{return 'A'}})
+  const [aiPage,setAiPage]=useState(false), [searchMode,setSearchMode]=useState('plain'), [aiDraft,setAiDraft]=useState(''), [aiPanel,setAiPanel]=useState(false)
+  const ai = useAiSearch(V)
+  function chooseVariant(v){setAiVariant(v);setAiPage(false);setAiPanel(false);setSearchMode('plain');try{localStorage.setItem(AI_VARIANT_KEY,v)}catch{}}
+  function runSideSearch(){if(!aiDraft.trim())return;ai.run(aiDraft);setAiPanel(true)}
   useEffect(()=>{try{setPending(parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id)))}catch{setPending([])}},[pendingKey])
   function updatePending(change) {
     setPending(previous=>{const next=typeof change==='function'?change(previous):change;try{localStorage.setItem(pendingKey,JSON.stringify(next))}catch{setStorageNotice('浏览器暂时无法保存清单，离开页面后可能丢失。')}return next})
@@ -71,7 +80,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const blockedPending=pendingTags.filter(t=>!selectable(t))
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
   const startSelection=()=>{if(!pendingTags.length||blockedPending.length)return;setSelectionOpen(false);applyFlow.start(pendingTags.map(t=>t.id))}
-  function addPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`待申请清单最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged});setSel([]);setBatchMode(false);setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}
+  function mergeIntoPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`待申请清单最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged})}
+  function addPending(ids){mergeIntoPending(ids);setSel([]);setBatchMode(false);setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}
   function viewPendingDetail(id){setSelectionOpen(false);setDetailFromList(true);openTag(id)}
 
 
@@ -92,7 +102,18 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
 
   return (
     <>
-      <div className="page-head"><div className="page-title">标签广场</div></div>
+      <div className="page-head ai-page-head"><div className="page-title">标签广场</div>
+        <div className="ai-variant-switch" role="group" aria-label="AI 智能检索方案对比"><span>评审对比 · 智能检索入口</span>{[['A','方案 A 独立入口'],['B','方案 B 搜索切换']].map(([k,l])=><button key={k} type="button" className={aiVariant===k?'on':''} aria-pressed={aiVariant===k} onClick={()=>chooseVariant(k)}>{l}</button>)}</div>
+      </div>
+      {aiVariant==='A'&&aiPage ? (
+        <AiSearchPage ai={ai} onBack={()=>setAiPage(false)}>
+          {ai.current ? <AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={mergeIntoPending} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')}/> : <div className="ai-empty">输入业务场景，或点一个示例开始。</div>}
+        </AiSearchPage>
+      ) : <>
+      {aiVariant==='A'&&<div className="ai-entry-row">
+        <div className="ai-entry is-current"><b>标签广场</b><p>按目录浏览、搜索和筛选标签</p><span>当前页面</span></div>
+        <button type="button" className="ai-entry is-ai" onClick={()=>setAiPage(true)}><b><i>✦</i>AI 标签智能搜索</b><p>描述业务场景，推荐可申请的标签组合，支持历史搜索记录</p><span>去试试 →</span></button>
+      </div>}
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
@@ -126,14 +147,28 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         ))}
       </div>
       <Card>
-        <div className="search-bar">
+        <div className={`search-bar${aiVariant==='B'?' has-mode':''}${searchMode==='ai'?' is-ai':''}`}>
+          {aiVariant==='B'&&<div className="search-mode" role="group" aria-label="搜索方式">{[['plain','普通搜索'],['ai','✦ AI 搜索']].map(([k,l])=><button key={k} type="button" className={searchMode===k?'on':''} aria-pressed={searchMode===k} onClick={()=>setSearchMode(k)}>{l}</button>)}</div>}
+          {searchMode==='ai' ? (
+            <Input
+              prefix="✦"
+              placeholder="描述业务场景，回车后在右侧推荐标签组合，例如：召回近 60 天没有下单的美妆老客"
+              value={aiDraft}
+              onChange={setAiDraft}
+              onPressEnter={runSideSearch}
+              style={{ paddingRight: 64 }}
+              suffix={<button type="button" className="ai-inline-send" disabled={!aiDraft.trim()} onClick={runSideSearch}>推荐</button>}
+            />
+          ) : (
           <Input
             prefix="🔍"
             placeholder="搜索标签名 / 口径…"
             value={filters.q}
             onChange={(v) => setFilters((d) => ({ ...d, q: v }))}
           />
+          )}
           {/* 来源域与分级支持多选：跨域场景常常要同时看多个域 */}
+          {searchMode!=='ai'&&<>
           <Select
             mode="multiple"
             value={filters.srcs}
@@ -159,6 +194,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               { label: '可申请', value: 'apply' },
             ]}
           />
+          </>}
         </div>
         <div className="market-tools">
           <div className="market-tools-title">标签目录 <span>{list.length} 个标签</span></div>
@@ -328,6 +364,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         )}
       </Card>
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
+      </>}
+      {aiVariant==='B'&&aiPanel&&<Modal open placement="right" width={560} title="✦ AI 推荐标签组合" onCancel={()=>setAiPanel(false)} footer={<div className="pending-list-footer"><span>挑好的标签加入清单，最后统一申请</span><Space><Button onClick={()=>setAiPanel(false)}>关闭</Button><Button type="primary" onClick={()=>{setAiPanel(false);setSelectionOpen(true)}}>查看待申请清单（{pendingTags.length}）</Button></Space></div>}>
+        <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={mergeIntoPending} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')}/>}</AiSidePanel>
+      </Modal>}
       {batchMode && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入待申请清单（{sel.length}）</Button></div><div className="selection-spacer"/></>}
       <button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setSelectionOpen(true)} aria-label={`待申请清单，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>待申请清单</span><b>{pendingTags.length}</b></button>
       {selectionOpen&&<Modal open placement="right" width={520} title={`待申请清单 · ${pendingTags.length} / ${PENDING_MAX}`} onCancel={()=>setSelectionOpen(false)} footer={<div className="pending-list-footer"><span>加入清单不会提交申请</span><Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setSelectionOpen(false)}>继续浏览</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space></div>}>
