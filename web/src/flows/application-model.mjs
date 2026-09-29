@@ -12,10 +12,13 @@ export function assetState(view, tag, applies, perm = livePerm(tag.id)) {
   const vis = visibility(view, tag)
   if (!vis.visible || !vis.canApply) return { code: 'visible', label: '需联系 POC', selectable: false, reason: vis.reason }
   if (tag.callType === 'psm') return { code: 'manual', label: '需线下对接', selectable: false, reason: '系统间实时调用需联系来源方产品，暂不纳入本次批量申请' }
-  const records = applies.filter(a => a.tagId === tag.id).sort((a,b) => b.at.localeCompare(a.at))
-  if (records[0]?.submissionStatus === 'submitted') return { code: 'applied', label: '已提交 · 待同步', selectable: false, reason: '本次演示已提交，请到我的申请查看；尚未获得权限' }
+  /* 演示假设已能拿到审批结果：审批中不能重复申请，被拒绝后才能重新申请。
+     真实环境门户读不到 Triton 单据状态，上线前需要解决状态来源。 */
+  const latest = applies.filter(a => a.tagId === tag.id).sort((a,b) => b.at.localeCompare(a.at))[0]
+  if (latest?.approval === 'rejected') return { code: 'rejected', label: '已拒绝', selectable: true, reason: '上次申请被拒绝，可调整用途后重新申请' }
+  if (latest && (latest.approval === 'pending' || latest.submissionStatus === 'submitted' || (!latest.approval && !perm)))
+    return { code: 'applied', label: '已申请', selectable: false, reason: '审批中：流转完成（通过或被拒绝）前不能重复申请' }
   if (isExpired(perm)) return { code: 'expired', label: '已过期', selectable: true, reason: '权限已过期，可以重新申请' }
-  if (records.length) return { code: 'applied', label: '已申请 · 未生效', selectable: true, reason: '已有申请记录，审批详情请在来源系统核对后再申请' }
   return { code: 'apply', label: '可申请', selectable: true, reason: '' }
 }
 export function togglePageSelection(selected, eligibleIds) {

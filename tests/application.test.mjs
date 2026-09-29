@@ -15,11 +15,17 @@ test('active permission wins even without a portal application',()=>{
 test('successful receipt prevents duplicate submissions without claiming permission',()=>{
  const records=[{tagId:tags[0].id,at:'2026-09-29',submissionStatus:'submitted'}]
  assert.equal(assetState(view,tags[0],records,null).selectable,false)
- const d=makeDraft([tags[0]]);d.scene='人群圈选';d.description='用于新品推广目标人群筛选';assert.match(validateDraft(view,d,records),/本次演示已提交/)
+ const d=makeDraft([tags[0]]);d.scene='人群圈选';d.description='用于新品推广目标人群筛选';assert.match(validateDraft(view,d,records),/审批中/)
 })
-test('historical unknown approval does not get labelled as pending approval',()=>{
- const s=assetState(view,tags[0],[{tagId:tags[0].id,at:'2026-07-01'}],null)
- assert.equal(s.label,'已申请 · 未生效');assert.equal(s.selectable,true)
+test('pending applications block re-apply until approval finishes; rejected ones can re-apply',()=>{
+ const pending=assetState(view,tags[0],[{tagId:tags[0].id,at:'2026-07-01'}],null)
+ assert.equal(pending.label,'已申请');assert.equal(pending.selectable,false)
+ const rejected=assetState(view,tags[0],[{tagId:tags[0].id,at:'2026-07-01'},{tagId:tags[0].id,at:'2026-08-01',approval:'rejected'}],null)
+ assert.equal(rejected.code,'rejected');assert.equal(rejected.selectable,true)
+ const again=assetState(view,tags[0],[{tagId:tags[0].id,at:'2026-08-01',approval:'rejected'},{tagId:tags[0].id,at:'2026-09-01',submissionStatus:'submitted'}],null)
+ assert.equal(again.code,'applied')
+ const expired=assetState(view,tags[0],[{tagId:tags[0].id,at:'2026-03-01'}],{expired:true,valid:'2026-09-01'})
+ assert.equal(expired.code,'expired');assert.equal(expired.selectable,true)
 })
 test('shared and per-label purpose are resolved separately and retained on retry',()=>{
  const d=makeDraft(tags);d.scene='人群圈选';d.description='筛选本次新品推广的目标用户'

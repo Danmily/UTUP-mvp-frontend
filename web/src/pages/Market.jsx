@@ -195,6 +195,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               { label: '可使用', value: 'active' },
               { label: '已过期', value: 'expired' },
               { label: '已申请', value: 'applied' },
+              { label: '已拒绝', value: 'rejected' },
               { label: '可申请', value: 'apply' },
             ]}
           />
@@ -287,7 +288,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 width: 104,
                 render: (v, r) => {
                   const st=assetState(V,r,myapply)
-                  return <Tag color={st.code==='active'?'success':st.code==='applied'?'primary':undefined}>{st.label}</Tag>
+                  return <Tag color={st.code==='active'?'success':st.code==='applied'?'primary':st.code==='rejected'?'danger':undefined}>{st.label}</Tag>
                 },
               },
               {
@@ -317,18 +318,19 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             {pageList.map((c) => {
               const vis = visibility(V, c)
               const state=assetState(V,c,myapply)
-              const applied = state.code === 'applied'
+              const applied = state.code === 'applied', rejected = state.code === 'rejected'
               const canSel = selectable(c)&&!pending.includes(c.id)
               const checked = sel.includes(c.id)
               return (
                 <div
                   key={c.id}
-                  className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
+                  className={`tag-card${applied || rejected ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
                     + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 角标只表达「已申请」；已有权限由右下角「去使用」表达，其余状态不打角标 */}
+                  {/* 角标只表达审批流转：已申请（审批中）/ 已拒绝；已有权限由右下角「去使用」表达 */}
                   {applied && <span className="tc-ribbon">已申请</span>}
+                  {rejected && <span className="tc-ribbon is-rejected">已拒绝</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}

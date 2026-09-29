@@ -374,7 +374,7 @@ export const INITIAL_MYAPPLY = [ // 每次提交一条；单号为 Triton 抽屉
   { ticket: 'APP-24098', tagId: 14533, at: '2026-07-18 10:12', scene: '人群圈选' },
   { ticket: 'APP-24112', tagId: 14555, at: '2026-05-30 16:40', scene: '数据分析' },
   { ticket: 'APP-24188', tagId: 14501, at: '2026-08-28 11:03', scene: '营销投放' },
-  { ticket: 'APP-24230', tagId: 14501, at: '2026-09-05 14:22', scene: '营销投放' },
+  { ticket: 'APP-24230', tagId: 14501, at: '2026-09-05 14:22', scene: '营销投放', approval: 'rejected' }, // 演示：审批被拒绝
   { ticket: 'APP-24255', tagId: 14580, at: '2026-06-09 09:30', scene: '模型特征' },
   { ticket: 'APP-24301', tagId: 14602, at: '2026-08-20 17:15', scene: '模型特征' },
   { ticket: 'APP-23970', tagId: 14520, at: '2026-03-02 10:20', scene: '数据分析' },

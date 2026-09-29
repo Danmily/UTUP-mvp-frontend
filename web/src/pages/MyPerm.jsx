@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import {
   Button, Card, Table, Modal, Descriptions, Alert, Statistic, Space, Tag, Typography, message,
 } from '@ecom/aurora'
-import { LEVELS, SOON_DAYS, INACTIVE_TIP, myPermRows, isActive, isExpired } from '../data.js'
+import { LEVELS, SOON_DAYS, INACTIVE_TIP, TAGS, myPermRows, isActive, isExpired } from '../data.js'
+import { assetState } from '../flows/application-model.mjs'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from './Market.jsx'
 import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallback.jsx'
@@ -82,11 +83,11 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
             >
               去使用
             </Button>
-          ) : r.last.submissionStatus==='submitted' ? <span className="apply-muted">已提交，待同步</span> : (
+          ) : canReapply(V, r) ? (
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
-              再次申请
+              {r.last.approval === 'rejected' ? '重新申请' : '再次申请'}
             </Button>
-          )}
+          ) : <span className="apply-muted">审批中</span>}
         </Space>
       ),
     },
@@ -153,14 +154,20 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
         )}
       </Card>
       {detail && (
-        <PermDetail r={detail} onClose={() => setDetailId(null)} onReapply={() => reapply(detail.tagId)} />
+        <PermDetail r={detail} canReapply={canReapply(V, detail)} onClose={() => setDetailId(null)} onReapply={() => reapply(detail.tagId)} />
       )}
       {applyFlow.modal}
     </>
   )
 }
 
-function PermDetail({ r, onClose, onReapply }) {
+/* 审批中不能重复申请；被拒绝或权限过期后才能再次申请（演示假设能拿到审批结果） */
+function canReapply(V, r) {
+  const tag = TAGS.find((t) => t.id === r.tagId)
+  return !!tag && assetState(V, tag, r.apps, r.perm).selectable
+}
+
+function PermDetail({ r, canReapply, onClose, onReapply }) {
   const lv = LEVELS[r.level]
   const active = isActive(r.perm)
   return (
@@ -187,7 +194,7 @@ function PermDetail({ r, onClose, onReapply }) {
                 去 Triton 查看 →
               </Button>
             )}
-            {!active && r.last.submissionStatus!=='submitted' && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
+            {!active && canReapply && <Button type="primary" onClick={onReapply}>{r.last.approval === 'rejected' ? '重新申请 →' : '再次申请 →'}</Button>}
           </Space>
         </div>
       }
@@ -201,6 +208,7 @@ function PermDetail({ r, onClose, onReapply }) {
         items={[
           { label: '申请状态', children: <ApplyTag /> },
           { label: '申请时间', children: `${r.last.at}${r.apps.length > 1 ? `（最新一次，共申请 ${r.apps.length} 次）` : ''}` },
+          ...(!active ? [{ label: '审批结果', children: r.last.approval === 'rejected' ? <Tag color="danger">已拒绝（演示）</Tag> : isExpired(r.perm) ? '曾通过，权限已过期' : '审批中' }] : []),
           { label: '消费场景', children: r.last.scene },
           ...((r.last.sceneNote||r.last.description)?[{label:'使用说明',children:r.last.sceneNote||r.last.description}]:[]),
           ...(r.last.supplement?[{label:'补充说明',children:r.last.supplement}]:[]),
