@@ -148,22 +148,25 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               { label: '可申请', value: 'apply' },
             ]}
           />
-        {/* 批量申请入口：进入批量模式后卡片与列表才出现勾选框 */}
-        {batchMode ? (
-          <Button size="small" onClick={requestExit}>退出多选</Button>
-        ) : (
-          <Button size="small" onClick={() => setBatchMode(true)}>批量选择</Button>
-        )}
-        {/* 视图切换：卡片用于浏览发现，列表用于按条件快速比对（C-10） */}
-        <div className="view-switch" role="group" aria-label="视图">
-          {[['card', '⊞ 卡片'], ['list', '☰ 列表']].map(([k, label]) => (
-            <button key={k} type="button" className={viewMode === k ? 'on' : ''}
-              aria-pressed={viewMode === k} onClick={() => setViewMode(k)}>
-              {label}
-            </button>
-          ))}
         </div>
+        <div className="market-tools">
+          <div className="market-tools-title">标签目录 <span>{list.length} 个标签</span></div>
+          <div className="market-tools-actions">
+            {!batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量申请</Button>}
+            <div className="view-switch market-view-switch" role="group" aria-label="展示方式">
+              {[['card', '卡片'], ['list', '列表']].map(([k, label]) => (
+                <button key={k} type="button" className={viewMode === k ? 'on' : ''} title={`切换为${label}展示`}
+                  aria-pressed={viewMode === k} onClick={() => setViewMode(k)}>
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">{k==='card'?<><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></>:<><path d="M7 5h10M7 10h10M7 15h10"/><path d="M3 5h.5M3 10h.5M3 15h.5"/></>}</svg>{label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+        {batchMode && <div className="market-selection-mode" role="region" aria-label="批量选择模式">
+          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要申请的标签</strong><p>已选 {sel.length} 个 · 翻页和筛选后仍保留</p></div></div>
+          <div className="market-selection-actions"><Button type="link" size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button><span aria-hidden="true" className="market-action-divider"/><Button type="text" size="small" onClick={requestExit}>取消选择</Button></div>
+        </div>}
         {demo === 'fail' ? (
           <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
         ) : list.length === 0 ? (
@@ -316,11 +319,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       </Card>
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
       {batchMode && <>
-        <div className="batch-hint"><span>翻页、筛选和切换视图均保留已选。已有权限或本次已提交的标签无需重复申请。</span><Button size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button></div>
         <div className="batch-bar selection-bar" role="region" aria-label="已选标签操作栏"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id} title={t.name}>{t.name}<button aria-label={`移除 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<button className="selection-more" title={selNames.join('、')} onClick={()=>setSelectionOpen(true)}>还有 {sel.length-2} 个 · 查看全部</button>}{!sel.length&&<small>请从列表中选择需要申请的标签</small>}</div></div><Space><Button disabled={!sel.length} onClick={()=>setSelectionOpen(true)}>管理已选（{sel.length}）</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space></div><div className="selection-spacer"/>
       </>}
       {selectionOpen&&<Modal open width={720} title={`管理已选标签 · ${sel.length} 个`} onCancel={()=>setSelectionOpen(false)} footer={<Space><Button disabled={!sel.length} onClick={()=>setSel([])}>清空已选</Button><Button onClick={()=>setSelectionOpen(false)}>继续选择</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space>}><p className="apply-muted">按选择顺序排列；可直接移除，不必返回原页寻找卡片。</p><div className="selected-tag-list">{selTags.length?selTags.map((t,i)=><div key={t.id}><span>{i+1}</span><div><strong>{t.name}</strong><p>{t.src} · {pageList.some(p=>p.id===t.id)?'当前页':'当前页以外'}</p></div><LevelChip level={visibility(V,t).eff}/><Button type="link" onClick={()=>toggleSel(t.id)}>移除</Button></div>):<p>已选清单为空，可以返回继续选择。</p>}</div></Modal>}
-      {exitOpen&&<Modal open title="退出多选？" onCancel={()=>setExitOpen(false)} footer={<Space><Button onClick={()=>setExitOpen(false)}>继续选择</Button><Button type="primary" onClick={()=>{exitBatch();setExitOpen(false)}}>退出并清空选择</Button></Space>}><p>将清空当前选择的 {sel.length} 个标签，尚未提交任何申请。</p></Modal>}
+      {exitOpen&&<Modal open title="取消本次选择？" onCancel={()=>setExitOpen(false)} footer={<Space><Button onClick={()=>setExitOpen(false)}>继续选择</Button><Button type="primary" onClick={()=>{exitBatch();setExitOpen(false)}}>取消并清空选择</Button></Space>}><p>将清空当前选择的 {sel.length} 个标签，尚未提交任何申请。</p></Modal>}
       {detailTag && (
         <TagDetailModal
           V={V}
