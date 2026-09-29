@@ -245,7 +245,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 width: 96,
                 render: (v, r) => (
                   isActive(livePerm(r.id)) ? (
-                    <Button type="link" size="small"
+                    <Button type="link" size="small" className="asset-use-link"
                       onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                       去使用
                     </Button>
@@ -265,18 +265,17 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               const vis = visibility(V, c)
               const state=assetState(V,c,myapply)
               const applied = state.code === 'applied'
-              const perm = livePerm(c.id)
               const canSel = selectable(c)
               const checked = sel.includes(c.id)
               return (
                 <div
                   key={c.id}
                   className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
-                    + (batchMode && !canSel ? ' is-disabled' : '')}
+                    + (batchMode && !canSel && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 已申请用角标表达，不再占用一个 tag 位；可申请为默认态，不额外标记 */}
-                  {state.code==='active'?<span className="tc-ribbon tc-usable">可使用</span>:applied?<span className="tc-ribbon">{state.label}</span>:null}
+                  {/* 已有权限由蓝色使用入口表达；仅未生效申请保留状态角标。 */}
+                  {applied && <span className="tc-ribbon">{state.label}</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}
@@ -297,18 +296,16 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                       ? c.desc
                       : <span className="tc-desc-empty">暂无口径说明，可联系 {c.owner.split(' · ')[0]} 补充</span>}
                   </div>
-                  {batchMode&&!canSel&&<p className="selection-reason">{state.reason}</p>}
+                  {batchMode&&!canSel&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
-                    <span>{c.src} · 更新 {c.freq}</span><Button type="link" size="small" onClick={e=>{e.stopPropagation();openTag(c.id)}}>查看详情</Button>
-                    {isActive(perm) && (
-                      <Button
-                        type="link"
-                        size="small"
-
-                        onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
-                      >
-                        去使用 →
+                    <span>{c.src} · 更新 {c.freq}</span>
+                    {state.code === 'active' ? (
+                      <Button type="link" size="small" className="asset-use-link"
+                        onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
+                        去使用
                       </Button>
+                    ) : (
+                      <Button type="link" size="small" onClick={e=>{e.stopPropagation();openTag(c.id)}}>查看详情</Button>
                     )}
                   </div>
                 </div>
@@ -376,7 +373,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
             <Button onClick={onClose}>关闭</Button>
             {onAudience && <Button onClick={onAudience}>带入圈人任务 →</Button>}
             {active ? (
-              <Button type="primary" onClick={()=>jumpExternal('风神平台')}>去使用 →</Button>
+              <Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台')}>去使用</Button>
             ) : assetState(V,tag,applies).selectable ? (
               <Button type="primary" onClick={onApply}>{applies.length ? '再次申请 →' : '申请权限 →'}</Button>
             ) : (
