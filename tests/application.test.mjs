@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan, mergePending, parsePending } from '../web/src/flows/application-model.mjs'
+import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan, mergePending, parsePending, submittedPurpose, SCENE_DESCRIPTIONS } from '../web/src/flows/application-model.mjs'
 import { VIEWS, TAGS } from '../web/src/data.js'
 const view=VIEWS.consumer
 const tags=TAGS.filter(t=>assetState(view,t,[]).selectable).slice(0,3)
@@ -50,4 +50,13 @@ test('pending list adds from details and batch without dropping earlier picks or
 })
 test('pending list restores only known IDs and tolerates invalid stored data',()=>{
  assert.deepEqual(parsePending('[3,3,4,999,"3"]',[3,4]),[3,4]);assert.deepEqual(parsePending('broken',[3]),[]);assert.deepEqual(parsePending('{"id":3}',[3]),[])
+})
+test('scene carries its standard description; supplement is optional and appended',()=>{
+ const d=makeDraft([tags[0]]);d.scene='人群圈选'
+ assert.equal(validateDraft(view,d,[]),'')
+ const plain=submittedPurpose(resolvedPurpose(d,tags[0]))
+ assert.equal(plain.description,SCENE_DESCRIPTIONS['人群圈选']);assert.equal(plain.supplement,'')
+ d.description='用于 10 月新品推广'
+ const extra=submittedPurpose(resolvedPurpose(d,tags[0]))
+ assert.equal(extra.sceneNote,SCENE_DESCRIPTIONS['人群圈选']);assert.match(extra.description,/补充说明：用于 10 月新品推广$/)
 })

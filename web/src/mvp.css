@@ -2884,3 +2884,7 @@ display: none
 .ai-inline-send{border:0;background:#6a4fe0;color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;pointer-events:auto}
 .ai-inline-send:disabled{opacity:.4;cursor:not-allowed}
 @media (max-width:760px){.ai-entry-row,.ai-page{grid-template-columns:1fr}.ai-history{position:static}.ai-result-head{flex-direction:column}}
+/* 使用场景的标准说明：默认只露出场景名，展开可查看随申请提交的说明 */
+.apply-scene-note{margin:6px 0 2px;font-size:12px;color:var(--au-text-3)}
+.apply-scene-note summary{cursor:pointer;color:var(--au-text-2)}
+.apply-scene-note p{margin:6px 0 0;padding:8px 10px;background:var(--au-fill-1);border-radius:6px;color:var(--au-text-2);line-height:1.7}

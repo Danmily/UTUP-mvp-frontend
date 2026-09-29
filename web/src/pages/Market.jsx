@@ -323,8 +323,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                     + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 已有权限由蓝色使用入口表达；仅未生效申请保留状态角标。 */}
-                  {applied && <span className="tc-ribbon">{state.label}</span>}
+                  {/* 角标只表达「已申请」；已有权限由右下角「去使用」表达，其余状态不打角标 */}
+                  {applied && <span className="tc-ribbon">已申请</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}
@@ -348,13 +348,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   {batchMode&&!canSel&&!pending.includes(c.id)&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
                     <span>{c.src} · 更新 {c.freq}</span>
-                    {state.code === 'active' ? (
+                    {state.code === 'active' && (
                       <Button type="link" size="small" className="asset-use-link"
                         onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                         去使用
                       </Button>
-                    ) : (
-                      <Button type="link" size="small" onClick={e=>{e.stopPropagation();openTag(c.id)}}>查看详情</Button>
                     )}
                   </div>
                 </div>

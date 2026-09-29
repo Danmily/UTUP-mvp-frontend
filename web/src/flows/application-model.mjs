@@ -26,6 +26,12 @@ export function makeDraft(tags, previous) {
   return { scene: previous?.scene || '', description: previous?.description || '', evidence: previous?.evidence || '',
     tags, overrides: Object.fromEntries(tags.map(t => [t.id, previous?.overrides?.[t.id] || {}])), step: 'edit', error: '', outcome: 'success' }
 }
+/* 使用场景自带标准使用说明：前端只展示场景名，说明随申请一并提交 */
+export const sceneNote = scene => SCENE_DESCRIPTIONS[scene] || ''
+export function submittedPurpose(purpose) {
+  const note = sceneNote(purpose.scene), extra = (purpose.description || '').trim()
+  return { scene: purpose.scene, sceneNote: note, supplement: extra, description: extra ? `${note}\n补充说明：${extra}` : note }
+}
 export function resolvedPurpose(draft, tag) {
   return draft.overrides[tag.id]?.custom ? draft.overrides[tag.id] : { scene: draft.scene, description: draft.description }
 }
@@ -36,7 +42,6 @@ export function validateDraft(view, draft, applies) {
     if (!state.selectable) return `${tag.name}：${state.reason}，请返回调整清单`
     const p = resolvedPurpose(draft,tag)
     if (!p.scene) return `${tag.name}：请选择使用场景`
-    if ((p.description || '').trim().length < 5) return `${tag.name}：使用说明至少填写 5 个字符，并说明实际用途`
   }
   return ''
 }
