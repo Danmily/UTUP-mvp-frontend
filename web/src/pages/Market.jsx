@@ -10,7 +10,7 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
-import { assetState, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX } from '../flows/application-model.mjs'
+import { assetState, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX, PENDING_PAGE_SIZE } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 import { useAiSearch, AiSearchPage, AiSidePanel, AiRecommendation } from './AiTagSearch.jsx'
 
@@ -78,6 +78,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const selTags = sel.map((id) => TAGS.find((t) => t.id === id)).filter(Boolean)
   const pendingTags=pending.map(id=>TAGS.find(t=>t.id===id)).filter(t=>t&&visibility(V,t).visible)
   const blockedPending=pendingTags.filter(t=>!selectable(t))
+  /* 清单抽屉分页：每页 10 个，移除后页码自动回收 */
+  const [pendingPage,setPendingPage]=useState(1)
+  const pendingPages=Math.max(1,Math.ceil(pendingTags.length/PENDING_PAGE_SIZE)), pendingPageNow=Math.min(pendingPage,pendingPages)
+  const pendingSlice=pendingTags.slice((pendingPageNow-1)*PENDING_PAGE_SIZE,pendingPageNow*PENDING_PAGE_SIZE)
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
   const startSelection=()=>{if(!pendingTags.length||blockedPending.length)return;setSelectionOpen(false);applyFlow.start(pendingTags.map(t=>t.id))}
   function mergeIntoPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`待申请清单最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged})}
@@ -102,7 +106,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
 
   return (
     <>
-      <div className="page-head ai-page-head"><div className="page-title">标签广场</div>
+      <div className="page-head ai-page-head"><div className="market-title-row"><div className="page-title">标签广场</div><button type="button" className="pending-head-entry" onClick={()=>setSelectionOpen(true)} aria-label={`查看待申请清单，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg>待申请清单<b>{pendingTags.length}</b></button></div>
         <div className="ai-variant-switch" role="group" aria-label="AI 智能检索方案对比"><span>评审对比 · 智能检索入口</span>{[['A','方案 A 独立入口'],['B','方案 B 搜索切换']].map(([k,l])=><button key={k} type="button" className={aiVariant===k?'on':''} aria-pressed={aiVariant===k} onClick={()=>chooseVariant(k)}>{l}</button>)}</div>
       </div>
       {aiVariant==='A'&&aiPage ? (
@@ -373,7 +377,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <p className="apply-muted">清单保存在当前浏览器，切换页面或刷新后仍保留。</p>
         {storageNotice&&<Alert type="warning" message={storageNotice}/>}
         {blockedPending.length>0&&<Alert type="warning" message="部分标签状态已变化，请先移除不可申请项；已有权限的标签可直接去使用。"/>}
-        <div className="pending-tag-list">{pendingTags.length?pendingTags.map((t,i)=>{const state=assetState(V,t,myapply);return <article key={t.id}><div className="pending-tag-heading"><span>{i+1}</span><strong>{t.name}</strong><LevelChip level={visibility(V,t).eff}/></div><p>{t.desc}</p><div className="pending-tag-source">{t.src} · 更新 {t.freq}</div>{!state.selectable&&<p className="apply-caution">{state.reason}</p>}<div className="pending-tag-actions"><Button type="link" size="small" onClick={()=>viewPendingDetail(t.id)}>查看详情</Button>{state.code==='active'&&<Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>}<Button type="link" size="small" onClick={()=>removePending(t.id)}>移除</Button></div></article>}) : <div className="pending-list-empty"><b>还没有待申请的标签</b><p>查看标签详情后加入清单，或搜索后批量选择。</p><Button onClick={()=>setSelectionOpen(false)}>去找标签</Button></div>}</div>
+        <div className="pending-tag-list">{pendingTags.length?pendingSlice.map((t,j)=>{const i=(pendingPageNow-1)*PENDING_PAGE_SIZE+j;const state=assetState(V,t,myapply);return <article key={t.id}><div className="pending-tag-heading"><span>{i+1}</span><strong>{t.name}</strong><LevelChip level={visibility(V,t).eff}/></div><p>{t.desc}</p><div className="pending-tag-source">{t.src} · 更新 {t.freq}</div>{!state.selectable&&<p className="apply-caution">{state.reason}</p>}<div className="pending-tag-actions"><Button type="link" size="small" onClick={()=>viewPendingDetail(t.id)}>查看详情</Button>{state.code==='active'&&<Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>}<Button type="link" size="small" onClick={()=>removePending(t.id)}>移除</Button></div></article>}) : <div className="pending-list-empty"><b>还没有待申请的标签</b><p>查看标签详情后加入清单，或搜索后批量选择。</p><Button onClick={()=>setSelectionOpen(false)}>去找标签</Button></div>}</div>
+      {pendingPages>1&&<div className="pending-pager"><span>第 {pendingPageNow} / {pendingPages} 页 · 共 {pendingTags.length} 个</span><Space><Button size="small" disabled={pendingPageNow===1} onClick={()=>setPendingPage(pendingPageNow-1)}>上一页</Button><Button size="small" disabled={pendingPageNow===pendingPages} onClick={()=>setPendingPage(pendingPageNow+1)}>下一页</Button></Space></div>}
       </Modal>}
       {detailTag && (
         <TagDetailModal

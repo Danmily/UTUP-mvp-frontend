@@ -53,7 +53,8 @@ export function submissionPlan(draft, retry = false) {
   return draft.tags.map((tag,i) => ({tag, purpose:resolvedPurpose(draft,tag), success:retry || draft.outcome!=='partial' || i!==draft.tags.length-1}))
 }
 
-export const PENDING_MAX = 10
+export const PENDING_MAX = 100
+export const PENDING_PAGE_SIZE = 10
 export const pendingKey = view => `utup.pending-tags.v1.${view.role}.${view.domain}`
 export function mergePending(current, added) { return [...new Set([...current, ...added])] }
 export function parsePending(raw, knownIds) {

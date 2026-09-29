@@ -2888,3 +2888,10 @@ display: none
 .apply-scene-note{margin:6px 0 2px;font-size:12px;color:var(--au-text-3)}
 .apply-scene-note summary{cursor:pointer;color:var(--au-text-2)}
 .apply-scene-note p{margin:6px 0 0;padding:8px 10px;background:var(--au-fill-1);border-radius:6px;color:var(--au-text-2);line-height:1.7}
+/* 标题旁的待申请清单入口（与右下角浮动入口共用同一抽屉） */
+.market-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pending-head-entry{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--au-border);background:#fff;border-radius:16px;padding:4px 12px;font-size:13px;color:var(--au-text-2);cursor:pointer}
+.pending-head-entry:hover{border-color:var(--au-primary-border);color:var(--au-primary)}
+.pending-head-entry svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.5}
+.pending-head-entry b{min-width:20px;padding:0 6px;border-radius:10px;background:var(--au-primary-light);color:var(--au-primary);font-size:12px;line-height:18px;text-align:center}
+.pending-pager{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--au-text-3)}
