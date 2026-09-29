@@ -2951,3 +2951,4 @@ display: none
 .basket-desc{max-width:340px;color:var(--au-text-2)}
 .basket-desc small{display:block;color:#b54708;font-size:12px}
 .basket-ops{white-space:nowrap}
+.au-btn.op-muted,.au-btn.op-muted:disabled{color:var(--au-text-3);cursor:default;opacity:1}

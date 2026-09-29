@@ -87,7 +87,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
               再次申请
             </Button>
-          ) : <span className="apply-muted">审批中</span>}
+          ) : <Button type="link" size="small" disabled className="op-muted">审批中</Button>}
         </Space>
       ),
     },
