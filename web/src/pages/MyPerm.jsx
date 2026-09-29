@@ -16,7 +16,7 @@ const FILTER_LABEL = { active: '已生效', pending: '未生效', expired: '已�
 export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal', setDemo, goMarket }) {
   const [detailId, setDetailId] = useState(null)
   const [st, setSt] = useState('') // '' 全部 | active 已生效 | pending 未生效（从未拿到权限）| expired 已过期
-  const applyFlow = useApplyFlow({ V, addApply, pushAudit })
+  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit })
 
   const rows = useMemo(() => myPermRows(V, myapply), [V, myapply])
   const stats = useMemo(() => ({
@@ -77,12 +77,12 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
             <Button
               type="link"
               size="small"
-              style={{ color: 'var(--ok)' }}
+
               onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
             >
               去使用
             </Button>
-          ) : (
+          ) : r.last.submissionStatus==='submitted' ? <span className="apply-muted">已提交，待同步</span> : (
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
               再次申请
             </Button>
@@ -178,16 +178,16 @@ function PermDetail({ r, onClose, onReapply }) {
             <Button onClick={onClose}>关闭</Button>
             {/* 已申请且权限生效 → 去风神平台用数；尚未生效 → 去 Triton 看申请进度 */}
             {active ? (
-              <Button type="primary" style={{ background: 'var(--ok)', borderColor: 'var(--ok)' }}
-                onClick={() => { message.info('已在新页面打开风神平台'); onClose() }}>
+              <Button type="primary"
+                onClick={() => { jumpExternal('风神平台'); onClose() }}>
                 去使用 →
               </Button>
             ) : (
-              <Button onClick={() => { message.info('已在新页面打开 Triton 申请记录'); onClose() }}>
+              <Button onClick={() => { jumpExternal('Triton 申请记录'); onClose() }}>
                 去 Triton 查看 →
               </Button>
             )}
-            {!active && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
+            {!active && r.last.submissionStatus!=='submitted' && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
           </Space>
         </div>
       }
@@ -202,6 +202,7 @@ function PermDetail({ r, onClose, onReapply }) {
           { label: '申请状态', children: <ApplyTag /> },
           { label: '申请时间', children: `${r.last.at}${r.apps.length > 1 ? `（最新一次，共申请 ${r.apps.length} 次）` : ''}` },
           { label: '消费场景', children: r.last.scene },
+          ...(r.last.description?[{label:'使用说明',children:r.last.description}]:[]),
           { label: '生效状态', children: <EffectTag perm={r.perm} /> },
           ...(r.perm ? [{ label: '有效期', children: <ValidText perm={r.perm} /> }] : []),
           { label: '审批方式', children: lv.approve },

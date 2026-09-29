@@ -43,7 +43,7 @@ export function SyncDelayTip({ children }) {
 /* 外部平台跳转：失败时不静默，给出手动打开的兜底 */
 export function jumpExternal(name, ok = true) {
   if (ok) {
-    message.success(`已在新页面打开${name}`)
+    message.info(`演示跳转目标：${name}。当前未配置真实链接，未打开外部页面。`)
     return
   }
   message.error(`${name}跳转失败：目标系统暂时不可用。可稍后重试，或在浏览器中手动打开${name}。`)

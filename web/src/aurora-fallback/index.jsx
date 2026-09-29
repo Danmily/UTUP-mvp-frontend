@@ -6,7 +6,7 @@
  * `import { ... } from '@ecom/aurora'`，切换真实库时无需改动。
  * ============================================================ */
 import React, {
-  createContext, useContext, useState, useEffect, useRef, useCallback,
+  createContext, useContext, useState, useEffect, useRef, useCallback, useId,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
@@ -351,13 +351,33 @@ export function Switch({ checked, onChange }) {
 
 /* ---------------- Modal ---------------- */
 export function Modal({ open, title, onOk, onCancel, children, footer, width, confirmLoading, okText = '确定', cancelText = '取消', okType = 'primary', wide }) {
+  const modalRef=useRef(null), cancelRef=useRef(onCancel), titleId=useId()
+  cancelRef.current=onCancel
+  useEffect(()=>{
+    if(!open)return
+    const previous=document.activeElement
+    const priorOverflow=document.body.style.overflow
+    document.body.style.overflow='hidden'
+    modalRef.current?.querySelector('button')?.focus()
+    const onKey=e=>{
+      if(e.key==='Escape'){e.preventDefault();cancelRef.current?.()}
+      if(e.key==='Tab'){
+        const nodes=[...modalRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary')].filter(n=>n.getClientRects().length)
+        const first=nodes[0],last=nodes.at(-1)
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}
+        if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}
+      }
+    }
+    document.addEventListener('keydown',onKey)
+    return()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);if(previous?.isConnected)previous.focus()}
+  },[open])
   if (!open) return null
   return (
     <div className="au-modal-mask" onMouseDown={(e) => e.target === e.currentTarget && onCancel?.()}>
       <div className={`au-modal ${wide ? 'au-modal-wide' : ''}`} style={width ? { width } : undefined}
-        role="dialog" aria-modal="true">
+        ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="au-modal-header">
-          <div className="au-modal-title">{title}</div>
+          <div className="au-modal-title" id={titleId}>{title}</div>
           <button className="au-modal-close" onClick={onCancel} aria-label="关闭">✕</button>
         </div>
         <div className="au-modal-body">{children}</div>

@@ -1,18 +1,23 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
-  Button, Card, Input, Select, Checkbox, Table, Modal, Descriptions, Alert, Steps,
-  Form, Tag, Empty, Space, Typography, message,
+  Button, Card, Input, Select, Checkbox, Table, Modal, Descriptions, Alert,
+  Tag, Space, Typography,
 } from '@ecom/aurora'
 import {
-  TAGS, CATALOG, LEVELS, LEVEL_ORDER, SCENES, SOON_DAYS, levelLabel, visibility, applyPath,
-  complianceOf, livePerm, isActive, isExpired, nowStamp,
+  TAGS, CATALOG, LEVEL_ORDER, SOON_DAYS, levelLabel, visibility,
+  complianceOf, livePerm, isActive, isExpired,
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
+import { useApplyFlow } from '../flows/ApplyFlow.jsx'
+export { useApplyFlow } from '../flows/ApplyFlow.jsx'
+import { assetState, togglePageSelection } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 
 export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, onAudience }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
+  const [selectionOpen,setSelectionOpen]=useState(false), [exitOpen,setExitOpen]=useState(false), [page,setPage]=useState(1)
+  const pageSize=9
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const [viewMode, setViewMode] = useState('card') // card | list
   /* 批量模式：默认关闭，卡片保持干净；开启后才出现勾选框，点卡片即选中 */
@@ -21,14 +26,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setBatchMode(false)
     setSel([])
   }
-  const applyFlow = useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone: () => exitBatch() })
+  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, onTagsChange:setSel, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));setSelectionOpen(false) } })
+  const requestExit=()=>sel.length?setExitOpen(true):exitBatch()
+  useEffect(()=>setPage(1),[filters,demo])
 
-  /* 列表只看门户自记录的申请状态，不逐卡实时查权限；是否生效进详情再查 */
-  const applyStatus = (tag) =>
-    myapply.some((a) => a.tagId === tag.id)
-      ? 'applied'
-      : visibility(V, tag).canApply ? 'apply' : 'visible'
-
+  const applyStatus = tag => assetState(V,tag,myapply).code
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
     const vis = visibility(V, c)
     if (!vis.visible) return false
@@ -49,24 +51,17 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }
 
   /* 批量申请：只有可申请、且当前无权限的标签能被选中 */
-  const selectable = (tag) => visibility(V, tag).canApply && !isActive(livePerm(tag.id))
+  const selectable = tag => assetState(V,tag,myapply).selectable
   function toggleSel(id) {
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
   }
-  const selectableList = list.filter(selectable)
+  const pageCount=Math.max(1,Math.ceil(list.length/pageSize)), currentPage=Math.min(page,pageCount)
+  const pageList=list.slice((currentPage-1)*pageSize,currentPage*pageSize)
+  const selectableList = pageList.filter(selectable)
   const selTags = sel.map((id) => TAGS.find((t) => t.id === id)).filter(Boolean)
   const selNames = selTags.map((t) => t.name)
-  /* 每个标签由各自 Owner 独立审批，这里只统计分级分布，方便判断这批里有多少要走重审批 */
-  const selLevelDist = LEVEL_ORDER
-    .map((lv) => ({ lv, n: selTags.filter((t) => visibility(V, t).eff === lv).length }))
-    .filter((x) => x.n > 0)
-    .reverse()
-  const restSelectable = selectableList.filter((t) => !sel.includes(t.id)).length
-  function toggleSelAll() {
-    const ids = selectableList.map((t) => t.id)
-    const all = ids.length > 0 && ids.every((id) => sel.includes(id))
-    setSel((s) => (all ? s.filter((x) => !ids.includes(x)) : [...new Set([...s, ...ids])]))
-  }
+  function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
+  const startSelection=()=>{setSelectionOpen(false);applyFlow.start(sel)}
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
   const hasFilter = !!filters.q || filters.srcs.length > 0 || filters.lvls.length > 0 || !!filters.st
@@ -86,7 +81,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   return (
     <>
       <div className="page-head"><div className="page-title">标签广场</div></div>
-      {onAudience && <div className="aud-market-cta"><div><strong>从业务目标出发，找到合适的人群</strong><p>带入这里的资产，按六步完成需求确认、策略选择、执行评估与归档。</p></div><button type="button" onClick={() => onAudience()}>开始圈人 ↗</button></div>}
+      {onAudience && <div className="aud-market-cta"><div><strong>从业务目标出发，找到合适的人群</strong><p>带入这里的资产，在对话中整理需求、生成策略并评估结果。</p></div><button type="button" onClick={() => onAudience()}>开始圈人 ↗</button></div>}
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
@@ -146,16 +141,18 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             value={filters.st}
             onChange={(v) => setFilters((d) => ({ ...d, st: v || '' }))}
             options={[
-              { label: '全部申请状态', value: '' },
+              { label: '全部使用状态', value: '' },
+              { label: '可使用', value: 'active' },
+              { label: '已过期', value: 'expired' },
               { label: '已申请', value: 'applied' },
               { label: '可申请', value: 'apply' },
             ]}
           />
         {/* 批量申请入口：进入批量模式后卡片与列表才出现勾选框 */}
         {batchMode ? (
-          <Button size="small" onClick={exitBatch}>退出批量</Button>
+          <Button size="small" onClick={requestExit}>退出多选</Button>
         ) : (
-          <Button size="small" onClick={() => setBatchMode(true)}>☑ 批量申请</Button>
+          <Button size="small" onClick={() => setBatchMode(true)}>批量选择</Button>
         )}
         {/* 视图切换：卡片用于浏览发现，列表用于按条件快速比对（C-10） */}
         <div className="view-switch" role="group" aria-label="视图">
@@ -185,24 +182,25 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         ) : viewMode === 'list' ? (
           /* 列表视图：去掉恒定值（覆盖率）与重复信息（团队），把宽度留给名称与口径 */
           <Table
-            dataSource={list}
+            dataSource={pageList}
             rowKey="id"
             pagination={false}
-            onRow={(r) => openTag(r.id)}
+            onRow={r=>batchMode?(selectable(r)&&toggleSel(r.id)):openTag(r.id)}
             columns={[
               ...(batchMode ? [{
                 title: (
                   <Checkbox
                     checked={selectableList.length > 0 && selectableList.every((t) => sel.includes(t.id))}
                     onChange={toggleSelAll}
-                  />
+                    disabled={!selectableList.length}
+                  ><span className="portal-sr-only">选择本页全部可申请标签</span></Checkbox>
                 ),
                 key: 'sel',
                 width: 40,
                 render: (v, r) => (
                   selectable(r) ? (
                     <span onClick={(e) => e.stopPropagation()}>
-                      <Checkbox checked={sel.includes(r.id)} onChange={() => toggleSel(r.id)} />
+                      <Checkbox checked={sel.includes(r.id)} onChange={() => toggleSel(r.id)}><span className="portal-sr-only">选择 {r.name}</span></Checkbox>
                     </span>
                   ) : null
                 ),
@@ -234,10 +232,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 key: 'st',
                 width: 104,
                 render: (v, r) => {
-                  const perm = livePerm(r.id)
-                  if (isActive(perm)) return <Tag color="success">生效中</Tag>
-                  if (isExpired(perm)) return <Tag color="danger">已过期</Tag>
-                  return applyStatus(r) === 'applied' ? <ApplyTag /> : <span style={{ color: 'var(--mute2)' }}>—</span>
+                  const st=assetState(V,r,myapply)
+                  return <Tag color={st.code==='active'?'success':st.code==='applied'?'primary':undefined}>{st.label}</Tag>
                 },
               },
               {
@@ -246,11 +242,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 width: 96,
                 render: (v, r) => (
                   isActive(livePerm(r.id)) ? (
-                    <Button type="link" size="small" style={{ color: 'var(--ok)' }}
+                    <Button type="link" size="small"
                       onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                       去使用
                     </Button>
-                  ) : visibility(V, r).canApply ? (
+                  ) : selectable(r) ? (
                     <Button type="link" size="small"
                       onClick={(e) => { e.stopPropagation(); applyFlow.start([r.id]) }}>
                       申请
@@ -262,9 +258,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           />
         ) : (
           <div className="tag-cards">
-            {list.map((c) => {
+            {pageList.map((c) => {
               const vis = visibility(V, c)
-              const applied = applyStatus(c) === 'applied'
+              const state=assetState(V,c,myapply)
+              const applied = state.code === 'applied'
               const perm = livePerm(c.id)
               const canSel = selectable(c)
               const checked = sel.includes(c.id)
@@ -276,13 +273,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
                   {/* 已申请用角标表达，不再占用一个 tag 位；可申请为默认态，不额外标记 */}
-                  {applied && <span className="tc-ribbon">已申请</span>}
+                  {state.code==='active'?<span className="tc-ribbon tc-usable">可使用</span>:applied?<span className="tc-ribbon">{state.label}</span>:null}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}
                     {batchMode && canSel && (
                       <span className="tc-check" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={checked} onChange={() => toggleSel(c.id)} />
+                        <Checkbox checked={checked} onChange={() => toggleSel(c.id)}><span className="portal-sr-only">选择 {c.name}</span></Checkbox>
                       </span>
                     )}
                     <div className="tc-name" title={c.name}>{c.name}</div>
@@ -297,13 +294,14 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                       ? c.desc
                       : <span className="tc-desc-empty">暂无口径说明，可联系 {c.owner.split(' · ')[0]} 补充</span>}
                   </div>
+                  {batchMode&&!canSel&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
-                    <span>{c.src} · 更新 {c.freq}</span>
+                    <span>{c.src} · 更新 {c.freq}</span><Button type="link" size="small" onClick={e=>{e.stopPropagation();openTag(c.id)}}>查看详情</Button>
                     {isActive(perm) && (
                       <Button
                         type="link"
                         size="small"
-                        style={{ color: 'var(--ok)' }}
+
                         onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
                       >
                         去使用 →
@@ -316,42 +314,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           </div>
         )}
       </Card>
-      {batchMode && (
-        <div className="batch-hint">
-          <span>批量模式：勾选或直接点击卡片来选择标签；已有权限的标签不可选</span>
-          <Space>
-            <Button size="small" onClick={toggleSelAll}>
-              {selectableList.length > 0 && selectableList.every((t) => sel.includes(t.id)) ? '取消全选' : `全选当前 ${selectableList.length} 个`}
-            </Button>
-            <Button size="small" onClick={exitBatch}>退出</Button>
-          </Space>
-        </div>
-      )}
-      {sel.length > 0 && (
-        /* 批量操作条：固定在视口底部，选中后始终可见，不用滚到页尾找按钮 */
-        <div className="batch-bar" role="region" aria-label="批量申请">
-          <div className="batch-count"><b>{sel.length}</b></div>
-          <div className="batch-info">
-            <div className="batch-title">
-              已选 {sel.length} 个标签
-              <span className="batch-sep">·</span>
-              <span className="batch-dist">
-                {selLevelDist.map(({ lv, n }) => (
-                  <span key={lv}><LevelChip level={lv} />×{n}</span>
-                ))}
-              </span>
-              <span className="batch-sep">·</span>
-              各标签独立审批
-            </div>
-            <div className="batch-names" title={selNames.join('、')}>{selNames.join('、')}</div>
-          </div>
-          <div className="batch-actions">
-            <Button size="small" onClick={() => setSel([])}>清空</Button>
-            <Button size="small" onClick={exitBatch}>退出批量</Button>
-            <Button type="primary" onClick={() => applyFlow.start(sel)}>批量申请 {sel.length} 个 →</Button>
-          </div>
-        </div>
-      )}
+      <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
+      {batchMode && <>
+        <div className="batch-hint"><span>翻页、筛选和切换视图均保留已选。已有权限或本次已提交的标签无需重复申请。</span><Button size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button></div>
+        <div className="batch-bar selection-bar" role="region" aria-label="已选标签操作栏"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id} title={t.name}>{t.name}<button aria-label={`移除 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<button className="selection-more" title={selNames.join('、')} onClick={()=>setSelectionOpen(true)}>还有 {sel.length-2} 个 · 查看全部</button>}{!sel.length&&<small>请从列表中选择需要申请的标签</small>}</div></div><Space><Button disabled={!sel.length} onClick={()=>setSelectionOpen(true)}>管理已选（{sel.length}）</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space></div><div className="selection-spacer"/>
+      </>}
+      {selectionOpen&&<Modal open width={720} title={`管理已选标签 · ${sel.length} 个`} onCancel={()=>setSelectionOpen(false)} footer={<Space><Button disabled={!sel.length} onClick={()=>setSel([])}>清空已选</Button><Button onClick={()=>setSelectionOpen(false)}>继续选择</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space>}><p className="apply-muted">按选择顺序排列；可直接移除，不必返回原页寻找卡片。</p><div className="selected-tag-list">{selTags.length?selTags.map((t,i)=><div key={t.id}><span>{i+1}</span><div><strong>{t.name}</strong><p>{t.src} · {pageList.some(p=>p.id===t.id)?'当前页':'当前页以外'}</p></div><LevelChip level={visibility(V,t).eff}/><Button type="link" onClick={()=>toggleSel(t.id)}>移除</Button></div>):<p>已选清单为空，可以返回继续选择。</p>}</div></Modal>}
+      {exitOpen&&<Modal open title="退出多选？" onCancel={()=>setExitOpen(false)} footer={<Space><Button onClick={()=>setExitOpen(false)}>继续选择</Button><Button type="primary" onClick={()=>{exitBatch();setExitOpen(false)}}>退出并清空选择</Button></Space>}><p>将清空当前选择的 {sel.length} 个标签，尚未提交任何申请。</p></Modal>}
       {detailTag && (
         <TagDetailModal
           V={V}
@@ -365,139 +334,6 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       {applyFlow.modal}
     </>
   )
-}
-
-/* 申请流程（智能助手预填 → 跳 Triton 建单）：标签广场与「我的申请 / 权限」共用
- * 支持单个与批量：门户为每个标签各记一条申请记录，不追踪 Triton 单据状态 */
-/* 批量申请不合单：每个标签由各自 Owner 审批，门户为每个标签各生成一条申请记录。
- * 这里整理出逐标签的审批信息，供提交前预检展示 */
-function applyRows(V, tags) {
-  return tags.map((t) => {
-    const vis = visibility(V, t)
-    const lv = LEVELS[vis.eff]
-    return {
-      tag: t,
-      eff: vis.eff,
-      cross: vis.cross,
-      owner: t.owner,
-      approve: lv.approve,
-      approver: lv.approver,
-      valid: lv.valid,
-    }
-  }).sort((a, b) => LEVEL_ORDER.indexOf(b.eff) - LEVEL_ORDER.indexOf(a.eff))
-}
-
-export function useApplyFlow({ V, addApply, pushAudit, goMyPerm, onDone }) {
-  const [apply, setApply] = useState(null)
-  const [done, setDone] = useState(null)
-
-  function start(ids) {
-    const list = (Array.isArray(ids) ? ids : [ids]).map((id) => TAGS.find((t) => t.id === id)).filter(Boolean)
-    if (!list.length) return
-    setApply({
-      tags: list,
-      fields: list.map((t) => t.name).join('、'),
-      applicant: `user（${V.name} · ${V.domain}）`,
-      scene: '',
-      err: '',
-      parsedFile: null,
-      parsing: false,
-    })
-  }
-
-  function onParse() {
-    if (!apply || apply.parsing) return
-    setApply((d) => ({ ...d, parsing: true }))
-    const first = apply.tags[0]
-    setTimeout(() => {
-      const scene = SCENES[first.id % SCENES.length]
-      setApply((p) => ({
-        ...p,
-        parsing: false,
-        scene,
-        err: '',
-        parsedFile: `PRD_${first.name}.docx`,
-      }))
-      pushAudit(`智能小助手解析文档并预填申请字段：${apply.tags.map((t) => t.name).join('、')}`, visibility(V, first).eff)
-      message.success(`已解析文档并预填申请字段、申请人、使用场景（${scene}），请核对后提交`)
-    }, 500)
-  }
-
-  function onSubmit() {
-    if (!apply) return
-    if (!apply.scene) {
-      setApply((d) => ({ ...d, err: '请选择使用场景' }))
-      message.warning('请先选择使用场景，或上传文档自动预填')
-      return
-    }
-    const at = nowStamp().slice(0, 16)
-    /* 每个标签各生成一条申请，由各自 Owner 独立审批，互不阻塞 */
-    apply.tags.forEach((tag, i) => {
-      const vis = visibility(V, tag)
-      const path = applyPath(tag)
-      addApply({ ticket: `APP-${24400 + Math.floor(Math.random() * 400) + i}`, tagId: tag.id, at, scene: apply.scene })
-      pushAudit(`去 ${path.target} 申请（智能小助手预填）：${tag.name}${vis.cross ? '（跨域升档）' : ''}`, vis.eff)
-      pushAudit(`申请提交成功：${tag.name}（场景=${apply.scene}，审批人 ${tag.owner}）`, vis.eff)
-    })
-    const rows = applyRows(V, apply.tags)
-    setApply(null)
-    setDone({ rows, scene: apply.scene })
-    onDone?.()
-  }
-
-  const modal = (
-    <>
-      {apply && (
-        <ApplyGuideModal
-          V={V}
-          apply={apply}
-          setApply={setApply}
-          onClose={() => setApply(null)}
-          onParse={onParse}
-          onSubmit={onSubmit}
-        />
-      )}
-      {done && (
-        <Modal
-          open
-          width={460}
-          title="✅ 申请已提交"
-          onCancel={() => setDone(null)}
-          footer={
-            <Space>
-              <Button onClick={() => setDone(null)}>知道了</Button>
-              {goMyPerm && (
-                <Button type="primary" onClick={() => { setDone(null); goMyPerm() }}>
-                  去我的申请查看 →
-                </Button>
-              )}
-            </Space>
-          }
-        >
-          <Typography.Text>
-            已提交 {done.rows.length} 个标签的申请，使用场景「{done.scene}」，每个标签由各自 Owner 独立审批。
-          </Typography.Text>
-          <div style={{ height: 10 }} />
-          <div className="done-list">
-            {done.rows.map((r) => (
-              <div key={r.tag.id} className="done-row">
-                <span className="done-tag" title={r.tag.name}>{r.tag.name}</span>
-                <LevelChip level={r.eff} />
-                <span className="done-owner">{r.owner}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ height: 12 }} />
-          <Alert
-            type="info"
-            showIcon
-            message="各标签审批进度不同，谁先通过谁先可用。可在「我的申请 / 权限」按标签查看生效状态，生效后即可去风神平台使用。"
-          />
-        </Modal>
-      )}
-    </>
-  )
-  return { start, modal }
 }
 
 function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
@@ -538,11 +374,11 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
             <Button onClick={onClose}>关闭</Button>
             {onAudience && <Button onClick={onAudience}>带入圈人任务 →</Button>}
             {active ? (
-              <Button disabled>✓ 已有权限</Button>
-            ) : vis.canApply ? (
+              <Button type="primary" onClick={()=>jumpExternal('风神平台')}>去使用 →</Button>
+            ) : assetState(V,tag,applies).selectable ? (
               <Button type="primary" onClick={onApply}>{applies.length ? '再次申请 →' : '申请权限 →'}</Button>
             ) : (
-              <Button disabled>{V.wl ? '暂不可申请' : '需走本域 POC 申请'}</Button>
+              <Button disabled>{assetState(V,tag,applies).label}</Button>
             )}
           </Space>
         </div>
@@ -637,6 +473,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
           },
         ]}
       />
+      {tag.callType==='psm'&&<Alert type="info" message="系统间实时调用请联系来源方产品提需求，跨域调用方案待确认，当前不提供自助建单入口。"/>}
       {(tag.level === '高敏' || vis.cross) && (
         <Alert
           style={{ marginTop: 12 }}
@@ -645,161 +482,6 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
           message={`${vis.cross ? '跨域' : '高敏'}场景：需按来源方的合规流程审批，请提前准备合规材料。`}
         />
       )}
-    </Modal>
-  )
-}
-
-function ApplyGuideModal({ V, apply, setApply, onClose, onParse, onSubmit }) {
-  const tags = apply.tags
-  const multi = tags.length > 1
-  /* 单标签时用于预判审批链路；多标签各批各的，链路由预检表逐条展示 */
-  const eff = visibility(V, tags[0]).eff
-  const cross = tags.some((t) => visibility(V, t).cross)
-  const strict = eff === '受控' || eff === '高敏'
-  const steps = eff === '开放'
-    ? [{ title: '发起（消费方）' }, { title: '免审批 · 留痕' }]
-    : eff === '通用'
-      ? [{ title: '发起（消费方）' }, { title: '平台自动通过' }]
-      : eff === '受控'
-        ? [{ title: '发起（消费方）' }, { title: '申请方 +1' }, { title: 'Owner 审批' }]
-        : [
-            { title: '发起（消费方）' },
-            { title: '申请方 +2' },
-            { title: 'Owner（UG 收口）' },
-            { title: '法务 + 合规加签' },
-          ]
-  const comp = complianceOf(tags[0])
-  const rows = applyRows(V, tags)
-  return (
-    <Modal
-      open
-      width={720}
-      title={
-        <span>
-          {multi ? `批量申请 · ${tags.length} 个标签` : '申请智能助手'}
-          <Tag color="warning" style={{ marginLeft: 8 }}>规划中</Tag>
-        </span>
-      }
-      onCancel={onClose}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            门户不生成工单，最终建单在 Triton 完成
-          </Typography.Text>
-          <Space>
-            <Button onClick={onClose}>取消</Button>
-            <Button type="primary" onClick={onSubmit}>去 Triton 申请 →</Button>
-          </Space>
-        </div>
-      }
-    >
-      <Alert
-        type="info"
-        showIcon
-        message="🤖 智能小助手：表单智能预填"
-        description="自动带出申请字段、申请人和使用场景；上传 PRD / 需求单 / 收益测算文档后会自动解析并回填，确认无误后一键跳转 Triton 建单。"
-      />
-      {multi && (
-        /* 提交前预检：每个标签各批各的，逐条列出分级、审批方式与审批人 */
-        <div className="precheck">
-          <div className="precheck-head">
-            提交预检 · {tags.length} 个标签将各自生成一条申请
-            <span className="precheck-tip">每个标签由各自 Owner 独立审批，互不阻塞；有效期按各自分级计算</span>
-          </div>
-          <div className="precheck-table">
-            <div className="precheck-row precheck-th">
-              <span className="pc-tag">标签</span>
-              <span className="pc-lv">分级</span>
-              <span className="pc-approve">审批方式</span>
-              <span className="pc-owner">审批人</span>
-              <span className="pc-valid">有效期</span>
-            </div>
-            {rows.map((r) => (
-              <div key={r.tag.id} className="precheck-row">
-                <span className="pc-tag" title={r.tag.name}>
-                  {r.tag.name}
-                  {r.cross && <> <CrossBadge>跨域升档</CrossBadge></>}
-                </span>
-                <span className="pc-lv"><LevelChip level={r.eff} /></span>
-                <span className="pc-approve">{r.approve}</span>
-                <span className="pc-owner">{r.owner}</span>
-                <span className="pc-valid">{r.valid}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {cross && (
-        <Alert
-          style={{ marginTop: 10 }}
-          type="warning"
-          showIcon
-          message={multi
-            ? `其中 ${rows.filter((r) => r.cross).length} 个标签为跨域调用，密级按各自规则升档，审批更严格。`
-            : `跨域申请：密级将升档为 ${levelLabel(eff)}，审批方式为「${LEVELS[eff].approve}」，审批更严格。`}
-        />
-      )}
-      <div
-        className="route-box"
-        onClick={onParse}
-        style={{ cursor: 'pointer', textAlign: 'center', padding: 18, marginTop: 14 }}
-      >
-        <div style={{ fontSize: 22 }}>📄⬆️</div>
-        <div style={{ fontSize: 13, marginTop: 6 }}>
-          <b>{apply.parsing ? '解析中…' : apply.parsedFile ? '解析完成，可重新上传替换' : '点击上传 PRD / 需求单 / 收益测算文档'}</b>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 4 }}>
-          将自动解析并预填申请字段、申请人和使用场景
-        </div>
-      </div>
-      {apply.parsedFile && (
-        <div style={{ fontSize: 12, color: 'var(--ok)', marginTop: 8 }}>
-          已解析 {apply.parsedFile}，字段已预填，请核对后提交。
-        </div>
-      )}
-      <Form layout="vertical" style={{ marginTop: 14 }}>
-        <Form.Item label="申请字段">
-          <Input value={apply.fields} onChange={(v) => setApply((d) => ({ ...d, fields: v }))} />
-        </Form.Item>
-        <Form.Item label="申请人">
-          <Input value={apply.applicant} onChange={(v) => setApply((d) => ({ ...d, applicant: v }))} />
-        </Form.Item>
-        <Form.Item label={<span><span className="req-star">*</span>使用场景</span>}>
-          <Select
-            value={apply.scene || undefined}
-            placeholder="请选择，或上传文档自动预填"
-            onChange={(v) => setApply((d) => ({ ...d, scene: v || '', err: '' }))}
-            options={SCENES.map((s) => ({ label: s, value: s }))}
-          />
-          {apply.err && <div className="field-err">{apply.err}</div>}
-        </Form.Item>
-      </Form>
-      {strict && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="受控 / 高敏标签还需提供 PRD 链接、Meego 需求单和收益测算，可由上传的文档一并解析。"
-        />
-      )}
-      {!multi && (
-        <>
-          <div className="flow-title">预计审批链路</div>
-          <Steps items={steps} current={steps.length - 1} />
-          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 10 }}>
-            有效期：{LEVELS[eff].valid} · 审批人：{LEVELS[eff].approver} · 预填内容仅供参考，实际必填项与校验以 Triton 表单为准
-          </Typography.Text>
-        </>
-      )}
-      {multi && (
-        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 10 }}>
-          预填内容仅供参考，实际必填项与校验以 Triton 表单为准；各标签的审批进度需分别查看。
-        </Typography.Text>
-      )}
-      <div style={{ marginTop: 14 }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>合规依据：</Typography.Text>{' '}
-        <Typography.Link href={comp.url} target="_blank">📄 {comp.title}</Typography.Link>
-      </div>
     </Modal>
   )
 }
