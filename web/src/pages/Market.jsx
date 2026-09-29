@@ -324,7 +324,6 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <TagDetailModal
           V={V}
           tag={detailTag}
-          onAudience={onAudience ? () => { setDetailId(null); onAudience(detailTag) } : undefined}
           applies={myapply.filter((a) => a.tagId === detailTag.id)}
           onClose={() => setDetailId(null)}
           onApply={() => { setDetailId(null); applyFlow.start([detailTag.id]) }}
@@ -335,7 +334,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   )
 }
 
-function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
+function TagDetailModal({ V, tag, applies, onClose, onApply }) {
   const vis = visibility(V, tag)
   const comp = complianceOf(tag)
   // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
@@ -371,7 +370,6 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAudience }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            {onAudience && <Button onClick={onAudience}>带入圈人任务 →</Button>}
             {active ? (
               <Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台')}>去使用</Button>
             ) : assetState(V,tag,applies).selectable ? (
