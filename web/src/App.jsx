@@ -4,7 +4,7 @@ import {
   VIEWS, NAV, NAV_LABELS,
   INITIAL_MYAPPLY, INITIAL_INCOME, INITIAL_AUDIT, nowStamp, TAGS,
 } from './data.js'
-import { assetState, pendingKey, parsePending, mergePending, PENDING_MAX } from './flows/application-model.mjs'
+import { assetState, displayStatus, pendingKey, parsePending, mergePending, PENDING_MAX } from './flows/application-model.mjs'
 import Login from './pages/Login.jsx'
 import Market from './pages/Market.jsx'
 import MyPerm from './pages/MyPerm.jsx'
@@ -123,7 +123,9 @@ export default function App() {
   const agentBridge = {
     tagState: (id) => {
       const tag = TAGS.find((t) => t.id === id)
-      return tag ? assetState(view, tag, myapply) : null
+      if (!tag) return null
+      const st = assetState(view, tag, myapply)
+      return { ...st, label: displayStatus(st).label }
     },
     applyTags: (ids) => {
       const key = pendingKey(view)

@@ -15,11 +15,18 @@ export function assetState(view, tag, applies, perm = livePerm(tag.id)) {
   /* 演示假设已能拿到审批结果：审批中不能重复申请，被拒绝后才能重新申请。
      真实环境门户读不到 Triton 单据状态，上线前需要解决状态来源。 */
   const latest = applies.filter(a => a.tagId === tag.id).sort((a,b) => b.at.localeCompare(a.at))[0]
-  if (latest?.approval === 'rejected') return { code: 'rejected', label: '已拒绝', selectable: true, reason: '上次申请被拒绝，可调整用途后重新申请' }
+  if (latest?.approval === 'rejected') return { code: 'rejected', label: '可申请', selectable: true, reason: '' }
   if (latest && (latest.approval === 'pending' || latest.submissionStatus === 'submitted' || (!latest.approval && !perm)))
     return { code: 'applied', label: '已申请', selectable: false, reason: '审批中：流转完成（通过或被拒绝）前不能重复申请' }
   if (isExpired(perm)) return { code: 'expired', label: '已过期', selectable: true, reason: '权限已过期，可以重新申请' }
   return { code: 'apply', label: '可申请', selectable: true, reason: '' }
+}
+/* 前端只展示三种状态：可使用 / 已申请 / 可申请。
+   过期、被拒绝、需线下对接等内部状态都归入「可申请」（有些权限在门户上线前就已存在，统一按实时权限显示「可使用」） */
+export function displayStatus(state) {
+  if (state.code === 'active') return { code: 'active', label: '可使用' }
+  if (state.code === 'applied') return { code: 'applied', label: '已申请' }
+  return { code: 'apply', label: '可申请' }
 }
 export function togglePageSelection(selected, eligibleIds) {
   const all = eligibleIds.length > 0 && eligibleIds.every(id => selected.includes(id))

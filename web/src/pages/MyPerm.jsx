@@ -85,7 +85,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
             </Button>
           ) : canReapply(V, r) ? (
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
-              {r.last.approval === 'rejected' ? '重新申请' : '再次申请'}
+              再次申请
             </Button>
           ) : <span className="apply-muted">审批中</span>}
         </Space>
@@ -194,7 +194,7 @@ function PermDetail({ r, canReapply, onClose, onReapply }) {
                 去 Triton 查看 →
               </Button>
             )}
-            {!active && canReapply && <Button type="primary" onClick={onReapply}>{r.last.approval === 'rejected' ? '重新申请 →' : '再次申请 →'}</Button>}
+            {!active && canReapply && <Button type="primary" onClick={onReapply}>再次申请 →</Button>}
           </Space>
         </div>
       }
@@ -208,7 +208,6 @@ function PermDetail({ r, canReapply, onClose, onReapply }) {
         items={[
           { label: '申请状态', children: <ApplyTag /> },
           { label: '申请时间', children: `${r.last.at}${r.apps.length > 1 ? `（最新一次，共申请 ${r.apps.length} 次）` : ''}` },
-          ...(!active ? [{ label: '审批结果', children: r.last.approval === 'rejected' ? <Tag color="danger">已拒绝（演示）</Tag> : isExpired(r.perm) ? '曾通过，权限已过期' : '审批中' }] : []),
           { label: '消费场景', children: r.last.scene },
           ...((r.last.sceneNote||r.last.description)?[{label:'使用说明',children:r.last.sceneNote||r.last.description}]:[]),
           ...(r.last.supplement?[{label:'补充说明',children:r.last.supplement}]:[]),

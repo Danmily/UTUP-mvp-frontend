@@ -2819,7 +2819,6 @@ display: none
 .apply-scene-note summary{cursor:pointer;color:var(--au-text-2)}
 .apply-scene-note p{margin:6px 0 0;padding:8px 10px;background:var(--au-fill-1);border-radius:6px;color:var(--au-text-2);line-height:1.7}
 .pending-pager{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--au-text-3)}
-.tc-ribbon.is-rejected{background:#f53f3f}
 
 /* ===== 标签广场顶部标签页：标签广场 / AI 智能搜索 / 选标篮 ===== */
 .ai-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}

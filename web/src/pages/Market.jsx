@@ -10,7 +10,7 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
-import { assetState, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX, PENDING_PAGE_SIZE } from '../flows/application-model.mjs'
+import { assetState, displayStatus, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX, PENDING_PAGE_SIZE } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 import { useAiSearch, AiSearchPage, AiSidePanel, AiRecommendation } from './AiTagSearch.jsx'
 
@@ -50,7 +50,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   useEffect(()=>setPage(1),[filters,demo])
   useEffect(()=>{if(!filters.q.trim()){setBatchMode(false);setSel([])}},[filters.q])
 
-  const applyStatus = tag => assetState(V,tag,myapply).code
+  const applyStatus = tag => displayStatus(assetState(V,tag,myapply)).code
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
     const vis = visibility(V, c)
     if (!vis.visible) return false
@@ -215,11 +215,9 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             onChange={(v) => setFilters((d) => ({ ...d, st: v || '' }))}
             options={[
               { label: '全部使用状态', value: '' },
-              { label: '可使用', value: 'active' },
-              { label: '已过期', value: 'expired' },
-              { label: '已申请', value: 'applied' },
-              { label: '已拒绝', value: 'rejected' },
               { label: '可申请', value: 'apply' },
+              { label: '已申请', value: 'applied' },
+              { label: '可使用', value: 'active' },
             ]}
           />
           </>}
@@ -310,8 +308,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 key: 'st',
                 width: 104,
                 render: (v, r) => {
-                  const st=assetState(V,r,myapply)
-                  return <Tag color={st.code==='active'?'success':st.code==='applied'?'primary':st.code==='rejected'?'danger':undefined}>{st.label}</Tag>
+                  const st=displayStatus(assetState(V,r,myapply))
+                  return <Tag color={st.code==='active'?'success':st.code==='applied'?'primary':undefined}>{st.label}</Tag>
                 },
               },
               {
@@ -341,19 +339,18 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             {pageList.map((c) => {
               const vis = visibility(V, c)
               const state=assetState(V,c,myapply)
-              const applied = state.code === 'applied', rejected = state.code === 'rejected'
+              const applied = state.code === 'applied'
               const canSel = selectable(c)&&!pending.includes(c.id)
               const checked = sel.includes(c.id)
               return (
                 <div
                   key={c.id}
-                  className={`tag-card${applied || rejected ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
+                  className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
                     + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 角标只表达审批流转：已申请（审批中）/ 已拒绝；已有权限由右下角「去使用」表达 */}
+                  {/* 角标只有蓝色「已申请」；已有权限由右下角「去使用」表达，其他状态不打角标 */}
                   {applied && <span className="tc-ribbon">已申请</span>}
-                  {rejected && <span className="tc-ribbon is-rejected">已拒绝</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
                         否则点在勾选框正中间会触发两次、相互抵消 */}
@@ -377,11 +374,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   {batchMode&&!canSel&&!pending.includes(c.id)&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
                     <span>{c.src} · 更新 {c.freq}</span>
-                    {state.code === 'active' && (
+                    {state.code === 'active' ? (
                       <Button type="link" size="small" className="asset-use-link"
                         onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                         去使用
                       </Button>
+                    ) : (
+                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); openTag(c.id) }}>查看详情</Button>
                     )}
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan, mergePending, parsePending, submittedPurpose, SCENE_DESCRIPTIONS } from '../web/src/flows/application-model.mjs'
+import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan, mergePending, parsePending, submittedPurpose, SCENE_DESCRIPTIONS, displayStatus } from '../web/src/flows/application-model.mjs'
 import { VIEWS, TAGS } from '../web/src/data.js'
 const view=VIEWS.consumer
 const tags=TAGS.filter(t=>assetState(view,t,[]).selectable).slice(0,3)
@@ -65,4 +65,9 @@ test('scene carries its standard description; supplement is optional and appende
  d.description='用于 10 月新品推广'
  const extra=submittedPurpose(resolvedPurpose(d,tags[0]))
  assert.equal(extra.sceneNote,SCENE_DESCRIPTIONS['人群圈选']);assert.match(extra.description,/补充说明：用于 10 月新品推广$/)
+})
+test('front end shows only 可申请 / 已申请 / 可使用',()=>{
+ const labels=[{code:'active'},{code:'applied'},{code:'rejected'},{code:'expired'},{code:'apply'},{code:'manual'},{code:'visible'}].map(s=>displayStatus(s).label)
+ assert.deepEqual([...new Set(labels)].sort(),['可使用','可申请','已申请'].sort())
+ assert.equal(displayStatus({code:'rejected'}).label,'可申请');assert.equal(displayStatus({code:'expired'}).label,'可申请')
 })
