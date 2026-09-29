@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@ecom/aurora'
 import { TAGS, visibility } from '../data.js'
 import { LevelChip } from '../mvp-ui.jsx'
@@ -6,9 +6,10 @@ import { assetState } from '../flows/application-model.mjs'
 
 /* AI 标签智能搜索 · 交互演示：按关键词给出固定的标签组合，不调用模型 */
 export const AI_EXAMPLES = [
-  '给波司登找近 90 天买过服饰、中高消费、对羽绒服感兴趣的用户',
-  '召回近 60 天没有下单的美妆老客',
-  '为上海一家火锅门店找周边的潜在到店用户',
+  ['新品推广', '给波司登找近 90 天买过服饰、中高消费、对羽绒服感兴趣的用户'],
+  ['老客召回', '召回近 60 天没有下单的美妆老客'],
+  ['门店获客', '为上海一家火锅门店找周边的潜在到店用户'],
+  ['跨域高价值', '找电商消费一般、但生服消费很高的跨域高价值用户'],
 ]
 const RULES = [
   { test: /召回|流失|沉默|没有下单|没下单|未购/, scene: '老客召回',
@@ -35,55 +36,63 @@ export function recommend(V, query) {
     { key: 'extra', title: '可选补充', hint: '按需加入，用于收窄或排序', items: pick(rule.extra) },
     { key: 'exclude', title: '建议排除', hint: '作为排除条件使用', items: pick(rule.exclude) },
   ].filter((g) => g.items.length)
-  return { query, scene: rule.scene, groups, at: new Date().toTimeString().slice(0, 5) }
+  const visible = TAGS.filter((t) => visibility(V, t).visible).length
+  const count = groups.reduce((n, g) => n + g.items.length, 0)
+  return {
+    query, scene: rule.scene, groups, at: new Date().toTimeString().slice(0, 5),
+    steps: [
+      `理解业务场景：识别为「${rule.scene}」`,
+      `匹配标签目录：在你可见的 ${visible} 个标签中找到 ${count} 个相关标签`,
+      `组合标签方案：${groups.map((g) => `${g.title} ${g.items.length} 个`).join('，')}`,
+    ],
+  }
 }
 
-const STEPS = ['理解业务场景', '匹配标签目录', '组合标签方案']
+const STEP_COUNT = 3
+/* 会话：一次对话可以追问多轮；左侧历史按会话保存（仅当前页面内存） */
 export function useAiSearch(V) {
+  const [sessions, setSessions] = useState([])
+  const [activeId, setActiveId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState(0)
-  const [history, setHistory] = useState([])
-  const [current, setCurrent] = useState(null)
   const timers = useRef([])
+  useEffect(() => () => timers.current.forEach(clearTimeout), [])
+  const active = sessions.find((s) => s.id === activeId) || null
   function run(query) {
     const q = query.trim()
     if (!q || loading) return
     timers.current.forEach(clearTimeout)
-    setLoading(true); setStep(0); setCurrent(null)
-    timers.current = STEPS.map((_, i) => setTimeout(() => {
-      if (i < STEPS.length - 1) { setStep(i + 1); return }
+    let id = activeId
+    if (!active) {
+      id = 'S' + Date.now()
+      setSessions((list) => [{ id, title: q, at: new Date().toTimeString().slice(0, 5), turns: [] }, ...list])
+      setActiveId(id)
+    }
+    setSessions((list) => list.map((s) => (s.id === id ? { ...s, turns: [...s.turns, { query: q, rec: null }] } : s)))
+    setLoading(true); setStep(0)
+    timers.current = Array.from({ length: STEP_COUNT }, (_, i) => setTimeout(() => {
+      if (i < STEP_COUNT - 1) { setStep(i + 1); return }
       const rec = recommend(V, q)
-      setCurrent(rec); setHistory((h) => [rec, ...h.filter((x) => x.query !== q)].slice(0, 8)); setLoading(false)
-    }, 450 * (i + 1)))
+      setSessions((list) => list.map((s) => (s.id === id ? { ...s, scene: s.scene || rec.scene, turns: s.turns.map((t, k) => (k === s.turns.length - 1 ? { ...t, rec } : t)) } : s)))
+      setLoading(false)
+    }, 480 * (i + 1)))
   }
-  return { loading, step, history, current, setCurrent, run }
+  function newSession() { if (!loading) setActiveId(null) }
+  function open(id) { if (!loading) setActiveId(id) }
+  const current = active?.turns.filter((t) => t.rec).at(-1)?.rec || null
+  return { sessions, active, current, loading, step, run, newSession, open }
 }
 
-export function AiThinking({ step }) {
-  return (
-    <div className="ai-thinking" role="status">
-      {STEPS.map((s, i) => (
-        <span key={s} className={i < step ? 'done' : i === step ? 'on' : ''}>{i < step ? '✓' : i === step ? '◌' : '○'} {s}</span>
-      ))}
-    </div>
-  )
-}
+const ICON_SPARK = <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1.5l2 5.6 5.6 2-5.6 2L10 16.7l-2-5.6-5.6-2 5.6-2z"/></svg>
 
-/* 推荐结果：每个标签可查看详情 / 加入清单；已有权限的直接去使用 */
-export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUse }) {
+/* 推荐结果卡：两个方案共用；标签可查看详情、加入选标篮或直接去使用 */
+export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUse, onBasket }) {
   const addable = (tag) => assetState(V, tag, myapply).selectable && !pending.includes(tag.id)
-  const coreIds = (rec.groups.find((g) => g.key === 'core')?.items || []).map((x) => x.tag.id).filter((id) => addable(TAGS.find((t) => t.id === id)))
+  const coreIds = (rec.groups.find((g) => g.key === 'core')?.items || []).map((x) => x.tag).filter(addable).map((t) => t.id)
+  const inBasket = rec.groups.flatMap((g) => g.items).filter((x) => pending.includes(x.tag.id)).length
   return (
-    <div className="ai-result">
-      <div className="ai-result-head">
-        <div>
-          <span className="ai-scene">{rec.scene}</span>
-          <p>根据「{rec.query}」推荐 {rec.groups.reduce((n, g) => n + g.items.length, 0)} 个标签，先看核心标签是否符合业务口径。</p>
-        </div>
-        <Button type="primary" size="small" disabled={!coreIds.length} onClick={() => onAdd(coreIds)}>
-          {coreIds.length ? `核心标签加入清单（${coreIds.length}）` : '核心标签已处理'}
-        </Button>
-      </div>
+    <div className="ai-rec">
+      <div className="ai-rec-head"><b>推荐标签组合</b><span className="ai-scene">{rec.scene}</span></div>
       {rec.groups.map((g) => (
         <section key={g.key} className={`ai-group ai-group-${g.key}`}>
           <h4>{g.title}<small>{g.hint}</small></h4>
@@ -92,14 +101,13 @@ export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUs
             return (
               <div key={tag.id} className="ai-tag-row">
                 <div className="ai-tag-main">
-                  <button type="button" className="ai-tag-name" onClick={() => onOpen(tag.id)}>{tag.name}</button>
-                  <LevelChip level={visibility(V, tag).eff} />
+                  <div className="ai-tag-title"><button type="button" className="ai-tag-name" onClick={() => onOpen(tag.id)}>{tag.name}</button><LevelChip level={visibility(V, tag).eff} /></div>
                   <p>{reason}<span> · {tag.src}</span></p>
                 </div>
                 <div className="ai-tag-action">
                   {st.code === 'active' ? <Button type="link" size="small" className="asset-use-link" onClick={onUse}>去使用</Button>
-                    : pending.includes(tag.id) ? <span className="pending-row-label">已加入清单</span>
-                      : st.selectable ? <Button size="small" onClick={() => onAdd([tag.id])}>加入清单</Button>
+                    : pending.includes(tag.id) ? <span className="ai-added">✓ 已加入</span>
+                      : st.selectable ? <button type="button" className="ai-add" onClick={() => onAdd([tag.id])}>+ 选标篮</button>
                         : <span className="ai-tag-state">{st.label}</span>}
                 </div>
               </div>
@@ -107,45 +115,93 @@ export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUs
           })}
         </section>
       ))}
-      <p className="ai-foot">演示推荐 · 按关键词匹配，不代表模型能力；是否可用以标签详情中的口径为准。</p>
-    </div>
-  )
-}
-
-function AiComposer({ ai, compact }) {
-  const [text, setText] = useState(ai.current?.query || '')
-  return (
-    <div className={`ai-composer${compact ? ' compact' : ''}`}>
-      <textarea rows={compact ? 2 : 3} value={text} placeholder="描述你的业务场景，例如：给某品牌找近 90 天买过服饰、中高消费的用户"
-        aria-label="描述业务场景"
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ai.run(text) } }} />
-      <div className="ai-composer-foot">
-        <div className="ai-examples">{AI_EXAMPLES.map((x) => <button type="button" key={x} onClick={() => { setText(x); ai.run(x) }}>{x}</button>)}</div>
-        <Button type="primary" disabled={!text.trim() || ai.loading} onClick={() => ai.run(text)}>推荐标签</Button>
+      <div className="ai-rec-foot">
+        <span>{inBasket ? `已有 ${inBasket} 个在选标篮中` : '挑好的标签加入选标篮，最后统一提交申请'}</span>
+        <div>
+          {onBasket && <button type="button" className="ai-link" onClick={onBasket}>去选标篮提交 →</button>}
+          <Button type="primary" size="small" disabled={!coreIds.length} onClick={() => onAdd(coreIds)}>{coreIds.length ? `核心标签加入选标篮（${coreIds.length}）` : '核心标签已处理'}</Button>
+        </div>
       </div>
     </div>
   )
 }
 
-/* 方案 A：独立的 AI 智能搜索页，左侧保留搜索记录 */
-export function AiSearchPage({ ai, onBack, children }) {
+function Thinking({ step }) {
   return (
-    <div className="ai-page">
-      <aside className="ai-history">
-        <button type="button" className="ai-back" onClick={onBack}>← 返回标签广场</button>
-        <b>搜索记录</b>
-        {ai.history.length ? ai.history.map((h) => (
-          <button type="button" key={h.query} className={ai.current?.query === h.query ? 'on' : ''} onClick={() => ai.setCurrent(h)}>
-            <span>{h.query}</span><small>{h.scene} · {h.at}</small>
+    <div className="ai-steps is-live" role="status">
+      {['理解业务场景', '匹配标签目录', '组合标签方案'].map((s, i) => (
+        <span key={s} className={i < step ? 'done' : i === step ? 'on' : ''}><i />{s}</span>
+      ))}
+    </div>
+  )
+}
+
+function Composer({ ai, hero, placeholder }) {
+  const [text, setText] = useState('')
+  const send = (v = text) => { if (!v.trim() || ai.loading) return; ai.run(v); setText('') }
+  return (
+    <div className={`ai-composer${hero ? ' is-hero' : ''}`}>
+      <textarea rows={hero ? 3 : 2} value={text} placeholder={placeholder} aria-label="描述业务场景"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send() } }} />
+      <div className="ai-composer-foot">
+        <span>Enter 发送 · Shift + Enter 换行</span>
+        <button type="button" className="ai-send" disabled={!text.trim() || ai.loading} onClick={() => send()} aria-label="发送">{ICON_SPARK}{hero ? '推荐标签' : '发送'}</button>
+      </div>
+    </div>
+  )
+}
+
+/* 方案 A：独立的 AI 智能搜索（左侧历史会话 + 居中对话） */
+export function AiSearchPage({ ai, renderRec }) {
+  const stream = useRef(null)
+  const turns = ai.active?.turns || []
+  useEffect(() => { if (stream.current) stream.current.scrollTop = stream.current.scrollHeight }, [turns.length, ai.loading, ai.step])
+  return (
+    <div className="ai-shell">
+      <aside className="ai-side">
+        <button type="button" className="ai-new" onClick={ai.newSession} disabled={ai.loading}>＋ 新对话</button>
+        <div className="ai-side-title">历史对话</div>
+        {ai.sessions.length ? ai.sessions.map((s) => (
+          <button type="button" key={s.id} className={`ai-hist${s.id === ai.active?.id ? ' on' : ''}`} onClick={() => ai.open(s.id)} title={s.title}>
+            <span>{s.title}</span><small>{s.scene || '推荐中'} · {s.at}</small>
           </button>
-        )) : <p>还没有搜索记录</p>}
+        )) : <p className="ai-side-empty">还没有对话记录</p>}
       </aside>
-      <main className="ai-main">
-        <div className="ai-main-head"><span className="ai-spark">✦</span><div><h2>AI 标签智能搜索</h2><p>说出业务场景，推荐可申请的标签组合。挑好的标签加入待申请清单，统一提交。</p></div></div>
-        <AiComposer ai={ai} />
-        {ai.loading ? <AiThinking step={ai.step} /> : children}
-      </main>
+      <section className="ai-conv">
+        {!turns.length ? (
+          <div className="ai-hero">
+            <span className="ai-hero-mark">{ICON_SPARK}</span>
+            <h2>想找哪些标签？</h2>
+            <p>描述业务场景，我会推荐可申请的标签组合，并说明每个标签的用途。</p>
+            <Composer ai={ai} hero placeholder="例如：给某品牌找近 90 天买过服饰、中高消费、对羽绒服感兴趣的用户" />
+            <div className="ai-examples">{AI_EXAMPLES.map(([k, v]) => <button type="button" key={k} onClick={() => ai.run(v)}><b>{k}</b><span>{v}</span></button>)}</div>
+            <p className="ai-note">演示推荐 · 按关键词匹配，不代表模型能力</p>
+          </div>
+        ) : (
+          <>
+            <header className="ai-conv-head">{ai.active.title}</header>
+            <div className="ai-stream" ref={stream}>
+              <div className="ai-col">
+                {turns.map((t, i) => (
+                  <div key={i} className="ai-turn">
+                    <div className="ai-user"><div>{t.query}</div></div>
+                    <div className="ai-bot">
+                      <div className="ai-bot-name"><span className="ai-avatar">{ICON_SPARK}</span>标签助手</div>
+                      {t.rec ? <>
+                        <p>已理解你的需求，推荐以下标签组合。先看核心标签是否符合业务口径：</p>
+                        <details className="ai-steps"><summary>查看分析过程 {t.rec.steps.length}/{t.rec.steps.length}</summary><ol>{t.rec.steps.map((s) => <li key={s}>{s}</li>)}</ol></details>
+                        {renderRec(t.rec)}
+                      </> : <><p>正在分析你的需求…</p><Thinking step={ai.step} /></>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="ai-dock"><div className="ai-col"><Composer ai={ai} placeholder="继续补充或调整，例如：换成召回老客的场景，排除高退货用户" /><p className="ai-note">演示推荐 · 按关键词匹配，不代表模型能力；是否可用以标签详情中的口径为准</p></div></div>
+          </>
+        )}
+      </section>
     </div>
   )
 }
@@ -154,8 +210,8 @@ export function AiSearchPage({ ai, onBack, children }) {
 export function AiSidePanel({ ai, children }) {
   return (
     <>
-      <AiComposer ai={ai} compact />
-      {ai.loading ? <AiThinking step={ai.step} /> : children}
+      <Composer ai={ai} placeholder="继续补充或调整需求" />
+      {ai.loading ? <Thinking step={ai.step} /> : children}
     </>
   )
 }
