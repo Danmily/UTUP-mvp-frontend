@@ -4,14 +4,14 @@ import { TAGS, SCENES, nowStamp } from '../data.js'
 import { LevelChip, CrossBadge } from '../mvp-ui.jsx'
 import { assetState, makeDraft, resolvedPurpose, validateDraft, applicationRow, submissionPlan, SCENE_DESCRIPTIONS } from './application-model.mjs'
 
-export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, onDone, onTagsChange }) {
+export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, onDone, onTagsChange, onRemoveTag }) {
   const [draft,setDraft]=useState(null), [open,setOpen]=useState(false), [done,setDone]=useState(null)
   const [busy,setBusy]=useState(false), lock=useRef(false)
   function start(ids) {
     const tags=[...new Set(Array.isArray(ids)?ids:[ids])].map(id=>TAGS.find(t=>t.id===id)).filter(Boolean)
     setDraft(old=>makeDraft(tags,old));setDone(null);setOpen(true)
   }
-  function remove(id) { setDraft(d=>({...d,tags:d.tags.filter(t=>t.id!==id),error:''}));onTagsChange?.(draft.tags.filter(t=>t.id!==id).map(t=>t.id)) }
+  function remove(id) { onRemoveTag?.(id);setDraft(d=>({...d,tags:d.tags.filter(t=>t.id!==id),error:''}));onTagsChange?.(draft.tags.filter(t=>t.id!==id).map(t=>t.id)) }
   function next() { const error=validateDraft(V,draft,myapply);setDraft(d=>({...d,error,step:error?'edit':'review'})) }
   function submit() {
     if(lock.current)return

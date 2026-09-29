@@ -350,7 +350,7 @@ export function Switch({ checked, onChange }) {
 }
 
 /* ---------------- Modal ---------------- */
-export function Modal({ open, title, onOk, onCancel, children, footer, width, confirmLoading, okText = '确定', cancelText = '取消', okType = 'primary', wide }) {
+export function Modal({ open, title, onOk, onCancel, children, footer, width, confirmLoading, okText = '确定', cancelText = '取消', okType = 'primary', wide, placement }) {
   const modalRef=useRef(null), cancelRef=useRef(onCancel), titleId=useId()
   cancelRef.current=onCancel
   useEffect(()=>{
@@ -372,8 +372,8 @@ export function Modal({ open, title, onOk, onCancel, children, footer, width, co
     return()=>{document.body.style.overflow=priorOverflow;document.removeEventListener('keydown',onKey);if(previous?.isConnected)previous.focus()}
   },[open])
   if (!open) return null
-  return (
-    <div className="au-modal-mask" onMouseDown={(e) => e.target === e.currentTarget && onCancel?.()}>
+  const dialog = (
+    <div className={`au-modal-mask${placement === 'right' ? ' au-drawer-mask' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && onCancel?.()}>
       <div className={`au-modal ${wide ? 'au-modal-wide' : ''}`} style={width ? { width } : undefined}
         ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="au-modal-header">
@@ -392,6 +392,7 @@ export function Modal({ open, title, onOk, onCancel, children, footer, width, co
       </div>
     </div>
   )
+  return placement === 'right' ? createPortal(dialog, document.body) : dialog
 }
 
 /* ---------------- Alert ---------------- */

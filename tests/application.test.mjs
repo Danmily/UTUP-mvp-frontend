@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan } from '../web/src/flows/application-model.mjs'
+import { assetState, togglePageSelection, makeDraft, resolvedPurpose, validateDraft, submissionPlan, mergePending, parsePending } from '../web/src/flows/application-model.mjs'
 import { VIEWS, TAGS } from '../web/src/data.js'
 const view=VIEWS.consumer
 const tags=TAGS.filter(t=>assetState(view,t,[]).selectable).slice(0,3)
@@ -43,4 +43,11 @@ test('partial failure retry includes only failed labels',()=>{
 test('PSM requests are routed to manual coordination instead of a fabricated self-service API',()=>{
  const psm=TAGS.find(t=>t.callType==='psm');assert.ok(psm)
  assert.equal(assetState(view,psm,[],null).selectable,false)
+})
+
+test('pending list adds from details and batch without dropping earlier picks or duplicating IDs',()=>{
+ assert.deepEqual(mergePending([7,3],[3,4]),[7,3,4]);assert.deepEqual(mergePending([7],[]),[7]);
+})
+test('pending list restores only known IDs and tolerates invalid stored data',()=>{
+ assert.deepEqual(parsePending('[3,3,4,999,"3"]',[3,4]),[3,4]);assert.deepEqual(parsePending('broken',[3]),[]);assert.deepEqual(parsePending('{"id":3}',[3]),[])
 })

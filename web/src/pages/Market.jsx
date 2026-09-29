@@ -10,13 +10,21 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
-import { assetState, togglePageSelection } from '../flows/application-model.mjs'
+import { assetState, togglePageSelection, mergePending, parsePending } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 
-export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, onAudience }) {
+export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
-  const [selectionOpen,setSelectionOpen]=useState(false), [exitOpen,setExitOpen]=useState(false), [page,setPage]=useState(1)
+  const [selectionOpen,setSelectionOpen]=useState(false), [detailFromList,setDetailFromList]=useState(false), [page,setPage]=useState(1)
+  const pendingKey = `utup.pending-tags.v1.${V.role}.${V.domain}`
+  const [pending, setPending] = useState(() => {try{return parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id))}catch{return []}})
+  const [storageNotice,setStorageNotice]=useState('')
+  useEffect(()=>{try{setPending(parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id)))}catch{setPending([])}},[pendingKey])
+  function updatePending(change) {
+    setPending(previous=>{const next=typeof change==='function'?change(previous):change;try{localStorage.setItem(pendingKey,JSON.stringify(next))}catch{setStorageNotice('浏览器暂时无法保存清单，离开页面后可能丢失。')}return next})
+  }
+  function removePending(id){updatePending(old=>old.filter(x=>x!==id))}
   const pageSize=9
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const [viewMode, setViewMode] = useState('card') // card | list
@@ -26,9 +34,9 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setBatchMode(false)
     setSel([])
   }
-  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, onTagsChange:setSel, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));setSelectionOpen(false) } })
-  const requestExit=()=>sel.length?setExitOpen(true):exitBatch()
+  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setSelectionOpen(false) } })
   useEffect(()=>setPage(1),[filters,demo])
+  useEffect(()=>{if(!filters.q.trim()){setBatchMode(false);setSel([])}},[filters.q])
 
   const applyStatus = tag => assetState(V,tag,myapply).code
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
@@ -57,11 +65,15 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }
   const pageCount=Math.max(1,Math.ceil(list.length/pageSize)), currentPage=Math.min(page,pageCount)
   const pageList=list.slice((currentPage-1)*pageSize,currentPage*pageSize)
-  const selectableList = pageList.filter(selectable)
+  const selectableList = pageList.filter(t=>selectable(t)&&!pending.includes(t.id))
   const selTags = sel.map((id) => TAGS.find((t) => t.id === id)).filter(Boolean)
-  const selNames = selTags.map((t) => t.name)
+  const pendingTags=pending.map(id=>TAGS.find(t=>t.id===id)).filter(t=>t&&visibility(V,t).visible)
+  const blockedPending=pendingTags.filter(t=>!selectable(t))
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
-  const startSelection=()=>{setSelectionOpen(false);applyFlow.start(sel)}
+  const startSelection=()=>{if(!pendingTags.length||blockedPending.length)return;setSelectionOpen(false);applyFlow.start(pendingTags.map(t=>t.id))}
+  function addPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>mergePending(old,eligible));setSel([]);setBatchMode(false);setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}
+  function viewPendingDetail(id){setSelectionOpen(false);setDetailFromList(true);openTag(id)}
+
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
   const hasFilter = !!filters.q || filters.srcs.length > 0 || filters.lvls.length > 0 || !!filters.st
@@ -81,7 +93,6 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   return (
     <>
       <div className="page-head"><div className="page-title">标签广场</div></div>
-      {onAudience && <div className="aud-market-cta"><div><strong>从业务目标出发，找到合适的人群</strong><p>带入这里的资产，在对话中整理需求、生成策略并评估结果。</p></div><button type="button" onClick={() => onAudience()}>开始圈人 ↗</button></div>}
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
@@ -152,7 +163,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <div className="market-tools">
           <div className="market-tools-title">标签目录 <span>{list.length} 个标签</span></div>
           <div className="market-tools-actions">
-            {!batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量申请</Button>}
+            {!!filters.q.trim() && !batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量选择</Button>}
             <div className="view-switch market-view-switch" role="group" aria-label="展示方式">
               {[['card', '卡片'], ['list', '列表']].map(([k, label]) => (
                 <button key={k} type="button" className={viewMode === k ? 'on' : ''} title={`切换为${label}展示`}
@@ -164,8 +175,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           </div>
         </div>
         {batchMode && <div className="market-selection-mode" role="region" aria-label="批量选择模式">
-          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要申请的标签</strong><p>已选 {sel.length} 个 · 翻页和筛选后仍保留</p></div></div>
-          <div className="market-selection-actions"><Button type="link" size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button><span aria-hidden="true" className="market-action-divider"/><Button type="text" size="small" onClick={requestExit}>取消选择</Button></div>
+          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要加入清单的标签</strong><p>已选 {sel.length} 个 · 待申请清单中的标签无需重复选择</p></div></div>
+          <div className="market-selection-actions"><Button type="link" size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button><span aria-hidden="true" className="market-action-divider"/><Button type="text" size="small" onClick={exitBatch}>取消选择</Button></div>
         </div>}
         {demo === 'fail' ? (
           <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
@@ -188,7 +199,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             dataSource={pageList}
             rowKey="id"
             pagination={false}
-            onRow={r=>batchMode?(selectable(r)&&toggleSel(r.id)):openTag(r.id)}
+            onRow={r=>batchMode?(selectable(r)&&!pending.includes(r.id)&&toggleSel(r.id)):openTag(r.id)}
             columns={[
               ...(batchMode ? [{
                 title: (
@@ -201,11 +212,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 key: 'sel',
                 width: 40,
                 render: (v, r) => (
-                  selectable(r) ? (
+                  selectable(r)&&!pending.includes(r.id) ? (
                     <span onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={sel.includes(r.id)} onChange={() => toggleSel(r.id)}><span className="portal-sr-only">选择 {r.name}</span></Checkbox>
                     </span>
-                  ) : null
+                  ) : pending.includes(r.id)?<span className="pending-row-label">已加入</span>:null
                 ),
               }] : []),
               {
@@ -252,7 +263,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   ) : selectable(r) ? (
                     <Button type="link" size="small"
                       onClick={(e) => { e.stopPropagation(); applyFlow.start([r.id]) }}>
-                      申请
+                      直接申请
                     </Button>
                   ) : <span style={{ color: 'var(--mute2)' }}>—</span>
                 ),
@@ -265,13 +276,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               const vis = visibility(V, c)
               const state=assetState(V,c,myapply)
               const applied = state.code === 'applied'
-              const canSel = selectable(c)
+              const canSel = selectable(c)&&!pending.includes(c.id)
               const checked = sel.includes(c.id)
               return (
                 <div
                   key={c.id}
                   className={`tag-card${applied ? ' is-applied' : ''}${checked ? ' is-checked' : ''}`
-                    + (batchMode && !canSel && state.code !== 'active' ? ' is-disabled' : '')}
+                    + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
                   {/* 已有权限由蓝色使用入口表达；仅未生效申请保留状态角标。 */}
@@ -284,7 +295,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                         <Checkbox checked={checked} onChange={() => toggleSel(c.id)}><span className="portal-sr-only">选择 {c.name}</span></Checkbox>
                       </span>
                     )}
-                    <div className="tc-name" title={c.name}>{c.name}</div>
+                    <div className="tc-name" title={c.name}>{c.name}</div>{pending.includes(c.id)&&<span className="pending-row-label">已加入清单</span>}
                   </div>
                   {/* 字段顺序：名称 → 分级 → 业务含义 → 来源与更新频率 */}
                   <div className="tc-tags">
@@ -296,7 +307,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                       ? c.desc
                       : <span className="tc-desc-empty">暂无口径说明，可联系 {c.owner.split(' · ')[0]} 补充</span>}
                   </div>
-                  {batchMode&&!canSel&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
+                  {batchMode&&!canSel&&!pending.includes(c.id)&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
                     <span>{c.src} · 更新 {c.freq}</span>
                     {state.code === 'active' ? (
@@ -315,18 +326,25 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         )}
       </Card>
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
-      {batchMode && <>
-        <div className="batch-bar selection-bar" role="region" aria-label="已选标签操作栏"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id} title={t.name}>{t.name}<button aria-label={`移除 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<button className="selection-more" title={selNames.join('、')} onClick={()=>setSelectionOpen(true)}>还有 {sel.length-2} 个 · 查看全部</button>}{!sel.length&&<small>请从列表中选择需要申请的标签</small>}</div></div><Space><Button disabled={!sel.length} onClick={()=>setSelectionOpen(true)}>管理已选（{sel.length}）</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space></div><div className="selection-spacer"/>
-      </>}
-      {selectionOpen&&<Modal open width={720} title={`管理已选标签 · ${sel.length} 个`} onCancel={()=>setSelectionOpen(false)} footer={<Space><Button disabled={!sel.length} onClick={()=>setSel([])}>清空已选</Button><Button onClick={()=>setSelectionOpen(false)}>继续选择</Button><Button type="primary" disabled={!sel.length} onClick={startSelection}>填写申请（{sel.length}）</Button></Space>}><p className="apply-muted">按选择顺序排列；可直接移除，不必返回原页寻找卡片。</p><div className="selected-tag-list">{selTags.length?selTags.map((t,i)=><div key={t.id}><span>{i+1}</span><div><strong>{t.name}</strong><p>{t.src} · {pageList.some(p=>p.id===t.id)?'当前页':'当前页以外'}</p></div><LevelChip level={visibility(V,t).eff}/><Button type="link" onClick={()=>toggleSel(t.id)}>移除</Button></div>):<p>已选清单为空，可以返回继续选择。</p>}</div></Modal>}
-      {exitOpen&&<Modal open title="取消本次选择？" onCancel={()=>setExitOpen(false)} footer={<Space><Button onClick={()=>setExitOpen(false)}>继续选择</Button><Button type="primary" onClick={()=>{exitBatch();setExitOpen(false)}}>取消并清空选择</Button></Space>}><p>将清空当前选择的 {sel.length} 个标签，尚未提交任何申请。</p></Modal>}
+      {batchMode && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入待申请清单（{sel.length}）</Button></div><div className="selection-spacer"/></>}
+      <button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setSelectionOpen(true)} aria-label={`待申请清单，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>待申请清单</span><b>{pendingTags.length}</b></button>
+      {selectionOpen&&<Modal open placement="right" width={520} title={`待申请清单 · ${pendingTags.length} 个标签`} onCancel={()=>setSelectionOpen(false)} footer={<div className="pending-list-footer"><span>加入清单不会提交申请</span><Space><Button onClick={()=>setSelectionOpen(false)}>继续浏览</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space></div>}>
+        <p className="pending-list-intro">先看看标签是否合适，再统一申请。可查看详情或移除，关闭清单后继续挑选。</p>
+        <p className="apply-muted">清单保存在当前浏览器，切换页面或刷新后仍保留。</p>
+        {storageNotice&&<Alert type="warning" message={storageNotice}/>}
+        {blockedPending.length>0&&<Alert type="warning" message="部分标签状态已变化，请先移除不可申请项；已有权限的标签可直接去使用。"/>}
+        <div className="pending-tag-list">{pendingTags.length?pendingTags.map((t,i)=>{const state=assetState(V,t,myapply);return <article key={t.id}><div className="pending-tag-heading"><span>{i+1}</span><strong>{t.name}</strong><LevelChip level={visibility(V,t).eff}/></div><p>{t.desc}</p><div className="pending-tag-source">{t.src} · 更新 {t.freq}</div>{!state.selectable&&<p className="apply-caution">{state.reason}</p>}<div className="pending-tag-actions"><Button type="link" size="small" onClick={()=>viewPendingDetail(t.id)}>查看详情</Button>{state.code==='active'&&<Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>}<Button type="link" size="small" onClick={()=>removePending(t.id)}>移除</Button></div></article>}) : <div className="pending-list-empty"><b>还没有待申请的标签</b><p>查看标签详情后加入清单，或搜索后批量选择。</p><Button onClick={()=>setSelectionOpen(false)}>去找标签</Button></div>}</div>
+      </Modal>}
       {detailTag && (
         <TagDetailModal
           V={V}
           tag={detailTag}
           applies={myapply.filter((a) => a.tagId === detailTag.id)}
-          onClose={() => setDetailId(null)}
-          onApply={() => { setDetailId(null); applyFlow.start([detailTag.id]) }}
+          inPending={pending.includes(detailTag.id)}
+          onAdd={()=>addPending([detailTag.id])}
+          onViewPending={()=>{setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}}
+          onClose={() => {setDetailId(null);if(detailFromList){setDetailFromList(false);setSelectionOpen(true)}}}
+          onApply={() => { setDetailId(null);setDetailFromList(false); applyFlow.start([detailTag.id]) }}
         />
       )}
       {applyFlow.modal}
@@ -334,7 +352,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   )
 }
 
-function TagDetailModal({ V, tag, applies, onClose, onApply }) {
+function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, onViewPending }) {
   const vis = visibility(V, tag)
   const comp = complianceOf(tag)
   // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
@@ -373,7 +391,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply }) {
             {active ? (
               <Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台')}>去使用</Button>
             ) : assetState(V,tag,applies).selectable ? (
-              <Button type="primary" onClick={onApply}>{applies.length ? '再次申请 →' : '申请权限 →'}</Button>
+              <><Button onClick={inPending?onViewPending:onAdd}>{inPending?'已加入 · 查看清单':'加入待申请清单'}</Button><Button type="primary" onClick={onApply}>直接申请</Button></>
             ) : (
               <Button disabled>{assetState(V,tag,applies).label}</Button>
             )}

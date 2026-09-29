@@ -116,19 +116,13 @@ export default function App() {
     setNav(item.key)
   }
 
-  function startAudience(asset = null) {
-    setAudienceSeed(asset ? { id: asset.id, name: asset.name } : { newTask: true })
-    setNav('audience')
-    pushAudit(asset ? `资产带入圈人任务：${asset.name}（参考，未授权）` : '进入圈人 Agent')
-  }
-
   function renderView() {
     switch (nav) {
       case 'audience':
       case 'audiences':
         return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} />
       case 'market':
-        return <Market onAudience={startAudience} V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
       case 'myperm':
         return <MyPerm V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMarket={() => setNav('market')} />
       case 'income':
@@ -142,7 +136,7 @@ export default function App() {
       case 'audit':
         return <Audit audit={audit} />
       default:
-        return <Market onAudience={startAudience} V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
     }
   }
 

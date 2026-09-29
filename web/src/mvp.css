@@ -1938,6 +1938,10 @@ grid-template-columns: 210px 1fr
 .app { 
 grid-template-columns: 0 1fr
  }
+.main {
+grid-column: 2;
+min-width: 0
+ }
 .sidebar { 
 position: fixed;
 left: 0;
@@ -2801,3 +2805,11 @@ display: none
 /* All usable assets share one blue text action, including detail dialogs. */
 .asset-use-link.au-btn-link{color:var(--p);background:transparent;border-color:transparent;box-shadow:none;white-space:nowrap;opacity:1}
 .asset-use-link.au-btn-link:hover{color:var(--p);background:var(--p-light)}
+
+/* Market browsing, pending application list and checkout are separate actions. */
+.pending-list-launcher{position:fixed;right:28px;bottom:26px;z-index:80;display:flex;align-items:center;gap:9px;padding:12px 16px;border:1px solid #dce4f5;border-radius:10px;background:#fff;color:#405673;box-shadow:0 5px 22px #20375015;cursor:pointer;font:13px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+.pending-list-launcher:hover{border-color:#8eafff;color:var(--p)}.pending-list-launcher svg{height:18px;width:18px;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}.pending-list-launcher b{display:grid;place-items:center;min-width:23px;height:23px;padding:0 5px;border-radius:6px;color:var(--p);background:#edf3ff;font-size:12px}.pending-list-launcher.above-batch{bottom:124px}.pending-list-launcher:focus-visible{outline:2px solid var(--p);outline-offset:3px}
+.pending-row-label{font-size:10px;color:#6d7a91;background:#f1f4f9;border-radius:4px;padding:3px 5px;white-space:nowrap;font-weight:400}.tag-card .tc-top:has(.pending-row-label){flex-wrap:wrap}
+.au-modal-mask.au-drawer-mask{justify-content:flex-end;align-items:stretch;padding:0}.au-drawer-mask .au-modal{height:100dvh;max-height:100dvh;max-width:100vw;border-radius:0;margin:0;display:flex;flex-direction:column;box-shadow:-10px 0 40px #192d4726}.au-drawer-mask .au-modal-header{padding:22px 24px;flex:none}.au-drawer-mask .au-modal-body{flex:1;min-height:0;padding:20px 24px;background:#fbfcfe}.au-drawer-mask .au-modal-footer{flex:none;background:#fff}
+.pending-list-intro{font-size:13px;color:#55637a;line-height:1.85;margin:0 0 7px}.pending-tag-list{display:grid;gap:12px;margin:20px 0}.pending-tag-list article{background:#fff;padding:17px;border:1px solid #e3e8f1;border-radius:9px}.pending-tag-heading{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap}.pending-tag-heading>span:first-child{font-size:11px;color:#97a1b2;line-height:22px}.pending-tag-heading strong{font-size:14px;line-height:1.7;flex:1;min-width:160px;color:#293c55}.pending-tag-list article>p{font-size:12px;line-height:1.8;color:#768299;margin:10px 0}.pending-tag-source{font-size:11px;color:#929bad}.pending-tag-actions{display:flex;justify-content:flex-end;gap:16px;border-top:1px solid #eef1f6;margin-top:13px;padding-top:11px}.pending-list-footer{display:grid;gap:13px;width:100%}.pending-list-footer>span{color:#97a0ae;font-size:11px}.pending-list-footer .au-space{justify-content:flex-end}.pending-list-empty{padding:50px 12px;text-align:center;color:#65738a}.pending-list-empty b{font-size:15px;color:#34435a}.pending-list-empty p{font-size:12px;line-height:1.8;margin:12px 0 20px}
+@media(max-width:700px){.pending-list-launcher{right:16px;bottom:20px}.pending-list-launcher.above-batch{bottom:168px}.au-drawer-mask .au-modal-header,.au-drawer-mask .au-modal-body{padding:18px}.au-modal-footer>.au-space{flex-wrap:wrap}}
