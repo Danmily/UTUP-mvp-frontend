@@ -46,7 +46,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setBatchMode(false)
     setSel([])
   }
-  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, backToAgent: fromAgent ? backToAgent : null, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id))) } })
+  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, backToAgent: fromAgent ? backToAgent : null, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setBasketSel(old=>old.filter(id=>!ids.includes(id))) } })
   useEffect(()=>setPage(1),[filters,demo])
   useEffect(()=>{if(!filters.q.trim()){setBatchMode(false);setSel([])}},[filters.q])
 
@@ -83,6 +83,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const blockedPending=pendingTags.filter(t=>!selectable(t))
   /* 清单抽屉分页：每页 10 个，移除后页码自动回收 */
   const [pendingPage,setPendingPage]=useState(1)
+  const [basketSel,setBasketSel]=useState([]) // 清单页勾选：批量申请 / 批量移除
   const pendingPages=Math.max(1,Math.ceil(pendingTags.length/PENDING_PAGE_SIZE)), pendingPageNow=Math.min(pendingPage,pendingPages)
   const pendingSlice=pendingTags.slice((pendingPageNow-1)*PENDING_PAGE_SIZE,pendingPageNow*PENDING_PAGE_SIZE)
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
@@ -108,21 +109,39 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }, [myapply])
 
   function basketPage() {
+    const pageIds=pendingSlice.map(t=>t.id), live=basketSel.filter(id=>pending.includes(id))
+    const allOn=pageIds.length>0&&pageIds.every(id=>live.includes(id))
+    const chosen=pendingTags.filter(t=>live.includes(t.id)), chosenBlocked=chosen.filter(t=>!selectable(t))
+    const toggle=id=>setBasketSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])
+    const toggleAll=()=>setBasketSel(s=>togglePageSelection(s,pageIds))
+    const removeChosen=()=>{updatePending(old=>old.filter(id=>!live.includes(id)));setBasketSel([]);message.success(`已从${BASKET}移除 ${live.length} 个标签`)}
+    const applyChosen=()=>{if(!chosen.length||chosenBlocked.length)return;applyFlow.start(chosen.map(t=>t.id))}
     return (
       <Card>
         <div className="basket-head">
-          <div><h2>{BASKET}<span>{pendingTags.length} / {PENDING_MAX}</span></h2><p>先把合适的标签放进来，看清口径后统一填写申请。加入{BASKET}不会提交申请，刷新或切换页面后仍保留。</p></div>
-          <Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setView('market')}>继续挑选</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space>
+          <div><h2>{BASKET}<span>{pendingTags.length} / {PENDING_MAX}</span></h2><p>勾选要处理的标签，批量申请或移除。加入清单不会提交申请，刷新或切换页面后仍保留。</p></div>
+          <Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setView('market')}>继续挑选</Button></Space>
         </div>
-        {fromAgent&&<Alert type="info" showIcon message="圈人 Agent 执行前发现这些标签还没有权限，已放进待选择清单" description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}
+        {fromAgent&&<Alert type="info" showIcon message={`圈人 Agent 执行前发现这些标签还没有权限，已放进${BASKET}`} description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}
         {storageNotice&&<Alert type="warning" message={storageNotice}/>}
-        {blockedPending.length>0&&<Alert type="warning" message="部分标签状态已变化，请先移除不可申请项；已有权限的标签可直接去使用。"/>}
-        {pendingTags.length?<div className="basket-grid">{pendingSlice.map((t,j)=>{const i=(pendingPageNow-1)*PENDING_PAGE_SIZE+j;const state=assetState(V,t,myapply);return <article key={t.id} className={state.selectable?'':'is-blocked'}>
-          <div className="pending-tag-heading"><span>{i+1}</span><strong>{t.name}</strong><LevelChip level={visibility(V,t).eff}/></div>
-          <p>{t.desc}</p><div className="pending-tag-source">{t.src} · 更新 {t.freq}</div>
-          {!state.selectable&&<p className="apply-caution">{state.reason}</p>}
-          <div className="pending-tag-actions"><Button type="link" size="small" onClick={()=>openTag(t.id)}>查看详情</Button>{state.code==='active'&&<Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>}<Button type="link" size="small" onClick={()=>removePending(t.id)}>移除</Button></div>
-        </article>})}</div>:<div className="pending-list-empty"><b>{BASKET}还是空的</b><p>查看标签详情时加入，或搜索后批量选择；也可以用 AI 智能搜索一次推荐一组。</p><Button onClick={()=>setView('market')}>去挑标签</Button></div>}
+        {pendingTags.length?<>
+          <div className="basket-toolbar">
+            <span>已选 <b>{live.length}</b> 个{chosenBlocked.length>0&&<em>，其中 {chosenBlocked.length} 个当前不能申请</em>}</span>
+            <Space><Button size="small" disabled={!live.length} onClick={removeChosen}>批量移除</Button><Button size="small" type="primary" disabled={!chosen.length||!!chosenBlocked.length} onClick={applyChosen}>批量申请（{chosen.length}）</Button></Space>
+          </div>
+          <table className="basket-table">
+            <thead><tr><th className="c"><input type="checkbox" aria-label="选择本页全部标签" checked={allOn} onChange={toggleAll}/></th><th>标签名称</th><th>分级</th><th>口径描述</th><th>来源域</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>{pendingSlice.map(t=>{const state=assetState(V,t,myapply),st=displayStatus(state);return <tr key={t.id} className={`${live.includes(t.id)?'is-on':''}${state.selectable?'':' is-blocked'}`}>
+              <td className="c"><input type="checkbox" aria-label={`选择 ${t.name}`} checked={live.includes(t.id)} onChange={()=>toggle(t.id)}/></td>
+              <td><button type="button" className="basket-name" onClick={()=>openTag(t.id)}>{t.name}</button></td>
+              <td><LevelChip level={visibility(V,t).eff}/></td>
+              <td className="basket-desc" title={t.desc}>{t.desc}{!state.selectable&&<small>{state.reason}</small>}</td>
+              <td>{t.src}</td>
+              <td><Tag color={st.code==='active'?'success':st.code==='applied'?'primary':undefined}>{st.label}</Tag></td>
+              <td className="basket-ops">{state.code==='active'?<Button type="link" size="small" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>:state.selectable?<Button type="link" size="small" onClick={()=>applyFlow.start([t.id])}>申请</Button>:null}<Button type="link" size="small" onClick={()=>{removePending(t.id);setBasketSel(s=>s.filter(x=>x!==t.id))}}>移除</Button></td>
+            </tr>})}</tbody>
+          </table>
+        </>:<div className="pending-list-empty"><b>{BASKET}还是空的</b><p>查看标签详情时加入，或搜索后批量选择；也可以用 AI 智能搜索一次推荐一组。</p><Button onClick={()=>setView('market')}>去挑标签</Button></div>}
         {pendingPages>1&&<div className="pending-pager"><span>第 {pendingPageNow} / {pendingPages} 页 · 共 {pendingTags.length} 个</span><Space><Button size="small" disabled={pendingPageNow===1} onClick={()=>setPendingPage(pendingPageNow-1)}>上一页</Button><Button size="small" disabled={pendingPageNow===pendingPages} onClick={()=>setPendingPage(pendingPageNow+1)}>下一页</Button></Space></div>}
       </Card>
     )
