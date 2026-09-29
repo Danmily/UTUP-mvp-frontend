@@ -368,7 +368,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                     + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 角标只有蓝色「已申请」；已有权限由右下角「去使用」表达，其他状态不打角标 */}
+                  {/* 角标只有斜挂的蓝色「已申请」；右下角只给已有权限的「去使用」，不放「查看详情」（点卡片即看详情） */}
                   {applied && <span className="tc-ribbon">已申请</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
@@ -398,9 +398,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                         onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
                         去使用
                       </Button>
-                    ) : (
-                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); openTag(c.id) }}>查看详情</Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )
