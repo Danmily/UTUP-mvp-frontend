@@ -142,7 +142,7 @@ export default function App() {
     switch (nav) {
       case 'audience':
       case 'audiences':
-        return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} portal={agentBridge} />
+        return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} onMarket={() => setNav('market')} portal={agentBridge} />
       case 'market':
         return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setFromAgent(false); setNav('myperm') }} fromAgent={fromAgent} backToAgent={() => { setFromAgent(false); setNav('audience') }} />
       case 'myperm':

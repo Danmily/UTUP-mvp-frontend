@@ -7,7 +7,7 @@ if (!target || !readFileSync(resolve(target, 'vercel.json'), 'utf8').includes('X
   throw Error('请传入 select-person-by-tags 仓库目录；不会默认写入其他位置。')
 }
 mkdirSync(resolve(target, 'audience'), { recursive: true })
-for (const file of ['engine.js', 'workspace.js', 'workspace.css']) {
+for (const file of ['agent.js', 'agent.css']) {
   copyFileSync(resolve(root, 'web/public/audience', file), resolve(target, 'audience', file))
 }
-console.log('三个共用工作区文件已同步；独立站入口与部署配置保持各自维护。')
+console.log('圈人助手共用文件已同步；独立站入口与部署配置保持各自维护。')
