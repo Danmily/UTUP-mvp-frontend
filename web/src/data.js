@@ -30,7 +30,7 @@ export const NAV = {
       items: [
         { key: 'market', label: '标签广场' },
         { key: 'audience', label: '圈人 Agent' },
-        { key: 'audiences', label: '人群与策略' },
+        { key: 'audiences', label: '策略资产' },
         { key: 'myperm', label: '我的申请 / 权限' },
         { key: 'income', label: '消费与收益录入' },
       ],
@@ -67,7 +67,7 @@ export const NAV = {
       items: [
         { key: 'market', label: '标签广场' },
         { key: 'audience', label: '圈人 Agent' },
-        { key: 'audiences', label: '人群与策略' },
+        { key: 'audiences', label: '策略资产' },
         { key: 'myperm', label: '我的申请 / 权限' },
         { key: 'income', label: '消费与收益录入' },
       ],
@@ -97,7 +97,7 @@ export const NAV = {
 export const NAV_LABELS = {
   market: '标签广场',
   audience: '圈人 Agent',
-  audiences: '人群与策略',
+  audiences: '策略资产',
   myperm: '我的申请 / 权限',
   income: '消费与收益录入',
   workbench: '供给方工作台',
