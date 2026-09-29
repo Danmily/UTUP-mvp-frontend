@@ -2820,7 +2820,7 @@ display: none
 .apply-scene-note p{margin:6px 0 0;padding:8px 10px;background:var(--au-fill-1);border-radius:6px;color:var(--au-text-2);line-height:1.7}
 .pending-pager{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--au-text-3)}
 
-/* ===== 标签广场顶部标签页：标签广场 / AI 智能搜索 / 选标篮 ===== */
+/* ===== 标签广场顶部标签页：标签广场 / AI 智能搜索 / 待选择清单 ===== */
 .ai-page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .market-tabs{display:flex;align-items:flex-end;gap:22px;border-bottom:1px solid var(--au-border);flex:1;min-width:0}
 .market-tabs button{position:relative;display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 0 10px;font-size:18px;font-weight:600;color:var(--au-text-3);cursor:pointer}
@@ -2835,7 +2835,7 @@ display: none
 .ai-variant-switch button{border:0;background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--au-text-2);font-size:12px}
 .ai-variant-switch button.on{background:#fff;color:var(--au-primary);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
 
-/* ===== 选标篮页面 ===== */
+/* ===== 待选择清单页面 ===== */
 .basket-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .basket-head h2{margin:0;font-size:18px;display:flex;align-items:baseline;gap:8px}
 .basket-head h2 span{font-size:13px;font-weight:400;color:var(--au-text-3)}

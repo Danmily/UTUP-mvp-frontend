@@ -119,7 +119,7 @@ export default function App() {
     setNav(item.key)
   }
 
-  /* 圈人 Agent ↔ 标签广场：Agent 按门户口径查标签状态，缺权限的标签进入同一个选标篮 */
+  /* 圈人 Agent ↔ 标签广场：Agent 按门户口径查标签状态，缺权限的标签进入同一个待选择清单 */
   const agentBridge = {
     tagState: (id) => {
       const tag = TAGS.find((t) => t.id === id)
@@ -134,7 +134,7 @@ export default function App() {
         const current = parsePending(localStorage.getItem(key), TAGS.map((t) => t.id))
         localStorage.setItem(key, JSON.stringify(mergePending(current, eligible).slice(0, PENDING_MAX)))
       } catch { /* 存储不可用时仍打开清单 */ }
-      pushAudit(`圈人 Agent 带入选标篮：${eligible.length} 个标签`)
+      pushAudit(`圈人 Agent 带入待选择清单：${eligible.length} 个标签`)
       setFromAgent(true)
       setNav('market')
     },

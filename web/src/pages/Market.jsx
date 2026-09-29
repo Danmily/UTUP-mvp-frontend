@@ -15,13 +15,13 @@ import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 import { useAiSearch, AiSearchPage, AiSidePanel, AiRecommendation } from './AiTagSearch.jsx'
 
 const AI_VARIANT_KEY = 'utup.ai-search-variant'
-/* 选标篮：挑好的标签先放进来，统一填写申请（原「待申请清单」） */
-export const BASKET = '选标篮'
+/* 待选择清单：挑好的标签先放进来，统一填写申请（原「待申请清单」） */
+export const BASKET = '待选择清单'
 
 export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, fromAgent = false, backToAgent }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
-  /* 顶部标签页：标签广场 / AI 智能搜索（方案 A）/ 选标篮，切换整个内容区 */
+  /* 顶部标签页：标签广场 / AI 智能搜索（方案 A）/ 待选择清单，切换整个内容区 */
   const [view,setView]=useState(fromAgent?'basket':'market'), [page,setPage]=useState(1)
   const pendingKey = pendingKeyOf(V)
   const [pending, setPending] = useState(() => {try{return parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id))}catch{return []}})
@@ -114,7 +114,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           <div><h2>{BASKET}<span>{pendingTags.length} / {PENDING_MAX}</span></h2><p>先把合适的标签放进来，看清口径后统一填写申请。加入{BASKET}不会提交申请，刷新或切换页面后仍保留。</p></div>
           <Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setView('market')}>继续挑选</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space>
         </div>
-        {fromAgent&&<Alert type="info" showIcon message="圈人 Agent 执行前发现这些标签还没有权限，已放进选标篮" description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}
+        {fromAgent&&<Alert type="info" showIcon message="圈人 Agent 执行前发现这些标签还没有权限，已放进待选择清单" description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}
         {storageNotice&&<Alert type="warning" message={storageNotice}/>}
         {blockedPending.length>0&&<Alert type="warning" message="部分标签状态已变化，请先移除不可申请项；已有权限的标签可直接去使用。"/>}
         {pendingTags.length?<div className="basket-grid">{pendingSlice.map((t,j)=>{const i=(pendingPageNow-1)*PENDING_PAGE_SIZE+j;const state=assetState(V,t,myapply);return <article key={t.id} className={state.selectable?'':'is-blocked'}>
@@ -237,7 +237,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           </div>
         </div>
         {batchMode && <div className="market-selection-mode" role="region" aria-label="批量选择模式">
-          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要加入选标篮的标签</strong><p>已选 {sel.length} 个 · 已在选标篮的标签无需重复选择</p></div></div>
+          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要加入待选择清单的标签</strong><p>已选 {sel.length} 个 · 已在待选择清单的标签无需重复选择</p></div></div>
           <div className="market-selection-actions"><Button type="link" size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button><span aria-hidden="true" className="market-action-divider"/><Button type="text" size="small" onClick={exitBatch}>取消选择</Button></div>
         </div>}
         {demo === 'fail' ? (
@@ -326,7 +326,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                     <span onClick={(e) => e.stopPropagation()}>
                       {pending.includes(r.id)
                         ? <span className="pending-row-label">已加入</span>
-                        : <Button type="link" size="small" onClick={() => addPending([r.id])}>加入选标篮</Button>}
+                        : <Button type="link" size="small" onClick={() => addPending([r.id])}>加入待选择清单</Button>}
                       <Button type="link" size="small" onClick={() => applyFlow.start([r.id])}>直接申请</Button>
                     </span>
                   ) : <span style={{ color: 'var(--mute2)' }}>—</span>
@@ -359,7 +359,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                         <Checkbox checked={checked} onChange={() => toggleSel(c.id)}><span className="portal-sr-only">选择 {c.name}</span></Checkbox>
                       </span>
                     )}
-                    <div className="tc-name" title={c.name}>{c.name}</div>{pending.includes(c.id)&&<span className="pending-row-label">已在选标篮</span>}
+                    <div className="tc-name" title={c.name}>{c.name}</div>{pending.includes(c.id)&&<span className="pending-row-label">已在待选择清单</span>}
                   </div>
                   {/* 字段顺序：名称 → 分级 → 业务含义 → 来源与更新频率 */}
                   <div className="tc-tags">

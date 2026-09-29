@@ -85,7 +85,7 @@ export function useAiSearch(V) {
 
 const ICON_SPARK = <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1.5l2 5.6 5.6 2-5.6 2L10 16.7l-2-5.6-5.6-2 5.6-2z"/></svg>
 
-/* 推荐结果卡：两个方案共用；标签可查看详情、加入选标篮或直接去使用 */
+/* 推荐结果卡：两个方案共用；标签可查看详情、加入待选择清单或直接去使用 */
 export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUse, onBasket }) {
   const addable = (tag) => assetState(V, tag, myapply).selectable && !pending.includes(tag.id)
   const coreIds = (rec.groups.find((g) => g.key === 'core')?.items || []).map((x) => x.tag).filter(addable).map((t) => t.id)
@@ -107,7 +107,7 @@ export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUs
                 <div className="ai-tag-action">
                   {st.code === 'active' ? <Button type="link" size="small" className="asset-use-link" onClick={onUse}>去使用</Button>
                     : pending.includes(tag.id) ? <span className="ai-added">✓ 已加入</span>
-                      : st.selectable ? <button type="button" className="ai-add" onClick={() => onAdd([tag.id])}>+ 选标篮</button>
+                      : st.selectable ? <button type="button" className="ai-add" onClick={() => onAdd([tag.id])}>+ 加入清单</button>
                         : <span className="ai-tag-state">{st.label}</span>}
                 </div>
               </div>
@@ -116,10 +116,10 @@ export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUs
         </section>
       ))}
       <div className="ai-rec-foot">
-        <span>{inBasket ? `已有 ${inBasket} 个在选标篮中` : '挑好的标签加入选标篮，最后统一提交申请'}</span>
+        <span>{inBasket ? `已有 ${inBasket} 个在待选择清单中` : '挑好的标签加入待选择清单，最后统一提交申请'}</span>
         <div>
-          {onBasket && <button type="button" className="ai-link" onClick={onBasket}>去选标篮提交 →</button>}
-          <Button type="primary" size="small" disabled={!coreIds.length} onClick={() => onAdd(coreIds)}>{coreIds.length ? `核心标签加入选标篮（${coreIds.length}）` : '核心标签已处理'}</Button>
+          {onBasket && <button type="button" className="ai-link" onClick={onBasket}>去待选择清单提交 →</button>}
+          <Button type="primary" size="small" disabled={!coreIds.length} onClick={() => onAdd(coreIds)}>{coreIds.length ? `核心标签加入待选择清单（${coreIds.length}）` : '核心标签已处理'}</Button>
         </div>
       </div>
     </div>
