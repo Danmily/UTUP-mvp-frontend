@@ -10,14 +10,14 @@ import {
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
-import { assetState, togglePageSelection, mergePending, parsePending } from '../flows/application-model.mjs'
+import { assetState, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX } from '../flows/application-model.mjs'
 import { LoadFailed, EmptyState, jumpExternal } from '../mvp-fallback.jsx'
 
-export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo }) {
+export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, fromAgent = false, backToAgent }) {
   const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
   const [detailId, setDetailId] = useState(null)
-  const [selectionOpen,setSelectionOpen]=useState(false), [detailFromList,setDetailFromList]=useState(false), [page,setPage]=useState(1)
-  const pendingKey = `utup.pending-tags.v1.${V.role}.${V.domain}`
+  const [selectionOpen,setSelectionOpen]=useState(fromAgent), [detailFromList,setDetailFromList]=useState(false), [page,setPage]=useState(1)
+  const pendingKey = pendingKeyOf(V)
   const [pending, setPending] = useState(() => {try{return parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id))}catch{return []}})
   const [storageNotice,setStorageNotice]=useState('')
   useEffect(()=>{try{setPending(parsePending(localStorage.getItem(pendingKey),TAGS.map(t=>t.id)))}catch{setPending([])}},[pendingKey])
@@ -34,7 +34,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setBatchMode(false)
     setSel([])
   }
-  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setSelectionOpen(false) } })
+  const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, backToAgent: fromAgent ? backToAgent : null, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setSelectionOpen(false) } })
   useEffect(()=>setPage(1),[filters,demo])
   useEffect(()=>{if(!filters.q.trim()){setBatchMode(false);setSel([])}},[filters.q])
 
@@ -71,7 +71,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const blockedPending=pendingTags.filter(t=>!selectable(t))
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
   const startSelection=()=>{if(!pendingTags.length||blockedPending.length)return;setSelectionOpen(false);applyFlow.start(pendingTags.map(t=>t.id))}
-  function addPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>mergePending(old,eligible));setSel([]);setBatchMode(false);setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}
+  function addPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`待申请清单最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged});setSel([]);setBatchMode(false);setDetailId(null);setDetailFromList(false);setSelectionOpen(true)}
   function viewPendingDetail(id){setSelectionOpen(false);setDetailFromList(true);openTag(id)}
 
 
@@ -253,7 +253,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
               {
                 title: '操作',
                 key: 'op',
-                width: 96,
+                width: 150,
                 render: (v, r) => (
                   isActive(livePerm(r.id)) ? (
                     <Button type="link" size="small" className="asset-use-link"
@@ -261,10 +261,12 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                       去使用
                     </Button>
                   ) : selectable(r) ? (
-                    <Button type="link" size="small"
-                      onClick={(e) => { e.stopPropagation(); applyFlow.start([r.id]) }}>
-                      直接申请
-                    </Button>
+                    <span onClick={(e) => e.stopPropagation()}>
+                      {pending.includes(r.id)
+                        ? <span className="pending-row-label">已加入</span>
+                        : <Button type="link" size="small" onClick={() => addPending([r.id])}>加入清单</Button>}
+                      <Button type="link" size="small" onClick={() => applyFlow.start([r.id])}>直接申请</Button>
+                    </span>
                   ) : <span style={{ color: 'var(--mute2)' }}>—</span>
                 ),
               },
@@ -328,8 +330,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
       {batchMode && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入待申请清单（{sel.length}）</Button></div><div className="selection-spacer"/></>}
       <button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setSelectionOpen(true)} aria-label={`待申请清单，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>待申请清单</span><b>{pendingTags.length}</b></button>
-      {selectionOpen&&<Modal open placement="right" width={520} title={`待申请清单 · ${pendingTags.length} 个标签`} onCancel={()=>setSelectionOpen(false)} footer={<div className="pending-list-footer"><span>加入清单不会提交申请</span><Space><Button onClick={()=>setSelectionOpen(false)}>继续浏览</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space></div>}>
-        <p className="pending-list-intro">先看看标签是否合适，再统一申请。可查看详情或移除，关闭清单后继续挑选。</p>
+      {selectionOpen&&<Modal open placement="right" width={520} title={`待申请清单 · ${pendingTags.length} / ${PENDING_MAX}`} onCancel={()=>setSelectionOpen(false)} footer={<div className="pending-list-footer"><span>加入清单不会提交申请</span><Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setSelectionOpen(false)}>继续浏览</Button><Button type="primary" disabled={!pendingTags.length||!!blockedPending.length} onClick={startSelection}>填写申请（{pendingTags.length}）</Button></Space></div>}>
+        {fromAgent&&<Alert type="info" showIcon message="圈人 Agent 执行前发现这些标签还没有权限，已加入清单" description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}<p className="pending-list-intro">先看看标签是否合适，再统一申请。可查看详情或移除，关闭清单后继续挑选。</p>
         <p className="apply-muted">清单保存在当前浏览器，切换页面或刷新后仍保留。</p>
         {storageNotice&&<Alert type="warning" message={storageNotice}/>}
         {blockedPending.length>0&&<Alert type="warning" message="部分标签状态已变化，请先移除不可申请项；已有权限的标签可直接去使用。"/>}

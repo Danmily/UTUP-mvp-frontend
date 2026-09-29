@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react'
 import { Button, Tag, Menu, Breadcrumb, Modal } from '@ecom/aurora'
 import {
   VIEWS, NAV, NAV_LABELS,
-  INITIAL_MYAPPLY, INITIAL_INCOME, INITIAL_AUDIT, nowStamp,
+  INITIAL_MYAPPLY, INITIAL_INCOME, INITIAL_AUDIT, nowStamp, TAGS,
 } from './data.js'
+import { assetState, pendingKey, parsePending, mergePending, PENDING_MAX } from './flows/application-model.mjs'
 import Login from './pages/Login.jsx'
 import Market from './pages/Market.jsx'
 import MyPerm from './pages/MyPerm.jsx'
@@ -45,6 +46,7 @@ export default function App() {
   const [viewKey, setViewKey] = useState(null)
   const [nav, setNav] = useState('market')
   const [audienceSeed, setAudienceSeed] = useState(null)
+  const [fromAgent, setFromAgent] = useState(false) // 从圈人 Agent 带着缺权限标签来到标签广场
   const [myapply, setMyapply] = useState(INITIAL_MYAPPLY)
   const [income, setIncome] = useState(INITIAL_INCOME)
   const [audit, setAudit] = useState(INITIAL_AUDIT)
@@ -112,17 +114,37 @@ export default function App() {
       return
     }
     setAudienceSeed(null)
+    setFromAgent(false)
     if (item.key === 'myperm') setNewApply(false)
     setNav(item.key)
+  }
+
+  /* 圈人 Agent ↔ 标签广场：Agent 按门户口径查标签状态，缺权限的标签进入同一份待申请清单 */
+  const agentBridge = {
+    tagState: (id) => {
+      const tag = TAGS.find((t) => t.id === id)
+      return tag ? assetState(view, tag, myapply) : null
+    },
+    applyTags: (ids) => {
+      const key = pendingKey(view)
+      const eligible = ids.filter((id) => { const tag = TAGS.find((t) => t.id === id); return tag && assetState(view, tag, myapply).selectable })
+      try {
+        const current = parsePending(localStorage.getItem(key), TAGS.map((t) => t.id))
+        localStorage.setItem(key, JSON.stringify(mergePending(current, eligible).slice(0, PENDING_MAX)))
+      } catch { /* 存储不可用时仍打开清单 */ }
+      pushAudit(`圈人 Agent 带入待申请清单：${eligible.length} 个标签`)
+      setFromAgent(true)
+      setNav('market')
+    },
   }
 
   function renderView() {
     switch (nav) {
       case 'audience':
       case 'audiences':
-        return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} />
+        return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} portal={agentBridge} />
       case 'market':
-        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setNav('myperm') }} />
+        return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setFromAgent(false); setNav('myperm') }} fromAgent={fromAgent} backToAgent={() => { setFromAgent(false); setNav('audience') }} />
       case 'myperm':
         return <MyPerm V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMarket={() => setNav('market')} />
       case 'income':

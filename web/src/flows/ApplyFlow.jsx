@@ -4,7 +4,7 @@ import { TAGS, SCENES, nowStamp } from '../data.js'
 import { LevelChip, CrossBadge } from '../mvp-ui.jsx'
 import { assetState, makeDraft, resolvedPurpose, validateDraft, applicationRow, submissionPlan, SCENE_DESCRIPTIONS } from './application-model.mjs'
 
-export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, onDone, onTagsChange, onRemoveTag }) {
+export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, backToAgent, onDone, onTagsChange, onRemoveTag }) {
   const [draft,setDraft]=useState(null), [open,setOpen]=useState(false), [done,setDone]=useState(null)
   const [busy,setBusy]=useState(false), lock=useRef(false)
   function start(ids) {
@@ -45,7 +45,7 @@ export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, o
       </section>
       <details className="apply-demo-control"><summary>评审演示设置</summary><label htmlFor="apply-outcome">模拟提交结果</label><select id="apply-outcome" value={draft.outcome} onChange={e=>setDraft(d=>({...d,outcome:e.target.value}))}><option value="success">全部成功</option><option value="partial">最后一项提交失败</option></select><p>失败项不会生成申请记录；重试仅处理失败项。</p></details>
     </Modal>}
-    {done&&<Modal open width={760} title={failures.length?'演示提交完成 · 部分失败':'演示申请已提交'} onCancel={()=>setDone(null)} footer={<Space><Button onClick={()=>setDone(null)}>完成</Button>{failures.length>0&&<Button type="primary" onClick={retry}>仅重试失败项（{failures.length}）</Button>}{goMyPerm&&successes.length>0&&<Button type={failures.length?'default':'primary'} onClick={()=>{setDone(null);goMyPerm()}}>查看我的申请</Button>}</Space>}>
+    {done&&<Modal open width={760} title={failures.length?'演示提交完成 · 部分失败':'演示申请已提交'} onCancel={()=>setDone(null)} footer={<Space><Button onClick={()=>setDone(null)}>完成</Button>{failures.length>0&&<Button type="primary" onClick={retry}>仅重试失败项（{failures.length}）</Button>}{goMyPerm&&successes.length>0&&<Button type={failures.length||backToAgent?'default':'primary'} onClick={()=>{setDone(null);goMyPerm()}}>查看我的申请</Button>}{backToAgent&&successes.length>0&&<Button type={failures.length?'default':'primary'} onClick={()=>{setDone(null);backToAgent()}}>返回圈人 Agent 继续</Button>}</Space>}>
       <Alert type={failures.length?'warning':'success'} message={`${successes.length} 项提交成功，${failures.length} 项失败。成功项已记录，不会在重试时重复提交。`}/><div className="apply-results">{done.results.map(r=><div key={r.tag.id}><strong>{r.tag.name}</strong><Tag color={r.success?'primary':'danger'}>{r.success?'已提交 · 待同步':'提交失败'}</Tag><p>{r.success?`演示回执 ${r.ticket} · 尚未获得权限`:'模拟来源系统暂不可用，请重试该项'}</p></div>)}</div><p className="apply-muted">真实接入后，仅在收到来源系统成功回执后记录“已申请”。已有有效权限时，列表优先显示“可使用”。</p>
     </Modal>}
   </>

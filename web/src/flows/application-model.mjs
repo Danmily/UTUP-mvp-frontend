@@ -48,6 +48,8 @@ export function submissionPlan(draft, retry = false) {
   return draft.tags.map((tag,i) => ({tag, purpose:resolvedPurpose(draft,tag), success:retry || draft.outcome!=='partial' || i!==draft.tags.length-1}))
 }
 
+export const PENDING_MAX = 10
+export const pendingKey = view => `utup.pending-tags.v1.${view.role}.${view.domain}`
 export function mergePending(current, added) { return [...new Set([...current, ...added])] }
 export function parsePending(raw, knownIds) {
   try { const value=JSON.parse(raw || '[]');return Array.isArray(value)?[...new Set(value.filter(id=>knownIds.includes(id)))]:[] } catch { return [] }
