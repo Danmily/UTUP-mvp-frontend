@@ -2960,3 +2960,6 @@ display: none
 .au-message{pointer-events:auto}
 .added-toast{display:inline-flex;align-items:center;gap:10px}
 .added-toast button{border:0;background:none;padding:0;color:var(--au-primary);cursor:pointer;font:inherit}
+/* 「批量选择」入口更醒目：蓝色描边按钮，紧挨视图切换 */
+.market-tools-actions .market-batch-entry,.market-batch-entry.au-btn{border:1px solid var(--au-primary-border)!important;background:var(--au-primary-light)!important;color:var(--au-primary)!important;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.market-batch-entry svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.6}

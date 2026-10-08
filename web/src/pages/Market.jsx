@@ -413,7 +413,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={addQuiet} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')}/>}</AiSidePanel>
       </Modal>}
       {batchMode && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button></div><div className="selection-spacer"/></>}
-      {view==='market'&&<button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setView('basket')} aria-label={`${BASKET}，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>{BASKET}</span><b>{pendingTags.length}</b></button>}
+      {view==='market'&&!batchMode&&<button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setView('basket')} aria-label={`${BASKET}，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>{BASKET}</span><b>{pendingTags.length}</b></button>}
       {detailTag && (
         <TagDetailModal
           V={V}
