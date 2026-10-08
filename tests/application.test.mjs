@@ -46,9 +46,8 @@ test('partial failure retry includes only failed labels',()=>{
  const second=submissionPlan(retry);assert.equal(second.length,1);assert.equal(second[0].success,true)
  assert.ok(first.filter(r=>r.success).every(r=>r.tag.id!==second[0].tag.id))
 })
-test('PSM requests are routed to manual coordination instead of a fabricated self-service API',()=>{
- const psm=TAGS.find(t=>t.callType==='psm');assert.ok(psm)
- assert.equal(assetState(view,psm,[],null).selectable,false)
+test('every visible tag can be applied online; there is no offline-only state',()=>{
+ for(const t of TAGS){const st=assetState(view,t,[],null);assert.notEqual(st.code,'manual')}
 })
 
 test('pending list adds from details and batch without dropping earlier picks or duplicating IDs',()=>{

@@ -2952,3 +2952,11 @@ display: none
 .basket-desc small{display:block;color:#b54708;font-size:12px}
 .basket-ops{white-space:nowrap}
 .au-btn.op-muted,.au-btn.op-muted:disabled{color:var(--au-text-3);cursor:default;opacity:1}
+/* 标签目录固定 4 列 × 5 行；窄屏再降列 */
+.tag-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1400px){.tag-cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:1100px){.tag-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 加入成功提示里的「去查看清单」 */
+.au-message{pointer-events:auto}
+.added-toast{display:inline-flex;align-items:center;gap:10px}
+.added-toast button{border:0;background:none;padding:0;color:var(--au-primary);cursor:pointer;font:inherit}

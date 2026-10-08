@@ -37,7 +37,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     setPending(previous=>{const next=typeof change==='function'?change(previous):change;try{localStorage.setItem(pendingKey,JSON.stringify(next))}catch{setStorageNotice('浏览器暂时无法保存清单，离开页面后可能丢失。')}return next})
   }
   function removePending(id){updatePending(old=>old.filter(x=>x!==id))}
-  const pageSize=9
+  const pageSize=20 // 4 列 × 5 行
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const [viewMode, setViewMode] = useState('card') // card | list
   /* 批量模式：默认关闭，卡片保持干净；开启后才出现勾选框，点卡片即选中 */
@@ -48,7 +48,6 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }
   const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, backToAgent: fromAgent ? backToAgent : null, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setBasketSel(old=>old.filter(id=>!ids.includes(id))) } })
   useEffect(()=>setPage(1),[filters,demo])
-  useEffect(()=>{if(!filters.q.trim()){setBatchMode(false);setSel([])}},[filters.q])
 
   const applyStatus = tag => displayStatus(assetState(V,tag,myapply)).code
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
@@ -89,8 +88,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   function toggleSelAll() {setSel(s=>togglePageSelection(s,selectableList.map(t=>t.id)))}
   const startSelection=()=>{if(!pendingTags.length||blockedPending.length)return;applyFlow.start(pendingTags.map(t=>t.id))}
   function mergeIntoPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`${BASKET}最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged})}
-  function addPending(ids){mergeIntoPending(ids);setSel([]);setBatchMode(false);setDetailId(null);message.success(`已加入${BASKET}`)}
-  function addQuiet(ids){mergeIntoPending(ids);message.success(`已加入${BASKET}`)}
+  /* 加入后留在当前页，提示里给一个去清单的入口 */
+  function notifyAdded(ids){const n=ids.filter(id=>{const t=TAGS.find(x=>x.id===id);return t&&selectable(t)&&!pending.includes(id)}).length;message.success(<span className="added-toast">已加入 {n} 个标签<button type="button" onClick={()=>setView('basket')}>去查看清单 →</button></span>)}
+  function addPending(ids){notifyAdded(ids);mergeIntoPending(ids);setSel([]);setBatchMode(false);setDetailId(null)}
+  function addQuiet(ids){notifyAdded(ids);mergeIntoPending(ids)}
 
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
@@ -244,7 +245,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <div className="market-tools">
           <div className="market-tools-title">标签目录 <span>{list.length} 个标签</span></div>
           <div className="market-tools-actions">
-            {!!filters.q.trim() && !batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量选择</Button>}
+            {!batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量选择</Button>}
             <div className="view-switch market-view-switch" role="group" aria-label="展示方式">
               {[['card', '卡片'], ['list', '列表']].map(([k, label]) => (
                 <button key={k} type="button" className={viewMode === k ? 'on' : ''} title={`切换为${label}展示`}
@@ -478,7 +479,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
       }
     >
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        tag_id: {tag.id} · {tag.src} · {tag.callType === 'psm' ? '系统间调用' : '人消费标签'}
+        tag_id: {tag.id} · {tag.src}
       </Typography.Text>
       <div style={{ height: 12 }} />
       <Descriptions
@@ -566,7 +567,6 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
           },
         ]}
       />
-      {tag.callType==='psm'&&<Alert type="info" message="系统间实时调用请联系来源方产品提需求，跨域调用方案待确认，当前不提供自助建单入口。"/>}
       {(tag.level === '高敏' || vis.cross) && (
         <Alert
           style={{ marginTop: 12 }}

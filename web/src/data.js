@@ -147,19 +147,9 @@ export function upgrade(level) {
   return CROSS_CFG[level] || level
 }
 
-/* 审批路由：PSM 系统间调用走 DMP / LDMP；人消费标签走 Triton（门户不落工单） */
+/* 审批路由：所有标签都在线上申请，人消费标签走 Triton（门户不落工单） */
 export function applyPath(tag) {
-  return tag.callType === 'psm'
-    ? {
-        name: '系统间调用（PSM）',
-        target: 'DMP / LDMP',
-        detail: `PSM 申请 → 跳转 ${tag.domain === '生服' ? 'LDMP' : 'DMP'}，由其承接 PSM 归属校验与建单`,
-      }
-    : {
-        name: '人消费标签',
-        target: 'Triton',
-        detail: `标签申请 → 定位上游 Hive 表 ${tag.table} → 深链跳转 Triton 发起`,
-      }
+  return { name: '人消费标签', target: 'Triton', detail: `标签申请 → 定位上游 Hive 表 ${tag.table} → 深链跳转 Triton 发起` }
 }
 
 /* 标签目录（27 条） */
@@ -193,10 +183,10 @@ export const TAGS = [
     enums: ['高活(≥20天)', '中活', '低活', '沉默'], official: true,
   },
   {
-    id: 14540, name: '二级类目购买人群包', domain: '电商', level: '通用', callType: 'psm',
+    id: 14540, name: '二级类目购买人群包', domain: '电商', level: '通用', callType: 'tag',
     owner: '电商数据团队', team: '电商数据', src: '电商DMP', table: 'dws_ecom_cate_buyer_df',
     cov: 90, freq: 'T+1',
-    desc: '按二级类目聚合的购买人群，系统间调用场景，走 PSM 申请。',
+    desc: '按二级类目聚合的购买人群，可直接用于人群圈选。',
     enums: ['美妆购买人群', '3C购买人群', '母婴购买人群'], official: false,
   },
   {
@@ -340,10 +330,10 @@ export const TAGS = [
     enums: ['新客', '成长', '成熟', '流失预警'], official: true,
   },
   {
-    id: 14672, name: '双域高价值人群包', domain: '生服', level: '高敏', callType: 'psm',
+    id: 14672, name: '双域高价值人群包', domain: '生服', level: '高敏', callType: 'tag',
     owner: '算法平台 · 融合', team: '算法平台', src: '双域算法资产', table: 'dws_xd_high_value_crowd_df',
     cov: 68, freq: 'T+7',
-    desc: '双域高价值人群系统间调用，跨域 + 高敏，走 PSM + 法务加签。',
+    desc: '电商与生服双域高价值人群，跨域 + 高敏，需按来源方合规流程审批。',
     enums: ['双域高价值', '电商高价值', '生服高价值'], official: false,
   },
   {

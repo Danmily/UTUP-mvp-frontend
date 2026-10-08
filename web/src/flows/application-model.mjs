@@ -11,7 +11,6 @@ export function assetState(view, tag, applies, perm = livePerm(tag.id)) {
   if (isActive(perm)) return { code: 'active', label: '可使用', selectable: false, reason: '已有有效权限，无需重复申请' }
   const vis = visibility(view, tag)
   if (!vis.visible || !vis.canApply) return { code: 'visible', label: '需联系 POC', selectable: false, reason: vis.reason }
-  if (tag.callType === 'psm') return { code: 'manual', label: '需线下对接', selectable: false, reason: '系统间实时调用需联系来源方产品，暂不纳入本次批量申请' }
   /* 演示假设已能拿到审批结果：审批中不能重复申请，被拒绝后才能重新申请。
      真实环境门户读不到 Triton 单据状态，上线前需要解决状态来源。 */
   const latest = applies.filter(a => a.tagId === tag.id).sort((a,b) => b.at.localeCompare(a.at))[0]
@@ -22,7 +21,7 @@ export function assetState(view, tag, applies, perm = livePerm(tag.id)) {
   return { code: 'apply', label: '可申请', selectable: true, reason: '' }
 }
 /* 前端只展示三种状态：可使用 / 已申请 / 可申请。
-   过期、被拒绝、需线下对接等内部状态都归入「可申请」（有些权限在门户上线前就已存在，统一按实时权限显示「可使用」） */
+   过期、被拒绝等内部状态都归入「可申请」（有些权限在门户上线前就已存在，统一按实时权限显示「可使用」） */
 export function displayStatus(state) {
   if (state.code === 'active') return { code: 'active', label: '可使用' }
   if (state.code === 'applied') return { code: 'applied', label: '已申请' }
