@@ -438,7 +438,6 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
   const perm = livePerm(tag.id)
   const active = isActive(perm)
   const lastApply = [...applies].sort((a, b) => b.at.localeCompare(a.at))[0]
-  const masked = (tag.level === '高敏' || tag.level === '受控') && !vis.real && !active
   const title = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {tag.name}
@@ -524,27 +523,6 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
           },
           { label: '生效状态', children: <EffectTag perm={perm} applied={applies.length > 0} /> },
           ...(perm ? [{ label: '有效期', children: <ValidText perm={perm} /> }] : []),
-        ]}
-      />
-      <div style={{ height: 14 }} />
-      <Descriptions
-        title="🔢 枚举值 / 示例值（动态查询）"
-        bordered
-        column={1}
-        items={[
-          {
-            label: '枚举值',
-            children: masked ? (
-              <Alert
-                type="warning"
-                showIcon
-                message="*** （授权后可见真实值）"
-                description="未获授权时只展示元信息，数据值以 *** 脱敏；授权通过后自动显示真实值。"
-              />
-            ) : (
-              <span>{tag.enums.map((a) => <Tag key={a} style={{ margin: 2 }}>{a}</Tag>)}</span>
-            ),
-          },
         ]}
       />
       <div style={{ height: 14 }} />
