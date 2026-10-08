@@ -12,6 +12,7 @@ import Income from './pages/Income.jsx'
 import Workbench from './pages/Workbench.jsx'
 import Audit from './pages/Audit.jsx'
 import Placeholder from './pages/Placeholder.jsx'
+import AssetIn from './pages/AssetIn.jsx'
 import Audience from './pages/Audience.jsx'
 
 /* 占位入口：灰色不可用态 + 「V1 规划中」弹窗（本期不真实开发） */
@@ -156,7 +157,7 @@ export default function App() {
       case 'cfg':
         return <Placeholder kind="cfg" />
       case 'assetin':
-        return <Placeholder kind="assetin" />
+        return <AssetIn V={view} pushAudit={pushAudit} />
       case 'audit':
         return <Audit audit={audit} />
       default:
