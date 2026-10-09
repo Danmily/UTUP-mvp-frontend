@@ -3006,3 +3006,10 @@ display: none
 .asset-msgs p.bad{color:var(--au-danger)}
 @media (max-width:900px){.asset-grid,.asset-steps,.asset-kpis{grid-template-columns:1fr}}
 .list-batch-hint{margin:8px 0 0;font-size:12px;color:var(--au-text-3)}
+/* 列表视图常驻批量选择栏 */
+.list-batch-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 14px;border:1px solid var(--au-primary-border);background:var(--au-primary-light);border-radius:8px}
+.list-batch-title{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--au-text-1);font-weight:500}
+.list-batch-title svg{width:16px;height:16px;stroke:var(--au-primary);stroke-width:1.6}
+.list-batch-title b{color:var(--au-primary)}
+.list-batch-title small{font-weight:400;color:var(--au-text-3);font-size:12px;margin-left:6px}
+.au-table input[type=checkbox],table input[type=checkbox]{width:16px;height:16px;accent-color:var(--au-primary);cursor:pointer}

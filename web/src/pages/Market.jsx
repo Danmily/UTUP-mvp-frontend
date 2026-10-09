@@ -252,7 +252,14 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             </div>
           </div>
         </div>
-        {batchMode && <p className="list-batch-hint">勾选可申请的标签，批量加入{BASKET}；已申请、可使用或已在清单中的标签不可勾选。</p>}
+        {batchMode && <div className="list-batch-bar" role="region" aria-label="批量选择">
+          <span className="list-batch-title"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量选择 · 已选 <b>{sel.length}</b> 个<small>勾选可申请的标签；已申请、可使用或已在清单中的不可勾选</small></span>
+          <Space>
+            <Button size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button>
+            {sel.length>0&&<Button size="small" onClick={exitBatch}>清空</Button>}
+            <Button size="small" type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button>
+          </Space>
+        </div>}
         {demo === 'fail' ? (
           <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
         ) : list.length === 0 ? (
