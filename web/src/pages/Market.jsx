@@ -117,7 +117,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     return (
       <Card>
         <div className="basket-head">
-          <div><h2>{BASKET}<span>{pendingTags.length} / {PENDING_MAX}</span></h2><p>勾选要处理的标签，批量申请或移除。加入清单不会提交申请，刷新或切换页面后仍保留。</p></div>
+          <div><h2>{BASKET}<span>{pendingTags.length} / {PENDING_MAX}</span></h2></div>
           <Space>{fromAgent&&backToAgent&&<Button onClick={backToAgent}>返回圈人 Agent</Button>}<Button onClick={()=>setView('market')}>继续挑选</Button></Space>
         </div>
         {fromAgent&&<Alert type="info" showIcon message={`圈人 Agent 执行前发现这些标签还没有权限，已放进${BASKET}`} description="提交申请后返回圈人 Agent，对话会停在原来的位置继续执行。"/>}
@@ -128,14 +128,13 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             <Space><Button size="small" disabled={!live.length} onClick={removeChosen}>批量移除</Button><Button size="small" type="primary" disabled={!chosen.length||!!chosenBlocked.length} onClick={applyChosen}>批量申请（{chosen.length}）</Button></Space>
           </div>
           <table className="basket-table">
-            <thead><tr><th className="c"><input type="checkbox" aria-label="选择本页全部标签" checked={allOn} onChange={toggleAll}/></th><th>标签名称</th><th>分级</th><th>口径描述</th><th>来源域</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody>{pendingSlice.map(t=>{const state=assetState(V,t,myapply),st=displayStatus(state);return <tr key={t.id} className={`${live.includes(t.id)?'is-on':''}${state.selectable?'':' is-blocked'}`}>
+            <thead><tr><th className="c"><input type="checkbox" aria-label="选择本页全部标签" checked={allOn} onChange={toggleAll}/></th><th>标签名称</th><th>分级</th><th>口径描述</th><th>来源域</th><th>操作</th></tr></thead>
+            <tbody>{pendingSlice.map(t=>{const state=assetState(V,t,myapply);return <tr key={t.id} className={`${live.includes(t.id)?'is-on':''}${state.selectable?'':' is-blocked'}`}>
               <td className="c"><input type="checkbox" aria-label={`选择 ${t.name}`} checked={live.includes(t.id)} onChange={()=>toggle(t.id)}/></td>
               <td><button type="button" className="basket-name" onClick={()=>openTag(t.id)}>{t.name}</button></td>
               <td><LevelChip level={visibility(V,t).eff}/></td>
               <td className="basket-desc" title={t.desc}>{t.desc}{!state.selectable&&<small>{state.reason}</small>}</td>
               <td>{t.src}</td>
-              <td><Tag color={st.code==='active'?'success':st.code==='applied'?'primary':undefined}>{st.label}</Tag></td>
               <td className="basket-ops">{state.code==='active'?<Button type="link" size="small" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>:state.selectable?<Button type="link" size="small" onClick={()=>applyFlow.start([t.id])}>申请</Button>:null}<Button type="link" size="small" onClick={()=>{removePending(t.id);setBasketSel(s=>s.filter(x=>x!==t.id))}}>移除</Button></td>
             </tr>})}</tbody>
           </table>
