@@ -12,11 +12,11 @@ import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallb
  * 一行 = 当前用户 × 一个标签，展示最新一次申请；不展示申请单号。
  * 申请状态取门户记录（只有「已申请」）；生效状态每次进入页面实时查询权限接口。
  * KPI：申请单数 ｜ 已生效 ｜ 已过期 */
-const FILTER_LABEL = { active: '已生效', pending: '未生效', expired: '已过期' }
+const FILTER_LABEL = { active: '已生效', soon: '即将到期', expired: '已过期' }
 
 export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal', setDemo, goMarket }) {
   const [detailId, setDetailId] = useState(null)
-  const [st, setSt] = useState('') // '' 全部 | active 已生效 | pending 未生效（从未拿到权限）| expired 已过期
+  const [st, setSt] = useState('') // '' 全部 | active 已生效 | soon 即将到期（有权限且有效期 ≤ 7 天）| expired 已过期
   const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit })
 
   const rows = useMemo(() => myPermRows(V, myapply), [V, myapply])
@@ -31,7 +31,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
   const list = rows.filter((r) => {
     if (!st) return true
     if (st === 'active') return isActive(r.perm)
-    if (st === 'pending') return !r.perm
+    if (st === 'soon') return isActive(r.perm) && r.perm.valid !== '永久' && r.perm.days <= SOON_DAYS
     return isExpired(r.perm)
   })
   const detail = detailId ? rows.find((r) => r.tagId === detailId) : null
@@ -106,7 +106,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
       <div className="kpi-row">
         {kpi('', '📝 申请单数', stats.tickets, '经门户提交的申请次数')}
         {kpi('active', '✅ 已生效', stats.active, '当前有权限的标签', 'var(--ok)')}
-        {kpi('pending', '⏳ 未生效', stats.pending, '已申请但尚未拿到权限', stats.pending ? 'var(--warn)' : undefined)}
+        {kpi('soon', '⏳ 即将到期', stats.soon.length, `已有权限，有效期在 ${SOON_DAYS} 天以内`, stats.soon.length ? 'var(--warn)' : undefined)}
         {kpi('expired', '⌛ 已过期', stats.expired, '权限已过期，可再次申请续期', stats.expired ? 'var(--err)' : undefined)}
       </div>
       {stats.soon.length > 0 && (
