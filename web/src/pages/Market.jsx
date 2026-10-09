@@ -107,12 +107,15 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }, [myapply])
 
   function basketPage() {
+    /* 下架标签来自资产接入（status = off）；其余能进清单的默认可申请 */
+    const offline=(()=>{try{return new Set((JSON.parse(localStorage.getItem('utup.assets.v1'))||[]).filter(a=>a.status==='off').map(a=>a.tag_id))}catch{return new Set()}})()
+    const canApply=t=>!offline.has('tag_'+t.id)&&selectable(t)
     const pageIds=pendingSlice.map(t=>t.id), live=basketSel.filter(id=>pending.includes(id))
     const allOn=pageIds.length>0&&pageIds.every(id=>live.includes(id))
-    const chosen=pendingTags.filter(t=>live.includes(t.id)), chosenBlocked=chosen.filter(t=>!selectable(t))
+    const chosen=pendingTags.filter(t=>live.includes(t.id)), chosenBlocked=chosen.filter(t=>!canApply(t))
     const toggle=id=>setBasketSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])
     const toggleAll=()=>setBasketSel(s=>togglePageSelection(s,pageIds))
-    const removeChosen=()=>{updatePending(old=>old.filter(id=>!live.includes(id)));setBasketSel([]);message.success(`已从${BASKET}移除 ${live.length} 个标签`)}
+    const removeChosen=()=>{updatePending(old=>old.filter(id=>!live.includes(id)));setBasketSel([]);message.success(`已从${BASKET}删除 ${live.length} 个标签`)}
     const applyChosen=()=>{if(!chosen.length||chosenBlocked.length)return;applyFlow.start(chosen.map(t=>t.id))}
     return (
       <Card>
@@ -124,22 +127,22 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         {storageNotice&&<Alert type="warning" message={storageNotice}/>}
         {pendingTags.length?<>
           <div className="basket-toolbar">
-            <span>已选 <b>{live.length}</b> 个{chosenBlocked.length>0&&<em>，其中 {chosenBlocked.length} 个当前不能申请</em>}</span>
-            <Space><Button size="small" disabled={!live.length} onClick={removeChosen}>批量移除</Button><Button size="small" type="primary" disabled={!chosen.length||!!chosenBlocked.length} onClick={applyChosen}>批量申请（{chosen.length}）</Button></Space>
+            <span>已选择 <b>{live.length}</b> 个标签{chosenBlocked.length>0&&<em>，其中 {chosenBlocked.length} 个不可申请</em>}</span>
+            <Space><Button size="small" disabled={!live.length} onClick={removeChosen}>批量删除</Button><Button size="small" type="primary" disabled={!chosen.length||!!chosenBlocked.length} onClick={applyChosen}>一键批量申请（{chosen.length}）</Button></Space>
           </div>
           <table className="basket-table">
-            <thead><tr><th className="c"><input type="checkbox" aria-label="选择本页全部标签" checked={allOn} onChange={toggleAll}/></th><th>标签名称</th><th>分级</th><th>口径描述</th><th>来源域</th><th>操作</th></tr></thead>
-            <tbody>{pendingSlice.map(t=>{const state=assetState(V,t,myapply);return <tr key={t.id} className={`${live.includes(t.id)?'is-on':''}${state.selectable?'':' is-blocked'}`}>
+            <thead><tr><th className="c"><input type="checkbox" aria-label="选择本页全部标签" checked={allOn} onChange={toggleAll}/></th><th>标签名称</th><th>分级</th><th>口径描述</th><th>来源于</th><th>状态</th></tr></thead>
+            <tbody>{pendingSlice.map(t=>{const ok=canApply(t),down=offline.has('tag_'+t.id);return <tr key={t.id} className={`${live.includes(t.id)?'is-on':''}${ok?'':' is-blocked'}`}>
               <td className="c"><input type="checkbox" aria-label={`选择 ${t.name}`} checked={live.includes(t.id)} onChange={()=>toggle(t.id)}/></td>
               <td><button type="button" className="basket-name" onClick={()=>openTag(t.id)}>{t.name}</button></td>
               <td><LevelChip level={visibility(V,t).eff}/></td>
-              <td className="basket-desc" title={t.desc}>{t.desc}{!state.selectable&&<small>{state.reason}</small>}</td>
+              <td className="basket-desc" title={t.desc}>{t.desc}</td>
               <td>{t.src}</td>
-              <td className="basket-ops">{state.code==='active'?<Button type="link" size="small" className="asset-use-link" onClick={()=>jumpExternal('风神平台',demo!=='fail')}>去使用</Button>:state.selectable?<Button type="link" size="small" onClick={()=>applyFlow.start([t.id])}>申请</Button>:null}<Button type="link" size="small" onClick={()=>{removePending(t.id);setBasketSel(s=>s.filter(x=>x!==t.id))}}>移除</Button></td>
+              <td>{ok?<Tag color="success">可申请</Tag>:<span className="basket-off"><Tag>不可申请</Tag><small>{down?'标签已下架':assetState(V,t,myapply).code==='active'?'已有权限':'审批中'}</small></span>}</td>
             </tr>})}</tbody>
           </table>
-        </>:<div className="pending-list-empty"><b>{BASKET}还是空的</b><p>查看标签详情时加入，或搜索后批量选择；也可以用 AI 智能搜索一次推荐一组。</p><Button onClick={()=>setView('market')}>去挑标签</Button></div>}
-        {pendingPages>1&&<div className="pending-pager"><span>第 {pendingPageNow} / {pendingPages} 页 · 共 {pendingTags.length} 个</span><Space><Button size="small" disabled={pendingPageNow===1} onClick={()=>setPendingPage(pendingPageNow-1)}>上一页</Button><Button size="small" disabled={pendingPageNow===pendingPages} onClick={()=>setPendingPage(pendingPageNow+1)}>下一页</Button></Space></div>}
+          <div className="pending-pager"><span>第 {pendingPageNow} / {pendingPages} 页 · 共 {pendingTags.length} 个标签</span><Space><Button size="small" disabled={pendingPageNow===1} onClick={()=>setPendingPage(pendingPageNow-1)}>上一页</Button><Button size="small" disabled={pendingPageNow===pendingPages} onClick={()=>setPendingPage(pendingPageNow+1)}>下一页</Button></Space></div>
+        </>:<div className="pending-list-empty"><b>{BASKET}还是空的</b><p>在标签详情里加入，或在列表视图中勾选后批量加入；也可以用 AI 智能搜索一次推荐一组。</p><Button onClick={()=>setView('market')}>去挑标签</Button></div>}
       </Card>
     )
   }

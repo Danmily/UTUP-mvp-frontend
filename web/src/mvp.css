@@ -3013,3 +3013,4 @@ display: none
 .list-batch-title b{color:var(--au-primary)}
 .list-batch-title small{font-weight:400;color:var(--au-text-3);font-size:12px;margin-left:6px}
 .au-table input[type=checkbox],table input[type=checkbox]{width:16px;height:16px;accent-color:var(--au-primary);cursor:pointer}
+.basket-off{display:inline-flex;flex-direction:column;gap:2px}.basket-off small{color:#b54708;font-size:12px}
