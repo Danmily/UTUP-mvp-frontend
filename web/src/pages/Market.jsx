@@ -40,12 +40,9 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   const pageSize=20 // 4 列 × 5 行
   const [sel, setSel] = useState([]) // 批量申请选中的标签 id
   const [viewMode, setViewMode] = useState('card') // card | list
-  /* 批量模式：默认关闭，卡片保持干净；开启后才出现勾选框，点卡片即选中 */
-  const [batchMode, setBatchMode] = useState(false)
-  function exitBatch() {
-    setBatchMode(false)
-    setSel([])
-  }
+  /* 批量勾选只在列表视图提供（10/8 评审：卡片保持干净，不做勾选） */
+  const batchMode = viewMode === 'list'
+  function exitBatch() { setSel([]) }
   const applyFlow = useApplyFlow({ V, myapply, addApply, pushAudit, goMyPerm, backToAgent: fromAgent ? backToAgent : null, onRemoveTag:(id)=>{removePending(id);setSel(old=>old.filter(x=>x!==id))}, onDone: (ids) => { setSel(old=>old.filter(id=>!ids.includes(id)));updatePending(old=>old.filter(id=>!ids.includes(id)));setBasketSel(old=>old.filter(id=>!ids.includes(id))) } })
   useEffect(()=>setPage(1),[filters,demo])
 
@@ -90,7 +87,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   function mergeIntoPending(ids){const eligible=ids.filter(id=>{const tag=TAGS.find(t=>t.id===id);return tag&&selectable(tag)});updatePending(old=>{const merged=mergePending(old,eligible);if(merged.length>PENDING_MAX){setStorageNotice(`${BASKET}最多 ${PENDING_MAX} 个标签，超出的 ${merged.length-PENDING_MAX} 个没有加入，先提交或移除一些再继续。`);return merged.slice(0,PENDING_MAX)}setStorageNotice('');return merged})}
   /* 加入后留在当前页，提示里给一个去清单的入口 */
   function notifyAdded(ids){const n=ids.filter(id=>{const t=TAGS.find(x=>x.id===id);return t&&selectable(t)&&!pending.includes(id)}).length;message.success(<span className="added-toast">已加入 {n} 个标签<button type="button" onClick={()=>setView('basket')}>去查看清单 →</button></span>)}
-  function addPending(ids){notifyAdded(ids);mergeIntoPending(ids);setSel([]);setBatchMode(false);setDetailId(null)}
+  function addPending(ids){notifyAdded(ids);mergeIntoPending(ids);setSel([]);setDetailId(null)}
   function addQuiet(ids){notifyAdded(ids);mergeIntoPending(ids)}
 
 
@@ -245,21 +242,17 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <div className="market-tools">
           <div className="market-tools-title">标签目录 <span>{list.length} 个标签</span></div>
           <div className="market-tools-actions">
-            {!batchMode && <Button className="market-batch-entry" onClick={() => setBatchMode(true)}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3"/><path d="m6.5 10 2.3 2.3 4.7-4.8"/></svg>批量选择</Button>}
             <div className="view-switch market-view-switch" role="group" aria-label="展示方式">
               {[['card', '卡片'], ['list', '列表']].map(([k, label]) => (
                 <button key={k} type="button" className={viewMode === k ? 'on' : ''} title={`切换为${label}展示`}
-                  aria-pressed={viewMode === k} onClick={() => setViewMode(k)}>
+                  aria-pressed={viewMode === k} onClick={() => { setViewMode(k); if (k === 'card') setSel([]) }}>
                   <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">{k==='card'?<><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></>:<><path d="M7 5h10M7 10h10M7 15h10"/><path d="M3 5h.5M3 10h.5M3 15h.5"/></>}</svg>{label}
                 </button>
               ))}
             </div>
           </div>
         </div>
-        {batchMode && <div className="market-selection-mode" role="region" aria-label="批量选择模式">
-          <div className="market-selection-caption"><span className="market-selection-mark" aria-hidden="true">✓</span><div><strong>选择要加入待选择清单的标签</strong><p>已选 {sel.length} 个 · 已在待选择清单的标签无需重复选择</p></div></div>
-          <div className="market-selection-actions"><Button type="link" size="small" disabled={!selectableList.length} onClick={toggleSelAll}>{selectableList.length>0&&selectableList.every(t=>sel.includes(t.id))?'取消本页选择':`选择本页可申请（${selectableList.length}）`}</Button><span aria-hidden="true" className="market-action-divider"/><Button type="text" size="small" onClick={exitBatch}>取消选择</Button></div>
-        </div>}
+        {batchMode && <p className="list-batch-hint">勾选可申请的标签，批量加入{BASKET}；已申请、可使用或已在清单中的标签不可勾选。</p>}
         {demo === 'fail' ? (
           <LoadFailed what="标签列表" onRetry={() => setDemo?.('normal')} />
         ) : list.length === 0 ? (
@@ -281,7 +274,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             dataSource={pageList}
             rowKey="id"
             pagination={false}
-            onRow={r=>batchMode?(selectable(r)&&!pending.includes(r.id)&&toggleSel(r.id)):openTag(r.id)}
+            onRow={r=>openTag(r.id)}
             columns={[
               ...(batchMode ? [{
                 title: (
@@ -412,8 +405,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       {aiVariant==='B'&&aiPanel&&<Modal open placement="right" width={560} title="✦ AI 推荐标签组合" onCancel={()=>setAiPanel(false)} footer={<div className="pending-list-footer"><span>挑好的标签加入{BASKET}，最后统一申请</span><Space><Button onClick={()=>setAiPanel(false)}>关闭</Button><Button type="primary" onClick={()=>{setAiPanel(false);setView('basket')}}>查看{BASKET}（{pendingTags.length}）</Button></Space></div>}>
         <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={addQuiet} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')}/>}</AiSidePanel>
       </Modal>}
-      {batchMode && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button></div><div className="selection-spacer"/></>}
-      {view==='market'&&!batchMode&&<button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setView('basket')} aria-label={`${BASKET}，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>{BASKET}</span><b>{pendingTags.length}</b></button>}
+      {batchMode && sel.length>0 && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Space><Button onClick={exitBatch}>取消选择</Button><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button></Space></div><div className="selection-spacer"/></>}
+      {view==='market'&&!(batchMode&&sel.length>0)&&<button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setView('basket')} aria-label={`${BASKET}，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>{BASKET}</span><b>{pendingTags.length}</b></button>}
       {detailTag && (
         <TagDetailModal
           V={V}

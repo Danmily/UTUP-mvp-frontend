@@ -3005,3 +3005,4 @@ display: none
 .asset-msgs p{margin:0;font-size:12px;color:var(--au-text-2)}
 .asset-msgs p.bad{color:var(--au-danger)}
 @media (max-width:900px){.asset-grid,.asset-steps,.asset-kpis{grid-template-columns:1fr}}
+.list-batch-hint{margin:8px 0 0;font-size:12px;color:var(--au-text-3)}
