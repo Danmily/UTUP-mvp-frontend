@@ -2,7 +2,10 @@
 export const SECURITY = ['开放', '通用', '受控', '高敏'] // 从低到高
 export const SOURCES = ['电商DMP', '生服LDMP', 'AI用户画像', '双域算法资产']
 export const FREQ_OFFLINE = ['T+1', 'T+7']
-export const STATUS_LABEL = { pending: '待审核', online: '已上线', off: '已下线' }
+/* 资产状态：待分级（缺表密级）→ 已上传（待审核）→ 已上架 → 已下线 */
+export const STATUS_LABEL = { grading: '待分级', uploaded: '已上传', online: '已上架', off: '已下线' }
+export const normalizeStatus = (s) => (s === 'pending' ? 'uploaded' : s)
+export const statusAfterSubmit = (a) => (a.table_security ? 'uploaded' : 'grading')
 export const MAX_ROWS = 500
 
 /* 导入模板列，顺序即模板列顺序；effective_column_level 由系统计算，不在模板中 */
@@ -18,9 +21,8 @@ export const FIELDS = [
   { key: 'source_system', label: '上游系统 / 来源域', group: '责任溯源', required: true, hint: SOURCES.join(' / '), example: '电商DMP' },
   { key: 'source_table', label: '来源表', group: '责任溯源', required: true, hint: '库名.表名', example: 'ecom_dmp.dwd_user_order_di' },
   { key: 'source_field', label: '来源字段', group: '责任溯源', required: true, hint: '来源表中存在的字段', example: 'order_cate_seq' },
-  { key: 'table_security', label: '表密级', group: '密级与状态', required: true, hint: SECURITY.join(' / '), example: '受控' },
-  { key: 'column_security_level', label: '列密级', group: '密级与状态', required: false, hint: '有单独列密级时填写，否则留空', example: '' },
-  { key: 'status', label: '上线状态', group: '密级与状态', required: false, hint: 'online / off；新建统一先进入审核', example: 'online' },
+  { key: 'table_security', label: '表密级', group: '密级', required: false, hint: SECURITY.join(' / ') + '；暂不确定可留空，提交后进入「待分级」', example: '受控' },
+  { key: 'column_security_level', label: '列密级', group: '密级', required: false, hint: '有单独列密级时填写，否则留空', example: '' },
 ]
 
 /* 演示用「已知数据」：真实环境改为查询飞书通讯录与元数据服务 */
@@ -35,6 +37,9 @@ export const DEMO_TABLES = {
   'xd_algo.dwd_xd_consume_fusion_di': ['fusion_score'],
 }
 
+/* 元信息完整度：基础展示、责任溯源、表密级中已填写的比例（列密级可选，不计入） */
+const COMPLETE_KEYS = ['tag_id', 'tag_name', 'description', 'coverage', 'timeliness', 'update_freq', 'owner', 'owner_team', 'source_system', 'source_table', 'source_field', 'table_security']
+export function completeness(a) { return Math.round((COMPLETE_KEYS.filter((k) => String(a[k] ?? '').trim()).length / COMPLETE_KEYS.length) * 100) }
 export function effectiveLevel(table, column) {
   const t = SECURITY.indexOf(table), c = SECURITY.indexOf(column)
   if (t < 0) return ''
@@ -107,7 +112,7 @@ export function validateAsset(input, { existing = [], dupIds = [] } = {}) {
   else if (a.source_table && a.source_field && !DEMO_TABLES[a.source_table].includes(a.source_field)) errors.push(`来源表中没有字段 ${a.source_field}`)
   if (a.table_security && !SECURITY.includes(a.table_security)) errors.push(`表密级需为：${SECURITY.join(' / ')}`)
   if (a.column_security_level && !SECURITY.includes(a.column_security_level)) errors.push(`列密级需为：${SECURITY.join(' / ')} 或留空`)
-  if (a.status && !['online', 'off'].includes(a.status)) errors.push('上线状态只能是 online 或 off')
+  if (!a.table_security) notes.push('未填写表密级，提交后进入「待分级」，确认分级后才能审核上架')
   if (input.effective_column_level) notes.push('最终生效密级由系统计算，已忽略文件中的填写值')
   a.effective_column_level = effectiveLevel(a.table_security, a.column_security_level)
   if (a.column_security_level && a.effective_column_level !== a.table_security) notes.push(`列密级高于表密级，最终生效密级升为「${a.effective_column_level}」`)

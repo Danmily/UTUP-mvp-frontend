@@ -1,23 +1,32 @@
 import { useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Modal, Space, Statistic, Tabs, Tag, message } from '@ecom/aurora'
+import { Alert, Button, Card, Modal, Space, Tabs, Tag, message } from '@ecom/aurora'
 import { TAGS, nowStamp } from '../data.js'
 import { LevelChip } from '../mvp-ui.jsx'
 import {
   FIELDS, SECURITY, SOURCES, FREQ_OFFLINE, STATUS_LABEL, MAX_ROWS, DEMO_OWNERS, DEMO_TABLES,
   effectiveLevel, freqText, parseCsv, templateCsv, toCsv, validateAsset, validateImport, missingColumns,
+  completeness, normalizeStatus, statusAfterSubmit,
 } from '../flows/asset-model.mjs'
 
-/* 资产接入（V2 · 3.2）：单个录入 + 批量导入 + 审核上下线；演示数据存于浏览器 */
+/* 资产接入（V2 · 3.2）：标签资产的上传、分级、审核上架、下线与增删改查；演示数据存于浏览器 */
 const KEY = 'utup.assets.v1'
 const DB = { 电商DMP: 'ecom_dmp', 生服LDMP: 'life_ldmp', AI用户画像: 'ai_profile', 双域算法资产: 'xd_algo' }
-const SOP = ['准备', '下载模板', '填写', '上传校验', '预览修正', '提交审核', '审核上线', '下线']
+const SOP = ['准备', '下载模板', '填写', '上传校验', '预览修正', '提交（已上传 / 待分级）', '确认分级', '审核上架', '下线']
+const STATUS_TABS = [['all', '全部资产'], ['uploaded', '已上传'], ['grading', '待分级'], ['online', '已上架'], ['off', '已下线']]
+const PAGE = 10
 const seed = () => TAGS.map((t) => ({
   tag_id: 'tag_' + t.id, tag_name: t.name, description: t.desc, coverage: String(t.cov || 0),
   timeliness: t.freq === '实时' ? '2' : '1', update_freq: t.freq === '实时' ? '实时' : (t.freq === 'T+7' ? 'T+7' : 'T+1'),
   owner: '@zhangsan', owner_team: t.owner, source_system: t.src, source_table: `${DB[t.src] || 'ecom_dmp'}.${t.table}`, source_field: 'label_value',
   table_security: t.level, column_security_level: '', effective_column_level: t.level, status: 'online', updated: '2026-09-20 10:00', by: 'system',
-}))
-function load() { try { const v = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(v) && v.length) return v } catch { /* 使用种子数据 */ } return seed() }
+})).concat([
+  /* 演示：非上架状态的资产 */
+  { tag_id: 'life_cate_pref_v2', tag_name: '生服品类偏好 V2', description: '基于近 90 天到店核销记录计算的品类偏好，T+1 更新', coverage: '71', timeliness: '1', update_freq: 'T+1', owner: '@lisi', owner_team: '生服 LDMP 团队', source_system: '生服LDMP', source_table: 'life_ldmp.dws_life_visit_freq_df', source_field: 'visit_level', table_security: '', column_security_level: '', effective_column_level: '', status: 'grading', updated: '2026-10-09 15:20', by: '@lisi' },
+  { tag_id: 'ai_consume_summary', tag_name: 'AI 深层消费心理 Summary', description: '', coverage: '', timeliness: '1', update_freq: 'T+7', owner: '@wangwu', owner_team: 'AI 画像团队', source_system: 'AI用户画像', source_table: 'ai_profile.dwd_llm_cate_interest_di', source_field: 'cate_interest', table_security: '', column_security_level: '', effective_column_level: '', status: 'grading', updated: '2026-10-09 16:02', by: '@wangwu' },
+  { tag_id: 'order_seq_30d', tag_name: '近30日下单序列', description: '近 30 天用户下单的类目序列，按下单时间倒序，T+1 更新', coverage: '82.4', timeliness: '1', update_freq: 'T+1', owner: '@zhangsan', owner_team: '电商 DMP 团队', source_system: '电商DMP', source_table: 'ecom_dmp.dwd_user_order_di', source_field: 'order_cate_seq', table_security: '受控', column_security_level: '', effective_column_level: '受控', status: 'uploaded', updated: '2026-10-10 10:12', by: '@zhangsan' },
+  { tag_id: 'old_active_v1', tag_name: '旧版活跃序列 V1', description: '旧版活跃天数序列，已由活跃天数分层替代', coverage: '90', timeliness: '1', update_freq: 'T+1', owner: '@zhangsan', owner_team: '电商 DMP 团队', source_system: '电商DMP', source_table: 'ecom_dmp.dwd_user_order_di', source_field: 'order_cnt_30d', table_security: '受控', column_security_level: '', effective_column_level: '受控', status: 'off', offReason: '已由新版标签替代', updated: '2026-09-30 18:00', by: '@zhangsan' },
+])
+function load() { try { const v = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(v) && v.length) return v.map((a) => ({ ...a, status: normalizeStatus(a.status) })) } catch { /* 使用种子数据 */ } return seed() }
 function download(name, text) {
   const a = document.createElement('a'), url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }))
   a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -35,26 +44,28 @@ export default function AssetIn({ V, pushAudit }) {
   const [fileName, setFileName] = useState('')
   const [fileError, setFileError] = useState('')
   const [offTarget, setOffTarget] = useState(null), [offReason, setOffReason] = useState('')
-  const [filter, setFilter] = useState('')
+  const [statusTab, setStatusTab] = useState('all'), [q, setQ] = useState(''), [src, setSrc] = useState(''), [page, setPage] = useState(1)
+  const [metaTarget, setMetaTarget] = useState(null), [gradeTarget, setGradeTarget] = useState(null), [grade, setGrade] = useState({ table: '', column: '' }), [delTarget, setDelTarget] = useState(null)
   const fileRef = useRef(null)
   const isAdmin = V.role === 'platform'
 
   function setAssets(next) { setAssetsRaw((old) => { const v = typeof next === 'function' ? next(old) : next; try { localStorage.setItem(KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v }) }
   const ids = assets.map((a) => a.tag_id)
-  const stats = useMemo(() => ({ all: assets.length, online: assets.filter((a) => a.status === 'online').length, pending: assets.filter((a) => a.status === 'pending').length, off: assets.filter((a) => a.status === 'off').length }), [assets])
+  const counts = useMemo(() => Object.fromEntries(STATUS_TABS.map(([k]) => [k, k === 'all' ? assets.length : assets.filter((a) => a.status === k).length])), [assets])
 
-  /* 提交：新增或更新都先进入「待审核」，审核通过才上线 */
+  /* 提交：有表密级 → 已上传（待审核）；缺表密级 → 待分级。已上架资产被编辑后也需重新审核 */
   function upsert(list, by) {
     const at = nowStamp().slice(0, 16)
     setAssets((old) => {
       const map = new Map(old.map((a) => [a.tag_id, a]))
-      for (const a of list) map.set(a.tag_id, { ...map.get(a.tag_id), ...a, status: 'pending', wanted: a.status || 'online', updated: at, by })
+      for (const a of list) map.set(a.tag_id, { ...map.get(a.tag_id), ...a, status: statusAfterSubmit(a), offReason: '', updated: at, by })
       return [...map.values()]
     })
   }
+  const patch = (id, change) => setAssets((old) => old.map((x) => (x.tag_id === id ? { ...x, ...change, updated: nowStamp().slice(0, 16) } : x)))
 
   /* ---- 单个录入 ---- */
-  function editAsset(a) { setEditing(a.tag_id); setForm({ ...blank(), ...a, status: a.status === 'off' ? 'off' : 'online' }); setFormResult(null); setTab('form') }
+  function editAsset(a) { setEditing(a.tag_id); setForm({ ...blank(), ...a }); setFormResult(null); setTab('form') }
   function newAsset() { setEditing(null); setForm(blank()); setFormResult(null); setTab('form') }
   function submitForm() {
     const r = validateAsset(form, { existing: editing ? [] : ids })
@@ -62,8 +73,9 @@ export default function AssetIn({ V, pushAudit }) {
     setFormResult(r)
     if (r.errors.length) return
     upsert([r.asset], 'user')
-    pushAudit?.(`${editing ? '更新' : '新增'}资产并提交审核：${r.asset.tag_name}（${r.asset.tag_id}）`, r.asset.effective_column_level)
-    message.success(`已提交审核：${r.asset.tag_name}`)
+    const next = statusAfterSubmit(r.asset)
+    pushAudit?.(`${editing ? '更新' : '上传'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ ${STATUS_LABEL[next]}`, r.asset.effective_column_level)
+    message.success(next === 'grading' ? `已上传，缺少表密级，进入「待分级」：${r.asset.tag_name}` : `已上传，等待审核上架：${r.asset.tag_name}`)
     setTab('list'); setEditing(null); setForm(blank()); setFormResult(null)
   }
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'timeliness' ? { update_freq: v === '2' ? '实时' : 'T+1' } : {}) }))
@@ -103,7 +115,8 @@ export default function AssetIn({ V, pushAudit }) {
     const log = { at: nowStamp().slice(0, 16), file: fileName, by: V.name, create: okRows.filter((r) => r.action === 'create').length, update: okRows.filter((r) => r.action === 'update').length, fail: badRows.length }
     setLogs((l) => [log, ...l])
     pushAudit?.(`批量导入资产：${fileName}，新增 ${log.create}、更新 ${log.update}、失败 ${log.fail}`)
-    message.success(`已提交 ${okRows.length} 个资产审核${badRows.length ? `，${badRows.length} 行待修正` : ''}`)
+    const g = okRows.filter((r) => !r.asset.table_security).length
+    message.success(`已上传 ${okRows.length} 个资产${g ? `（其中 ${g} 个待分级）` : ''}${badRows.length ? `，${badRows.length} 行待修正` : ''}`)
     setRows(badRows.length ? badRows : null)
     if (!badRows.length) setTab('list')
   }
@@ -112,8 +125,16 @@ export default function AssetIn({ V, pushAudit }) {
   }
 
   /* ---- 审核与上下线 ---- */
-  function approve(a) { setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? { ...x, status: x.wanted === 'off' ? 'off' : 'online', updated: nowStamp().slice(0, 16) } : x))); pushAudit?.(`审核通过资产：${a.tag_name}`); message.success('已审核通过') }
-  function goOnline(a) { setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? { ...x, status: 'pending', wanted: 'online' } : x))); message.success('已提交上线审核') }
+  function approve(a) { patch(a.tag_id, { status: 'online' }); pushAudit?.(`审核上架资产：${a.tag_name}`, a.effective_column_level); message.success('已上架，标签广场可见') }
+  function goOnline(a) { patch(a.tag_id, { status: a.table_security ? 'uploaded' : 'grading', offReason: '' }); message.success(a.table_security ? '已重新提交，等待审核上架' : '缺少表密级，已进入「待分级」') }
+  function openGrade(a) { setGradeTarget(a); setGrade({ table: a.table_security || '', column: a.column_security_level || '' }) }
+  function confirmGrade() {
+    if (!grade.table) return
+    const eff = effectiveLevel(grade.table, grade.column)
+    patch(gradeTarget.tag_id, { table_security: grade.table, column_security_level: grade.column, effective_column_level: eff, status: 'uploaded' })
+    pushAudit?.(`确认分级：${gradeTarget.tag_name} → ${eff}`, eff); message.success(`已确认分级为「${eff}」，进入已上传，等待审核`); setGradeTarget(null)
+  }
+  function confirmDelete() { setAssets((old) => old.filter((x) => x.tag_id !== delTarget.tag_id)); pushAudit?.(`删除资产：${delTarget.tag_name}（${delTarget.tag_id}）`); message.success('已删除'); setDelTarget(null) }
   function confirmOff() {
     if (offReason.trim().length < 4) return
     setAssets((old) => old.map((x) => (x.tag_id === offTarget.tag_id ? { ...x, status: 'off', offReason: offReason.trim(), updated: nowStamp().slice(0, 16) } : x)))
@@ -121,37 +142,44 @@ export default function AssetIn({ V, pushAudit }) {
     message.success('已下线，标签广场不再展示'); setOffTarget(null); setOffReason('')
   }
 
-  const shown = assets.filter((a) => !filter || a.status === filter)
+  const kw = q.trim().toLowerCase()
+  const shown = assets.filter((a) => (statusTab === 'all' || a.status === statusTab) && (!src || a.source_system === src) && (!kw || `${a.tag_name} ${a.tag_id} ${a.owner_team}`.toLowerCase().includes(kw)))
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE)), pageNow = Math.min(page, pages), pageRows = shown.slice((pageNow - 1) * PAGE, pageNow * PAGE)
+  const statusTag = (st) => <Tag color={st === 'online' ? 'success' : st === 'uploaded' ? 'primary' : st === 'grading' ? 'warning' : undefined}>{STATUS_LABEL[st]}</Tag>
   const list = (
-    <>
-      <div className="asset-kpis">
-        {[['', '资产总数', stats.all], ['online', '已上线', stats.online], ['pending', '待审核', stats.pending], ['off', '已下线', stats.off]].map(([k, t, v]) => (
-          <button key={t} type="button" className={`asset-kpi${filter === k ? ' on' : ''}`} onClick={() => setFilter(k)}><Statistic title={t} value={v} /></button>
-        ))}
+    <Card title="我的标签资产" extra={<Space><Button onClick={() => setTab('import')}>批量导入</Button><Button type="primary" onClick={newAsset}>+ 新建标签接入</Button></Space>}>
+      <div className="asset-status-tabs" role="tablist">{STATUS_TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={statusTab === k} className={statusTab === k ? 'on' : ''} onClick={() => { setStatusTab(k); setPage(1) }}>{l}<b>{counts[k]}</b></button>)}</div>
+      <div className="asset-filters">
+        <input className="au-input" placeholder="搜索标签名 / 标签 ID / Owner Team" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} aria-label="搜索资产" />
+        <select className="au-input" value={src} onChange={(e) => { setSrc(e.target.value); setPage(1) }} aria-label="来源域"><option value="">全部来源域</option>{SOURCES.map((x) => <option key={x}>{x}</option>)}</select>
       </div>
-      <Card title="资产列表" extra={<Space><Button onClick={() => setTab('import')}>批量导入</Button><Button type="primary" onClick={newAsset}>单个录入</Button></Space>}>
-        <table className="asset-table">
-          <thead><tr><th>标签</th><th>来源域 · 来源表.字段</th><th>时效 · 更新频率</th><th>覆盖率</th><th>最终生效密级</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody>{shown.map((a) => (
-            <tr key={a.tag_id}>
-              <td><b>{a.tag_name}</b><small>{a.tag_id}</small></td>
-              <td>{a.source_system}<small>{a.source_table}.{a.source_field}</small></td>
-              <td>{freqText(a)}</td>
-              <td>{a.coverage}%</td>
-              <td><LevelChip level={a.effective_column_level} />{a.column_security_level && a.effective_column_level !== a.table_security && <small className="asset-up">列密级升档（表密级 {a.table_security}）</small>}</td>
-              <td><Tag color={a.status === 'online' ? 'success' : a.status === 'pending' ? 'warning' : undefined}>{STATUS_LABEL[a.status]}</Tag>{a.status === 'off' && a.offReason && <small>{a.offReason}</small>}</td>
-              <td className="asset-ops">
-                <Button type="link" size="small" onClick={() => editAsset(a)}>编辑</Button>
-                {a.status === 'online' && <Button type="link" size="small" onClick={() => setOffTarget(a)}>下线</Button>}
-                {a.status === 'off' && <Button type="link" size="small" onClick={() => goOnline(a)}>重新上线</Button>}
-                {a.status === 'pending' && (isAdmin ? <Button type="link" size="small" onClick={() => approve(a)}>审核通过</Button> : <span className="asset-muted">等待平台审核</span>)}
-              </td>
-            </tr>
-          ))}</tbody>
-        </table>
-        {!shown.length && <p className="asset-muted asset-empty">没有符合条件的资产</p>}
-      </Card>
-    </>
+      <table className="asset-table">
+        <thead><tr><th>标签</th><th>来源域</th><th>统一分级</th><th>表 / 列密级</th><th>Owner Team</th><th>元信息完整度</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>{pageRows.map((a) => { const c = completeness(a); return (
+          <tr key={a.tag_id}>
+            <td><button type="button" className="asset-name" onClick={() => setMetaTarget(a)}>{a.tag_name}</button><small>{a.tag_id}</small></td>
+            <td>{a.source_system}</td>
+            <td>{a.effective_column_level ? <LevelChip level={a.effective_column_level} /> : <Tag color="warning">待分级</Tag>}</td>
+            <td>{a.table_security || '—'} / {a.column_security_level || '—'}{a.column_security_level && a.effective_column_level !== a.table_security && <small className="asset-up">列密级升档</small>}</td>
+            <td>{a.owner_team}<small>{a.owner}</small></td>
+            <td><b className={`asset-complete ${c === 100 ? 'ok' : c >= 80 ? 'mid' : 'low'}`}>{c}%</b></td>
+            <td>{statusTag(a.status)}{a.status === 'off' && a.offReason && <small>{a.offReason}</small>}</td>
+            <td className="asset-ops">
+              <Button size="small" type="link" onClick={() => setMetaTarget(a)}>元信息</Button>
+              {a.status === 'grading' && <Button size="small" type="link" onClick={() => openGrade(a)}>确认分级</Button>}
+              {a.status === 'uploaded' && (isAdmin ? <Button size="small" type="link" onClick={() => approve(a)}>审核上架</Button> : <span className="asset-muted">等待平台审核</span>)}
+              {a.status !== 'off' && <Button size="small" type="link" onClick={() => editAsset(a)}>编辑</Button>}
+              {a.status === 'online' && <Button size="small" type="link" onClick={() => setOffTarget(a)}>下线</Button>}
+              {a.status === 'off' && <Button size="small" type="link" onClick={() => goOnline(a)}>重新上架</Button>}
+              {a.status !== 'online' && <Button size="small" type="link" onClick={() => setDelTarget(a)}>删除</Button>}
+            </td>
+          </tr>
+        ) })}</tbody>
+      </table>
+      {!shown.length && <p className="asset-muted asset-empty">没有符合条件的资产</p>}
+      {shown.length > 0 && <div className="pending-pager"><span>共 {shown.length} 条 · 第 {pageNow} / {pages} 页</span><Space><Button size="small" disabled={pageNow === 1} onClick={() => setPage(pageNow - 1)}>上一页</Button><Button size="small" disabled={pageNow === pages} onClick={() => setPage(pageNow + 1)}>下一页</Button></Space></div>}
+      <div className="asset-rules">🔒 规则：缺少表密级只能进入「待分级」；确认分级后进入「已上传」，由平台管理员审核后上架；已上架资产编辑后需重新审核；下线需填写原因；已上架资产不可直接删除，需先下线。</div>
+    </Card>
   )
 
   const eff = effectiveLevel(form.table_security, form.column_security_level)
@@ -175,16 +203,15 @@ export default function AssetIn({ V, pushAudit }) {
         {field('source_table', input('source_table', { list: 'asset-tables' }))}
         {field('source_field', form.source_table && DEMO_TABLES[form.source_table] ? select('source_field', DEMO_TABLES[form.source_table], '请选择字段') : input('source_field'))}
       </div></section>
-      <section className="asset-group"><h4><b>3</b>密级与状态</h4><div className="asset-grid">
-        {field('table_security', select('table_security', SECURITY, '请选择表密级'))}
+      <section className="asset-group"><h4><b>3</b>密级</h4><div className="asset-grid">
+        {field('table_security', select('table_security', SECURITY, '暂不确定（提交后进入待分级）'))}
         {field('column_security_level', select('column_security_level', SECURITY, '无单独列密级'))}
         <div className="asset-field"><span>最终生效密级（系统计算）</span><div className="asset-eff">{eff ? <LevelChip level={eff} /> : <span className="asset-muted">选择表密级后自动计算</span>}{eff && form.column_security_level && eff !== form.table_security && <small className="asset-up">列密级高于表密级，已升档</small>}</div><small>取表密级与列密级中较高的一级</small></div>
-        {field('status', select('status', [{ v: 'online', l: 'online · 审核通过后上线' }, { v: 'off', l: 'off · 暂不上线' }]))}
       </div></section>
       <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
       <datalist id="asset-tables">{Object.keys(DEMO_TABLES).map((o) => <option key={o} value={o} />)}</datalist>
       {formResult?.notes.length > 0 && <Alert type="info" message={formResult.notes.join('；')} />}
-      <div className="asset-actions"><span className="asset-muted">提交后进入「待审核」，审核通过后在标签广场上线</span><Space><Button onClick={() => setTab('list')}>取消</Button><Button type="primary" onClick={submitForm}>{editing ? '保存并提交审核' : '提交审核'}</Button></Space></div>
+      <div className="asset-actions"><span className="asset-muted">有表密级 → 进入「已上传」等待审核上架；缺表密级 → 进入「待分级」</span><Space><Button onClick={() => setTab('list')}>取消</Button><Button type="primary" onClick={submitForm}>{editing ? '保存' : '上传'}</Button></Space></div>
     </Card>
   )
 
@@ -235,8 +262,22 @@ export default function AssetIn({ V, pushAudit }) {
         { key: 'import', label: '批量导入', children: importView },
         { key: 'logs', label: `导入记录${logs.length ? `（${logs.length}）` : ''}`, children: logView },
       ]} />
+      {metaTarget && <Modal open width={680} title={`元信息 · ${metaTarget.tag_name}`} onCancel={() => setMetaTarget(null)} footer={<Space><Button onClick={() => setMetaTarget(null)}>关闭</Button>{metaTarget.status !== 'off' && <Button type="primary" onClick={() => { const a = metaTarget; setMetaTarget(null); editAsset(a) }}>编辑</Button>}</Space>}>
+        <div className="asset-meta-head">{statusTag(metaTarget.status)}<span>元信息完整度 <b>{completeness(metaTarget)}%</b></span><span className="asset-muted">最近更新 {metaTarget.updated} · {metaTarget.by}</span></div>
+        {['基础展示', '责任溯源', '密级'].map((g) => <section key={g} className="asset-meta-group"><h4>{g}</h4><dl>{FIELDS.filter((f) => f.group === g).map((f) => <div key={f.key}><dt>{f.label}</dt><dd className={String(metaTarget[f.key] ?? '').trim() ? '' : 'missing'}>{f.key === 'timeliness' ? (metaTarget.timeliness === '2' ? '2 · 实时' : '1 · 离线') : String(metaTarget[f.key] ?? '').trim() || '未填写'}</dd></div>)}{g === '密级' && <div><dt>最终生效密级</dt><dd>{metaTarget.effective_column_level ? <LevelChip level={metaTarget.effective_column_level} /> : '待分级'}</dd></div>}</dl></section>)}
+      </Modal>}
+      {gradeTarget && <Modal open title={`确认分级 · ${gradeTarget.tag_name}`} onCancel={() => setGradeTarget(null)} footer={<Space><Button onClick={() => setGradeTarget(null)}>取消</Button><Button type="primary" disabled={!grade.table} onClick={confirmGrade}>确认分级</Button></Space>}>
+        <div className="asset-grid">
+          <label className="asset-field"><span>表密级<i>*</i></span><select className="au-input" value={grade.table} onChange={(e) => setGrade((g) => ({ ...g, table: e.target.value }))}><option value="">请选择</option>{SECURITY.map((x) => <option key={x}>{x}</option>)}</select></label>
+          <label className="asset-field"><span>列密级</span><select className="au-input" value={grade.column} onChange={(e) => setGrade((g) => ({ ...g, column: e.target.value }))}><option value="">无单独列密级</option>{SECURITY.map((x) => <option key={x}>{x}</option>)}</select></label>
+        </div>
+        <p className="asset-muted">最终生效密级：{grade.table ? <LevelChip level={effectiveLevel(grade.table, grade.column)} /> : '选择表密级后计算'}。确认后资产进入「已上传」，等待平台审核上架。</p>
+      </Modal>}
+      {delTarget && <Modal open title={`删除资产 · ${delTarget.tag_name}`} onCancel={() => setDelTarget(null)} footer={<Space><Button onClick={() => setDelTarget(null)}>取消</Button><Button type="primary" onClick={confirmDelete}>确认删除</Button></Space>}>
+        <p>删除后该资产的登记信息将被移除，无法恢复。标签 ID：<code>{delTarget.tag_id}</code></p>
+      </Modal>}
       {offTarget && <Modal open title={`下线资产 · ${offTarget.tag_name}`} onCancel={() => { setOffTarget(null); setOffReason('') }} footer={<Space><Button onClick={() => { setOffTarget(null); setOffReason('') }}>取消</Button><Button type="primary" disabled={offReason.trim().length < 4} onClick={confirmOff}>确认下线</Button></Space>}>
-        <p className="asset-muted">下线后标签广场立即不再展示该标签。请填写下线原因（至少 4 个字）。</p>
+        <p className="asset-muted">下线后标签广场立即不再展示该标签，可在「已下线」中重新上架或删除。请填写下线原因（至少 4 个字）。</p>
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="如：上游表下线，口径停止维护" aria-label="下线原因" />
       </Modal>}
     </>

@@ -3017,3 +3017,25 @@ display: none
 
 .op-none{color:var(--au-text-4)}
 .ai-tag-meta{display:block;margin-top:2px;font-size:11px;color:var(--au-text-3)}
+/* 资产管理：状态页签、筛选、完整度、元信息 */
+.asset-status-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.asset-status-tabs button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--au-border);background:#fff;border-radius:16px;padding:4px 12px;font-size:13px;color:var(--au-text-2);cursor:pointer}
+.asset-status-tabs button b{min-width:18px;padding:0 5px;border-radius:9px;background:var(--au-fill-2);font-size:12px;text-align:center}
+.asset-status-tabs button.on{border-color:var(--au-primary);color:var(--au-primary);background:var(--au-primary-light)}
+.asset-status-tabs button.on b{background:#fff;color:var(--au-primary)}
+.asset-filters{display:flex;gap:10px;margin-bottom:4px}
+.asset-filters input{flex:1;max-width:360px}.asset-filters select{width:180px}
+.asset-name{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--au-text-1);cursor:pointer;text-align:left}
+.asset-name:hover{color:var(--au-primary)}
+.asset-complete.ok{color:var(--au-success)}.asset-complete.mid{color:var(--au-warning)}.asset-complete.low{color:var(--au-danger)}
+.asset-ops{display:flex;flex-wrap:wrap;gap:6px}
+.asset-rules{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--au-primary-light);color:var(--au-text-2);font-size:12px;line-height:1.7}
+.asset-meta-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+.asset-meta-group{border:1px solid var(--au-border);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.asset-meta-group h4{margin:0 0 6px;font-size:13px;color:var(--au-primary)}
+.asset-meta-group dl{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+.asset-meta-group dl div{display:flex;gap:8px;font-size:12px;min-width:0}
+.asset-meta-group dt{flex:none;width:92px;color:var(--au-text-3)}
+.asset-meta-group dd{margin:0;color:var(--au-text-1);word-break:break-all}
+.asset-meta-group dd.missing{color:var(--au-danger)}
+.asset-ops{flex-wrap:nowrap;gap:0;white-space:nowrap}.asset-ops .au-btn{padding-left:6px;padding-right:6px}
