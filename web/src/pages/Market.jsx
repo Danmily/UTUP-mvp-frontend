@@ -167,9 +167,9 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
             showIcon
             message={
               <span>
-                你有 {expiring.soon.length} 个标签即将到期、{expiring.gone.length} 个已过期，过期后相关实验与投放会中断。
+                您有 {expiring.soon.length} 个标签即将到期、{expiring.gone.length} 个标签已过期，过期后会影响您的相关使用体验
                 {goMyPerm && (
-                  <Button type="link" size="small" onClick={goMyPerm}>去我的申请处理 →</Button>
+                  <Button type="link" size="small" style={{ marginLeft: 8 }} onClick={goMyPerm}>去我的申请处理 →</Button>
                 )}
               </span>
             }
