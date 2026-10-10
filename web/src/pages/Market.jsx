@@ -198,7 +198,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           {searchMode==='ai' ? (
             <Input
               prefix="✦"
-              placeholder="描述业务场景，回车后在右侧推荐标签组合，例如：召回近 60 天没有下单的美妆老客"
+              placeholder="描述业务需求，回车后在右侧推荐标签，例如：想看用户的消费能力，用哪些标签？"
               value={aiDraft}
               onChange={setAiDraft}
               onPressEnter={runSideSearch}
@@ -402,7 +402,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       </Card>
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
       </>}
-      {aiVariant==='B'&&aiPanel&&<Modal open placement="right" width={560} title="✦ AI 推荐标签组合" onCancel={()=>setAiPanel(false)} footer={<div className="pending-list-footer"><span>挑好的标签加入{BASKET}，最后统一申请</span><Space><Button onClick={()=>setAiPanel(false)}>关闭</Button><Button type="primary" onClick={()=>{setAiPanel(false);setView('basket')}}>查看{BASKET}（{pendingTags.length}）</Button></Space></div>}>
+      {aiVariant==='B'&&aiPanel&&<Modal open placement="right" width={560} title="✦ AI 推荐标签" onCancel={()=>setAiPanel(false)} footer={<div className="pending-list-footer"><span>挑好的标签加入{BASKET}，最后统一申请</span><Space><Button onClick={()=>setAiPanel(false)}>关闭</Button><Button type="primary" onClick={()=>{setAiPanel(false);setView('basket')}}>查看{BASKET}（{pendingTags.length}）</Button></Space></div>}>
         <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={addQuiet} onOpen={openTag}/>}</AiSidePanel>
       </Modal>}
       {batchMode && sel.length>0 && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Space><Button onClick={exitBatch}>取消选择</Button><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button></Space></div><div className="selection-spacer"/></>}

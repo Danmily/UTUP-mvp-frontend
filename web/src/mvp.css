@@ -3016,3 +3016,4 @@ display: none
 .basket-off{display:inline-flex;flex-direction:column;gap:2px}.basket-off small{color:#b54708;font-size:12px}
 
 .op-none{color:var(--au-text-4)}
+.ai-tag-meta{display:block;margin-top:2px;font-size:11px;color:var(--au-text-3)}
