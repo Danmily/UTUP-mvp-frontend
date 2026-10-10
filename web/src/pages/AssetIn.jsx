@@ -151,17 +151,17 @@ export default function AssetIn({ V, pushAudit }) {
       <div className="asset-status-tabs" role="tablist">{STATUS_TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={statusTab === k} className={statusTab === k ? 'on' : ''} onClick={() => { setStatusTab(k); setPage(1) }}>{l}<b>{counts[k]}</b></button>)}</div>
       <div className="asset-filters">
         <input className="au-input" placeholder="搜索标签名 / 标签 ID / Owner Team" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} aria-label="搜索资产" />
-        <select className="au-input" value={src} onChange={(e) => { setSrc(e.target.value); setPage(1) }} aria-label="来源域"><option value="">全部来源域</option>{SOURCES.map((x) => <option key={x}>{x}</option>)}</select>
+        <select className="au-input" value={src} onChange={(e) => { setSrc(e.target.value); setPage(1) }} aria-label="所属域"><option value="">全部所属域</option>{SOURCES.map((x) => <option key={x}>{x}</option>)}</select>
       </div>
       <table className="asset-table">
-        <thead><tr><th>标签</th><th>来源域</th><th>统一分级</th><th>表 / 列密级</th><th>Owner Team</th><th>元信息完整度</th><th>状态</th><th>操作</th></tr></thead>
+        <thead><tr><th>标签</th><th>所属域</th><th>统一分级</th><th>表 / 列密级</th><th>Owner Team</th><th>元信息完整度</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>{pageRows.map((a) => { const c = completeness(a); return (
           <tr key={a.tag_id}>
             <td><button type="button" className="asset-name" onClick={() => setMetaTarget(a)}>{a.tag_name}</button><small>{a.tag_id}</small></td>
             <td>{a.source_system}</td>
             <td>{a.effective_column_level ? <LevelChip level={a.effective_column_level} /> : <Tag color="warning">待分级</Tag>}</td>
             <td>{a.table_security || '—'} / {a.column_security_level || '—'}{a.column_security_level && a.effective_column_level !== a.table_security && <small className="asset-up">列密级升档</small>}</td>
-            <td>{a.owner_team}<small>{a.owner}</small></td>
+            <td>{a.owner_team || '—'}<small>{a.owner}</small></td>
             <td><b className={`asset-complete ${c === 100 ? 'ok' : c >= 80 ? 'mid' : 'low'}`}>{c}%</b></td>
             <td>{statusTag(a.status)}{a.status === 'off' && a.offReason && <small>{a.offReason}</small>}</td>
             <td className="asset-ops">

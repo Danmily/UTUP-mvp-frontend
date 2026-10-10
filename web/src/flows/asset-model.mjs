@@ -20,8 +20,8 @@ export const FIELDS = [
   { key: 'timeliness', label: '时效类型', group: '基础展示', required: true, hint: '1 = 离线，2 = 实时', example: '1' },
   { key: 'update_freq', label: '更新频率', group: '基础展示', required: false, hint: '离线必填 T+1 / T+7；实时自动为「实时」', example: 'T+1' },
   { key: 'owner', label: 'Owner（个人）', group: '责任溯源', required: true, hint: '飞书账号，如 @zhangsan', example: '@zhangsan' },
-  { key: 'owner_team', label: 'Owner Team', group: '责任溯源', required: true, hint: '', example: '电商 DMP 团队' },
-  { key: 'source_system', label: '上游系统 / 来源域', group: '责任溯源', required: true, hint: SOURCES.join(' / '), example: '电商DMP' },
+  { key: 'owner_team', label: 'Owner Team', group: '责任溯源', required: false, hint: '可不填', example: '电商 DMP 团队' },
+  { key: 'source_system', label: '所属域', group: '责任溯源', required: true, hint: SOURCES.join(' / '), example: '电商DMP' },
   { key: 'source_table', label: '来源表', group: '责任溯源', required: true, hint: '库名.表名', example: 'ecom_dmp.dwd_user_order_di' },
   { key: 'source_field', label: '来源字段', group: '责任溯源', required: true, hint: '来源表中存在的字段', example: 'order_cate_seq' },
   { key: 'table_security', label: '表密级', group: '密级', required: false, hint: SECURITY.join(' / ') + '；暂不确定可留空，提交后进入「待分级」', example: '受控' },
@@ -41,7 +41,7 @@ export const DEMO_TABLES = {
 }
 
 /* 元信息完整度：基础展示、责任溯源、表密级中已填写的比例（列密级可选，不计入） */
-const COMPLETE_KEYS = ['tag_id', 'tag_name', 'description', 'coverage', 'timeliness', 'update_freq', 'owner', 'owner_team', 'source_system', 'source_table', 'source_field', 'table_security']
+const COMPLETE_KEYS = ['tag_id', 'tag_name', 'description', 'coverage', 'timeliness', 'update_freq', 'owner', 'source_system', 'source_table', 'source_field', 'table_security']
 export function completeness(a) { return Math.round((COMPLETE_KEYS.filter((k) => String(a[k] ?? '').trim()).length / COMPLETE_KEYS.length) * 100) }
 export function effectiveLevel(table, column) {
   const t = SECURITY.indexOf(table), c = SECURITY.indexOf(column)
@@ -112,7 +112,7 @@ export function validateAsset(input, { existing = [], dupIds = [] } = {}) {
   }
   if (a.owner && !/^@[A-Za-z][\w.-]*$/.test(a.owner)) errors.push('Owner 需为飞书账号格式，如 @zhangsan')
   else if (a.owner && !DEMO_OWNERS.includes(a.owner)) errors.push(`Owner ${a.owner} 不是有效账号`)
-  if (a.source_system && !SOURCES.includes(a.source_system)) errors.push(`来源域需为：${SOURCES.join(' / ')}`)
+  if (a.source_system && !SOURCES.includes(a.source_system)) errors.push(`所属域需为：${SOURCES.join(' / ')}`)
   if (a.source_table && !/^\w+\.\w+$/.test(a.source_table)) errors.push('来源表需为「库名.表名」格式')
   else if (a.source_table && !DEMO_TABLES[a.source_table]) errors.push(`来源表 ${a.source_table} 不存在`)
   else if (a.source_table && a.source_field && !DEMO_TABLES[a.source_table].includes(a.source_field)) errors.push(`来源表中没有字段 ${a.source_field}`)

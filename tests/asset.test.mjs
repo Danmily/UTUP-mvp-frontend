@@ -52,3 +52,7 @@ test('template carries 必填 / 条件必填 / 选填 rows that the importer ski
   assert.equal(needOf(FIELDS.find((f) => f.key === 'update_freq')), '条件必填')
   assert.equal(needOf(FIELDS.find((f) => f.key === 'column_security_level')), '选填')
 })
+test('owner team is optional and 所属域 is the required domain field', () => {
+  assert.equal(validateAsset({ ...ok, owner_team: '' }).errors.length, 0)
+  assert.match(validateAsset({ ...ok, source_system: '' }).errors.join(), /所属域必填/)
+})

@@ -260,7 +260,7 @@ flowchart TB
 | 分组 | 字段 |
 |---|---|
 | 基础展示 | `tag_id`、`tag_name`、`description`、`coverage`、`timeliness`（1 离线 / 2 实时）、`update_freq` |
-| 责任溯源 | `owner`、`owner_team`、`source_system`、`source_table`、`source_field` |
+| 责任溯源 | `owner`、`owner_team`（选填）、`source_system`（所属域）、`source_table`、`source_field` |
 | 密级与状态 | `table_security`、`column_security_level`、`effective_column_level`（系统计算）、`status`（online / off） |
 
 **规则**
