@@ -24,7 +24,7 @@ export const FIELDS = [
   { key: 'source_system', label: '所属域', group: '表单归属', required: true, hint: SOURCES.join(' / '), example: '电商DMP' },
   { key: 'source_table', label: '来源表', group: '表单归属', required: true, hint: '库名.表名', example: 'ecom_dmp.dwd_user_order_di' },
   { key: 'source_field', label: '来源字段', group: '表单归属', required: true, hint: '来源表中存在的字段', example: 'order_cate_seq' },
-  { key: 'table_security', label: '表密级', group: '密级', required: false, hint: SECURITY.join(' / ') + '；暂不确定可留空，提交后进入「待分级」', example: '受控' },
+  { key: 'table_security', label: '表密级', group: '密级', required: false, hint: '开放/L2 / 通用/L3基础 / 受控/L3高 / 高敏/L4（填写四档简称即可）；暂不确定可留空，提交后进入「待分级」', example: '受控' },
   { key: 'column_security_level', label: '列密级', group: '密级', required: false, hint: '有单独列密级时填写，否则留空', example: '' },
 ]
 

@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Modal, Space, Tabs, Tag, message } from '@ecom/aurora'
-import { TAGS, nowStamp } from '../data.js'
+import { TAGS, nowStamp, levelLabel } from '../data.js'
+/* 密级下拉显示全称（如「受控/L3高」），值仍存四档简称 */
+const SECURITY_OPTS = SECURITY.map((x) => ({ v: x, l: levelLabel(x) }))
 import { LevelChip } from '../mvp-ui.jsx'
 import {
   FIELDS, SECURITY, SOURCES, FREQ_OFFLINE, STATUS_LABEL, MAX_ROWS, DEMO_OWNERS, DEMO_TABLES,
@@ -204,8 +206,8 @@ export default function AssetIn({ V, pushAudit }) {
         {field('source_field', form.source_table && DEMO_TABLES[form.source_table] ? select('source_field', DEMO_TABLES[form.source_table], '请选择字段') : input('source_field'))}
       </div></section>
       <section className="asset-group"><h4><b>3</b>密级</h4><div className="asset-grid">
-        {field('table_security', select('table_security', SECURITY, '暂不确定（提交后进入待分级）'))}
-        {field('column_security_level', select('column_security_level', SECURITY, '无单独列密级'))}
+        {field('table_security', select('table_security', SECURITY_OPTS, '暂不确定（提交后进入待分级）'))}
+        {field('column_security_level', select('column_security_level', SECURITY_OPTS, '无单独列密级'))}
         <div className="asset-field"><span>最终生效密级（系统计算）</span><div className="asset-eff">{eff ? <LevelChip level={eff} /> : <span className="asset-muted">选择表密级后自动计算</span>}{eff && form.column_security_level && eff !== form.table_security && <small className="asset-up">列密级高于表密级，已升档</small>}</div><small>取表密级与列密级中较高的一级</small></div>
       </div></section>
       <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
@@ -273,8 +275,8 @@ export default function AssetIn({ V, pushAudit }) {
       </Modal>}
       {gradeTarget && <Modal open title={`确认分级 · ${gradeTarget.tag_name}`} onCancel={() => setGradeTarget(null)} footer={<Space><Button onClick={() => setGradeTarget(null)}>取消</Button><Button type="primary" disabled={!grade.table} onClick={confirmGrade}>确认分级</Button></Space>}>
         <div className="asset-grid">
-          <label className="asset-field"><span>表密级<i>*</i></span><select className="au-input" value={grade.table} onChange={(e) => setGrade((g) => ({ ...g, table: e.target.value }))}><option value="">请选择</option>{SECURITY.map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="asset-field"><span>列密级</span><select className="au-input" value={grade.column} onChange={(e) => setGrade((g) => ({ ...g, column: e.target.value }))}><option value="">无单独列密级</option>{SECURITY.map((x) => <option key={x}>{x}</option>)}</select></label>
+          <label className="asset-field"><span>表密级<i>*</i></span><select className="au-input" value={grade.table} onChange={(e) => setGrade((g) => ({ ...g, table: e.target.value }))}><option value="">请选择</option>{SECURITY_OPTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></label>
+          <label className="asset-field"><span>列密级</span><select className="au-input" value={grade.column} onChange={(e) => setGrade((g) => ({ ...g, column: e.target.value }))}><option value="">无单独列密级</option>{SECURITY_OPTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></label>
         </div>
         <p className="asset-muted">最终生效密级：{grade.table ? <LevelChip level={effectiveLevel(grade.table, grade.column)} /> : '选择表密级后计算'}。确认后资产进入「已上传」，等待平台审核上架。</p>
       </Modal>}
