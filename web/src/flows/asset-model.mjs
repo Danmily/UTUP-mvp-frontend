@@ -1,5 +1,8 @@
 /* 资产接入模型（对应 docs/门户V2功能说明.md 3.2）：字段、联动规则、批量导入校验。纯函数，便于测试 */
 export const SECURITY = ['开放', '通用', '受控', '高敏'] // 从低到高
+/* 填写要求：必填 / 条件必填（满足条件时必填）/ 选填 */
+export const needOf = (f) => (f.required ? '必填' : f.key === 'update_freq' ? '条件必填' : '选填')
+export const needNote = (f) => (f.key === 'update_freq' ? '离线（timeliness=1）时必填；实时自动为「实时」' : f.key === 'table_security' ? '不填则进入「待分级」' : '')
 export const SOURCES = ['电商DMP', '生服LDMP', 'AI用户画像', '双域算法资产']
 export const FREQ_OFFLINE = ['T+1', 'T+7']
 /* 资产状态：待分级（缺表密级）→ 已上传（待审核）→ 已上架 → 已下线 */
@@ -71,7 +74,8 @@ export function parseCsv(text) {
   if (row.some((c) => c.trim())) rows.push(row)
   if (!rows.length) return { header: [], records: [] }
   const header = rows[0].map((h) => h.trim())
-  const records = rows.slice(1).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])))
+  /* 以 # 开头的行是模板里的说明行（填写要求、字段说明），解析时跳过 */
+  const records = rows.slice(1).filter((r) => !String(r[0] ?? '').trim().startsWith('#')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])))
   return { header, records }
 }
 const csvCell = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ''))
@@ -80,7 +84,9 @@ export function templateCsv() {
   const keys = FIELDS.map((f) => f.key)
   const sample = Object.fromEntries(FIELDS.map((f) => [f.key, f.example]))
   const realtime = { ...sample, tag_id: 'live_watch_rt', tag_name: '直播实时观看状态', description: '用户当前是否在直播间观看，秒级更新，用于实时触达', coverage: '35', timeliness: '2', update_freq: '', source_table: 'ecom_dmp.dwd_user_order_di', source_field: 'order_cnt_30d', table_security: '通用', column_security_level: '受控' }
-  return toCsv([sample, realtime], keys)
+  const need = Object.fromEntries(FIELDS.map((f, i) => [f.key, (i === 0 ? '#填写要求：' : '') + needOf(f)]))
+  const hint = Object.fromEntries(FIELDS.map((f, i) => [f.key, (i === 0 ? '#说明：' : '') + [f.label, f.hint, f.hint.includes('必填') ? '' : needNote(f)].filter(Boolean).join('；')]))
+  return toCsv([need, hint, sample, realtime], keys)
 }
 
 /* 单行校验：返回规范化后的资产、错误与提示。existing = 平台已有 tag_id；dupIds = 文件内重复的 tag_id */

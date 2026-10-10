@@ -3039,3 +3039,19 @@ display: none
 .asset-meta-group dd{margin:0;color:var(--au-text-1);word-break:break-all}
 .asset-meta-group dd.missing{color:var(--au-danger)}
 .asset-ops{flex-wrap:nowrap;gap:0;white-space:nowrap}.asset-ops .au-btn{padding-left:6px;padding-right:6px}
+/* 字段填写要求 */
+.asset-need{border:1px solid var(--au-border);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.asset-need h4{margin:0 0 8px;font-size:13px}
+.asset-need-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.asset-need-row>div{display:flex;flex-wrap:wrap;gap:6px}
+.asset-need-tag{flex:none;display:inline-block;font-size:11px;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.asset-need-tag.n-必填{background:var(--au-danger-light);color:var(--au-danger)}
+.asset-need-tag.n-条件必填{background:var(--au-warning-light);color:var(--au-warning)}
+.asset-need-tag.n-选填{background:var(--au-fill-2);color:var(--au-text-3)}
+.asset-need-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--au-border);border-radius:12px;padding:2px 8px;background:#fff}
+.asset-need-chip code{font-size:11px;color:var(--au-primary)}
+.asset-need-chip em{font-style:normal;color:var(--au-text-3)}
+.asset-need .asset-spec{margin:8px 0 0}
+.asset-need-inline{font-style:normal;font-size:11px;margin-left:6px;border-radius:4px;padding:0 5px}
+.asset-need-inline.n-选填{background:var(--au-fill-2);color:var(--au-text-3)}
+.asset-need-inline.n-条件必填{background:var(--au-warning-light);color:var(--au-warning)}

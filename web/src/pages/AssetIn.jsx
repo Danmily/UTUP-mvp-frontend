@@ -5,7 +5,7 @@ import { LevelChip } from '../mvp-ui.jsx'
 import {
   FIELDS, SECURITY, SOURCES, FREQ_OFFLINE, STATUS_LABEL, MAX_ROWS, DEMO_OWNERS, DEMO_TABLES,
   effectiveLevel, freqText, parseCsv, templateCsv, toCsv, validateAsset, validateImport, missingColumns,
-  completeness, normalizeStatus, statusAfterSubmit,
+  completeness, normalizeStatus, statusAfterSubmit, needOf, needNote,
 } from '../flows/asset-model.mjs'
 
 /* 资产接入（V2 · 3.2）：标签资产的上传、分级、审核上架、下线与增删改查；演示数据存于浏览器 */
@@ -185,7 +185,7 @@ export default function AssetIn({ V, pushAudit }) {
   const eff = effectiveLevel(form.table_security, form.column_security_level)
   const input = (k, props = {}) => <input className="au-input" id={`asset-${k}`} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder={FIELDS.find((f) => f.key === k)?.example ? '如 ' + FIELDS.find((f) => f.key === k).example : ''} {...props} />
   const select = (k, opts, empty) => <select className="au-input" id={`asset-${k}`} value={form[k]} onChange={(e) => set(k, e.target.value)}>{empty && <option value="">{empty}</option>}{opts.map((o) => <option key={o.v ?? o} value={o.v ?? o}>{o.l ?? o}</option>)}</select>
-  const field = (k, el, wide) => { const f = FIELDS.find((x) => x.key === k); return <label className={`asset-field${wide ? ' wide' : ''}`} htmlFor={`asset-${k}`}><span>{f.label}{f.required && <i>*</i>}</span>{el}{f.hint && <small>{f.hint}</small>}</label> }
+  const field = (k, el, wide) => { const f = FIELDS.find((x) => x.key === k); return <label className={`asset-field${wide ? ' wide' : ''}`} htmlFor={`asset-${k}`}><span>{f.label}{f.required ? <i>*</i> : <em className={`asset-need-inline n-${needOf(f)}`}>{needOf(f)}</em>}</span>{el}{f.hint && <small>{f.hint}</small>}</label> }
   const formView = (
     <Card title={editing ? `编辑资产 · ${editing}` : '单个录入'} extra={<Button onClick={() => setTab('list')}>返回列表</Button>}>
       {formResult?.errors.length > 0 && <Alert type="error" message="请先修正以下问题" description={formResult.errors.join('；')} />}
@@ -218,11 +218,16 @@ export default function AssetIn({ V, pushAudit }) {
   const importView = (
     <Card title="批量导入" extra={<Button onClick={() => setTab('list')}>返回列表</Button>}>
       <ol className="asset-steps">
-        <li><b>1</b><div><strong>下载模板</strong><p>列名即字段名，含填写说明与示例行</p><Button size="small" onClick={() => download('资产导入模板.csv', templateCsv())}>下载导入模板</Button></div></li>
+        <li><b>1</b><div><strong>下载模板</strong><p>第 1 行为列名；第 2、3 行是「填写要求」和「字段说明」（以 # 开头，导入时自动跳过）；之后是示例行</p><Button size="small" onClick={() => download('资产导入模板.csv', templateCsv())}>下载导入模板</Button></div></li>
         <li><b>2</b><div><strong>填写并上传</strong><p>一行一个标签，CSV 格式，单次最多 {MAX_ROWS} 行</p><Space><Button size="small" type="primary" onClick={() => fileRef.current?.click()}>上传 CSV</Button><Button size="small" onClick={demoFile}>用演示文件试试</Button></Space><input ref={fileRef} type="file" accept=".csv" hidden onChange={onFile} /></div></li>
         <li><b>3</b><div><strong>校验、修正、提交</strong><p>以标签 ID 识别新增 / 更新；通过的行可先提交，错误行留下修正</p></div></li>
       </ol>
-      <details className="asset-spec"><summary>查看字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>必填</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td>{f.required ? '是' : f.key === 'update_freq' ? '离线必填' : '否'}</td><td>{f.hint}</td></tr>)}<tr><td><code>effective_column_level</code></td><td>最终生效密级</td><td>—</td><td>系统计算，文件中填写会被忽略</td></tr></tbody></table></details>
+      <section className="asset-need">
+        <h4>字段填写要求</h4>
+        {['必填', '条件必填', '选填'].map((n) => <div key={n} className="asset-need-row"><span className={`asset-need-tag n-${n}`}>{n}</span><div>{FIELDS.filter((f) => needOf(f) === n).map((f) => <span key={f.key} className="asset-need-chip" title={f.hint}><code>{f.key}</code>{f.label}{needNote(f) && <em>（{needNote(f)}）</em>}</span>)}</div></div>)}
+        <p className="asset-muted">必填字段为空的行会被标为错误，不能提交；<code>effective_column_level</code> 由系统计算，不需要填写。</p>
+        <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}<tr><td><code>effective_column_level</code></td><td>最终生效密级</td><td>无需填写</td><td>系统计算，文件中填写会被忽略</td></tr></tbody></table></details>
+      </section>
       {fileError && <Alert type="warning" message={fileError} />}
       {rows && <>
         <div className="asset-result-bar"><span>{fileName} · 共 {rows.length} 行：<b className="ok">✅ 新增 {okRows.filter((r) => r.action === 'create').length}</b><b className="up">🔄 更新 {okRows.filter((r) => r.action === 'update').length}</b><b className="bad">❌ 错误 {badRows.length}</b></span>
