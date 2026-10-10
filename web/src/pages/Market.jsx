@@ -158,7 +158,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <div className="ai-variant-switch" role="group" aria-label="AI 智能检索方案对比"><span>评审对比 · 智能检索入口</span>{[['A','方案 A 独立入口'],['B','方案 B 搜索切换']].map(([k,l])=><button key={k} type="button" className={aiVariant===k?'on':''} aria-pressed={aiVariant===k} onClick={()=>chooseVariant(k)}>{l}</button>)}</div>
       </div>
       {view==='ai'&&aiVariant==='A' ? (
-        <AiSearchPage ai={ai} renderRec={rec=><AiRecommendation V={V} myapply={myapply} rec={rec} pending={pending} onAdd={addQuiet} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')} onBasket={()=>setView('basket')}/>}/>
+        <AiSearchPage ai={ai} renderRec={rec=><AiRecommendation V={V} myapply={myapply} rec={rec} pending={pending} onAdd={addQuiet} onOpen={openTag} onBasket={()=>setView('basket')}/>}/>
       ) : view==='basket' ? basketPage() : <>
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
@@ -340,10 +340,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                 width: 150,
                 render: (v, r) => (
                   isActive(livePerm(r.id)) ? (
-                    <Button type="link" size="small" className="asset-use-link"
-                      onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
-                      去使用
-                    </Button>
+                    <span className="op-none">—</span>
                   ) : selectable(r) ? (
                     <span onClick={(e) => e.stopPropagation()}>
                       {pending.includes(r.id)
@@ -371,7 +368,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                     + (batchMode && !canSel && !pending.includes(c.id) && state.code !== 'active' ? ' is-disabled' : '')}
                   onClick={() => (batchMode ? canSel && toggleSel(c.id) : openTag(c.id))}
                 >
-                  {/* 角标只有斜挂的蓝色「已申请」；右下角只给已有权限的「去使用」，不放「查看详情」（点卡片即看详情） */}
+                  {/* 角标只有斜挂的蓝色「已申请」；右下角不放操作（有权限的标签不做跳转）（点卡片即看详情） */}
                   {applied && <span className="tc-ribbon">已申请</span>}
                   <div className="tc-top">
                     {/* 外层只拦截冒泡（避免打开详情），勾选交给 Checkbox 自己，
@@ -396,12 +393,6 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
                   {batchMode&&!canSel&&!pending.includes(c.id)&&state.code!=='active'&&<p className="selection-reason">{state.reason}</p>}
                   <div className="tc-foot">
                     <span>{c.src} · 更新 {c.freq}</span>
-                    {state.code === 'active' ? (
-                      <Button type="link" size="small" className="asset-use-link"
-                        onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}>
-                        去使用
-                      </Button>
-                    ) : null}
                   </div>
                 </div>
               )
@@ -412,7 +403,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       <div className="market-pagination"><span>共 {list.length} 个标签 · 第 {currentPage} / {pageCount} 页</span><Space><Button disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>上一页</Button><Button disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>下一页</Button></Space></div>
       </>}
       {aiVariant==='B'&&aiPanel&&<Modal open placement="right" width={560} title="✦ AI 推荐标签组合" onCancel={()=>setAiPanel(false)} footer={<div className="pending-list-footer"><span>挑好的标签加入{BASKET}，最后统一申请</span><Space><Button onClick={()=>setAiPanel(false)}>关闭</Button><Button type="primary" onClick={()=>{setAiPanel(false);setView('basket')}}>查看{BASKET}（{pendingTags.length}）</Button></Space></div>}>
-        <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={addQuiet} onOpen={openTag} onUse={()=>jumpExternal('风神平台', demo !== 'fail')}/>}</AiSidePanel>
+        <AiSidePanel key={ai.current?.query||'new'} ai={ai}>{ai.current&&<AiRecommendation V={V} myapply={myapply} rec={ai.current} pending={pending} onAdd={addQuiet} onOpen={openTag}/>}</AiSidePanel>
       </Modal>}
       {batchMode && sel.length>0 && <><div className="batch-bar selection-bar" role="region" aria-label="搜索结果批量选择"><div className="batch-info"><b>已选 {sel.length} 个标签</b><div className="selection-chips">{selTags.slice(0,2).map(t=><span key={t.id}>{t.name}<button aria-label={`取消选择 ${t.name}`} onClick={()=>toggleSel(t.id)}>×</button></span>)}{sel.length>2&&<small>等 {sel.length} 个标签</small>}</div></div><Space><Button onClick={exitBatch}>取消选择</Button><Button type="primary" disabled={!sel.length} onClick={()=>addPending(sel)}>加入{BASKET}（{sel.length}）</Button></Space></div><div className="selection-spacer"/></>}
       {view==='market'&&!(batchMode&&sel.length>0)&&<button type="button" className={`pending-list-launcher${batchMode?' above-batch':''}`} onClick={()=>setView('basket')} aria-label={`${BASKET}，${pendingTags.length} 个标签`}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 4h11v13H3V4h3m0 0V2h7v4H6V4ZM6 10h8m-8 4h8"/></svg><span>{BASKET}</span><b>{pendingTags.length}</b></button>}
@@ -468,9 +459,7 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            {active ? (
-              <Button type="link" className="asset-use-link" onClick={()=>jumpExternal('风神平台')}>去使用</Button>
-            ) : assetState(V,tag,applies).selectable ? (
+            {active ? null : assetState(V,tag,applies).selectable ? (
               <><Button onClick={inPending?onViewPending:onAdd}>{inPending?`已加入 · 查看${BASKET}`:`加入${BASKET}`}</Button><Button type="primary" onClick={onApply}>直接申请</Button></>
             ) : (
               <Button disabled>{assetState(V,tag,applies).label}</Button>

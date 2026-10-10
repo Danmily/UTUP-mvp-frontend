@@ -70,20 +70,11 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
       width: 150,
       render: (v, r) => (
         <Space size={4}>
-          {!isActive(r.perm) && <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setDetailId(r.tagId) }}>
+          <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setDetailId(r.tagId) }}>
             详情
-          </Button>}
-          {/* 生效中只给「去使用」；未生效 / 已过期才给「再次申请」 */}
-          {isActive(r.perm) ? (
-            <Button
-              type="link"
-              size="small"
-              className="asset-use-link"
-              onClick={(e) => { e.stopPropagation(); jumpExternal('风神平台', demo !== 'fail') }}
-            >
-              去使用
-            </Button>
-          ) : canReapply(V, r) ? (
+          </Button>
+          {/* 生效中不做跳转（各用户用数方式不同）；未生效 / 已过期才给「再次申请」 */}
+          {isActive(r.perm) ? null : canReapply(V, r) ? (
             <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); reapply(r.tagId) }}>
               再次申请
             </Button>
@@ -183,13 +174,8 @@ function PermDetail({ r, canReapply, onClose, onReapply }) {
           </Typography.Text>
           <Space>
             <Button onClick={onClose}>关闭</Button>
-            {/* 已申请且权限生效 → 去风神平台用数；尚未生效 → 去 Triton 看申请进度 */}
-            {active ? (
-              <Button type="link" className="asset-use-link"
-                onClick={() => { jumpExternal('风神平台'); onClose() }}>
-                去使用
-              </Button>
-            ) : (
+            {/* 权限生效不做跳转；尚未生效 → 去 Triton 看申请进度 */}
+            {active ? null : (
               <Button onClick={() => { jumpExternal('Triton 申请记录'); onClose() }}>
                 去 Triton 查看 →
               </Button>

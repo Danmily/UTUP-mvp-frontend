@@ -85,8 +85,8 @@ export function useAiSearch(V) {
 
 const ICON_SPARK = <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 1.5l2 5.6 5.6 2-5.6 2L10 16.7l-2-5.6-5.6-2 5.6-2z"/></svg>
 
-/* 推荐结果卡：两个方案共用；标签可查看详情、加入待选择清单或直接去使用 */
-export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUse, onBasket }) {
+/* 推荐结果卡：两个方案共用；标签可查看详情、加入待选择清单；已有权限的只标注「可使用」 */
+export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onBasket }) {
   const addable = (tag) => assetState(V, tag, myapply).selectable && !pending.includes(tag.id)
   const coreIds = (rec.groups.find((g) => g.key === 'core')?.items || []).map((x) => x.tag).filter(addable).map((t) => t.id)
   const inBasket = rec.groups.flatMap((g) => g.items).filter((x) => pending.includes(x.tag.id)).length
@@ -105,7 +105,7 @@ export function AiRecommendation({ V, myapply, rec, pending, onAdd, onOpen, onUs
                   <p>{reason}<span> · {tag.src}</span></p>
                 </div>
                 <div className="ai-tag-action">
-                  {st.code === 'active' ? <Button type="link" size="small" className="asset-use-link" onClick={onUse}>去使用</Button>
+                  {st.code === 'active' ? <span className="ai-tag-state">可使用</span>
                     : pending.includes(tag.id) ? <span className="ai-added">✓ 已加入</span>
                       : st.selectable ? <button type="button" className="ai-add" onClick={() => onAdd([tag.id])}>+ 加入清单</button>
                         : <span className="ai-tag-state">{st.label}</span>}
