@@ -196,7 +196,7 @@ export default function AssetIn({ V, pushAudit }) {
         {field('coverage', input('coverage'))}
         <div className="asset-field"><span>时效类型 / 更新频率<i>*</i></span><div className="asset-pair">{select('timeliness', [{ v: '1', l: '1 · 离线' }, { v: '2', l: '2 · 实时' }])}{form.timeliness === '2' ? <input className="au-input" value="实时" disabled aria-label="更新频率" /> : select('update_freq', FREQ_OFFLINE)}</div><small>实时标签的更新频率固定为「实时」；离线标签选 T+1 或 T+7</small></div>
       </div></section>
-      <section className="asset-group"><h4><b>2</b>责任溯源</h4><div className="asset-grid">
+      <section className="asset-group"><h4><b>2</b>表单归属</h4><div className="asset-grid">
         {field('owner', input('owner', { list: 'asset-owners' }))}
         {field('owner_team', input('owner_team'))}
         {field('source_system', select('source_system', SOURCES, '请选择来源域'))}
@@ -269,7 +269,7 @@ export default function AssetIn({ V, pushAudit }) {
       ]} />
       {metaTarget && <Modal open width={680} title={`元信息 · ${metaTarget.tag_name}`} onCancel={() => setMetaTarget(null)} footer={<Space><Button onClick={() => setMetaTarget(null)}>关闭</Button>{metaTarget.status !== 'off' && <Button type="primary" onClick={() => { const a = metaTarget; setMetaTarget(null); editAsset(a) }}>编辑</Button>}</Space>}>
         <div className="asset-meta-head">{statusTag(metaTarget.status)}<span>元信息完整度 <b>{completeness(metaTarget)}%</b></span><span className="asset-muted">最近更新 {metaTarget.updated} · {metaTarget.by}</span></div>
-        {['基础展示', '责任溯源', '密级'].map((g) => <section key={g} className="asset-meta-group"><h4>{g}</h4><dl>{FIELDS.filter((f) => f.group === g).map((f) => <div key={f.key}><dt>{f.label}</dt><dd className={String(metaTarget[f.key] ?? '').trim() ? '' : 'missing'}>{f.key === 'timeliness' ? (metaTarget.timeliness === '2' ? '2 · 实时' : '1 · 离线') : String(metaTarget[f.key] ?? '').trim() || '未填写'}</dd></div>)}{g === '密级' && <div><dt>最终生效密级</dt><dd>{metaTarget.effective_column_level ? <LevelChip level={metaTarget.effective_column_level} /> : '待分级'}</dd></div>}</dl></section>)}
+        {['基础展示', '表单归属', '密级'].map((g) => <section key={g} className="asset-meta-group"><h4>{g}</h4><dl>{FIELDS.filter((f) => f.group === g).map((f) => <div key={f.key}><dt>{f.label}</dt><dd className={String(metaTarget[f.key] ?? '').trim() ? '' : 'missing'}>{f.key === 'timeliness' ? (metaTarget.timeliness === '2' ? '2 · 实时' : '1 · 离线') : String(metaTarget[f.key] ?? '').trim() || '未填写'}</dd></div>)}{g === '密级' && <div><dt>最终生效密级</dt><dd>{metaTarget.effective_column_level ? <LevelChip level={metaTarget.effective_column_level} /> : '待分级'}</dd></div>}</dl></section>)}
       </Modal>}
       {gradeTarget && <Modal open title={`确认分级 · ${gradeTarget.tag_name}`} onCancel={() => setGradeTarget(null)} footer={<Space><Button onClick={() => setGradeTarget(null)}>取消</Button><Button type="primary" disabled={!grade.table} onClick={confirmGrade}>确认分级</Button></Space>}>
         <div className="asset-grid">

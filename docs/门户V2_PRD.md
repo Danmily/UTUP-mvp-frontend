@@ -176,7 +176,7 @@ flowchart LR
   S8 -->|重新提交| S6
 ```
 
-单个录入与批量导入共用同一套字段与校验，字段分三组：基础展示、责任溯源、密级与状态（明细见《门户V2功能说明》3.2）。
+单个录入与批量导入共用同一套字段与校验，字段分三组：基础展示、表单归属、密级与状态（明细见《门户V2功能说明》3.2）。
 
 ### 6.5 圈人 Agent
 
@@ -260,7 +260,7 @@ flowchart TB
 | 分组 | 字段 |
 |---|---|
 | 基础展示 | `tag_id`、`tag_name`、`description`、`coverage`、`timeliness`（1 离线 / 2 实时）、`update_freq` |
-| 责任溯源 | `owner`、`owner_team`（选填）、`source_system`（所属域）、`source_table`、`source_field` |
+| 表单归属 | `owner`、`owner_team`（选填）、`source_system`（所属域）、`source_table`、`source_field` |
 | 密级与状态 | `table_security`、`column_security_level`、`effective_column_level`（系统计算）、`status`（online / off） |
 
 **规则**
