@@ -256,3 +256,33 @@
 .qa-periodic-note{margin:4px 0 0 38px;font-size:12px;line-height:1.7;color:var(--qa-mute)}
 .qa-periodic-note code{font-family:inherit;color:var(--qa-sub)}
 .qa-on-badge{font-style:normal;font-size:11px;color:var(--qa-ok);background:#ecfdf3;border-radius:4px;padding:0 6px;margin-left:4px}
+
+/* 种子用户 */
+.qa-seed-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.qa-seed-add{display:inline-flex;align-items:center;gap:5px;border:1px dashed #c9b8ff;background:#fcfbff;color:var(--qa-accent)!important;border-radius:8px;padding:5px 12px;font-size:12px}
+.qa-seed-add em{font-style:normal;color:var(--qa-mute);font-size:11px}
+.qa-seed-add:hover{background:var(--qa-accent-bg)}
+.qa-seed-chip{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1px solid var(--qa-line);border-radius:10px;padding:8px 12px}
+.qa-seed-chip>div{flex:1;min-width:0;display:flex;flex-direction:column}
+.qa-seed-chip small{color:var(--qa-mute);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.qa-seed-ico{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--qa-accent-bg);color:var(--qa-accent);flex:none}
+.qa-seed-row{padding:4px}
+.qa-seed-row .qa-seed-chip{border:0;padding:4px 6px}
+.qa-warn{color:var(--qa-warn)!important;font-size:12px}
+.qa-modal-mask{position:absolute;inset:0;background:rgba(20,22,30,.35);display:grid;place-items:center;z-index:10;padding:16px}
+.qa-modal{width:min(560px,100%);max-height:100%;overflow:auto;background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.qa-modal header{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:4px}
+.qa-modal .qa-tabs{padding:8px 0 0}
+.qa-modal-body{padding:12px 0}
+.qa-modal-body textarea{width:100%;border:1px solid var(--qa-line);border-radius:8px;padding:8px 10px;font:inherit;resize:vertical}
+.qa-seed-drop{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px dashed #c9b8ff;border-radius:10px;padding:22px;cursor:pointer;background:#fcfbff;color:var(--qa-sub)}
+.qa-seed-drop input{display:none}
+.qa-seed-drop svg{width:22px;height:22px;color:var(--qa-accent)}
+.qa-seed-drop small{color:var(--qa-mute);font-size:12px}
+.qa-seed-packs{display:grid;gap:6px}
+.qa-seed-packs button{display:flex;flex-direction:column;align-items:flex-start;border:1px solid var(--qa-line);background:#fff;border-radius:8px;padding:8px 10px;text-align:left}
+.qa-seed-packs button.on{border-color:var(--qa-accent);background:#fbf9ff}
+.qa-seed-packs small{color:var(--qa-mute);font-size:12px}
+.qa-seed-sum{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;color:var(--qa-sub)}
+.qa-seed-sum b{color:var(--qa-ok)}
+.qa-modal footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}

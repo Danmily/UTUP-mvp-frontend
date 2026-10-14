@@ -46,3 +46,15 @@ test('SQL keeps exclusions as NOT EXISTS and any-of as OR', () => {
   assert.match(sql, /NOT EXISTS/)
   assert.match(sql, /\n\s+OR /)
 })
+
+test('seed parsing dedupes, skips headers and flags invalid ids; expand adds a condition', () => {
+  const p = M.parseSeeds('uid\n10001\n10002,10002\nbad id!\n10003')
+  assert.equal(p.count, 3); assert.equal(p.dup, 1); assert.equal(p.invalid, 2)
+  assert.ok(p.sample.every((x) => x.includes('****')))
+  assert.match(M.seedWarning({ ...p, purpose: 'expand' }), /至少 100/)
+  assert.equal(M.seedWarning({ ...p, purpose: 'check' }), '')
+  const t = M.newTask('召回美妆老客')
+  const base = M.buildConditions(t).length
+  t.seed = { ...p, purpose: 'check' }; assert.equal(M.buildConditions(t).length, base)
+  t.seed = { ...p, purpose: 'expand' }; assert.ok(M.buildConditions(t).some((c) => /种子扩展/.test(c.name)))
+})

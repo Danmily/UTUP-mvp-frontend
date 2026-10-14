@@ -91,6 +91,28 @@ const EXAMPLES = [
   ['跨域高价值', '圈出电商消费较低、但生服消费较高的潜在高价值用户'],
 ];
 
+/* 种子用户：可选输入。只保留数量与脱敏样例，不保存完整 ID 列表 */
+const SEED_MAX = 100000, SEED_MIN_EXPAND = 100;
+const SEED_PURPOSE = { check: '命中校验', expand: '相似扩展' };
+function parseSeeds(text) {
+  const parts = String(text || '').split(/[\s,，;；]+/).map((x) => x.trim()).filter(Boolean);
+  const header = /^(uid|user_?id|id|用户id)$/i;
+  const valid = new Set(); let dup = 0, invalid = 0;
+  for (const x of parts) {
+    if (header.test(x)) continue;
+    if (!/^[A-Za-z0-9_-]{4,64}$/.test(x)) { invalid++; continue; }
+    if (valid.has(x)) dup++; else valid.add(x);
+  }
+  const ids = [...valid];
+  const mask = (x) => x.slice(0, 2) + '****' + x.slice(-2);
+  return { count: Math.min(ids.length, SEED_MAX), over: Math.max(0, ids.length - SEED_MAX), dup, invalid, sample: ids.slice(0, 3).map(mask) };
+}
+function seedWarning(seed) {
+  if (!seed || !seed.count) return '没有识别到有效的用户 ID';
+  if (seed.purpose === 'expand' && seed.count < SEED_MIN_EXPAND) return `相似扩展建议至少 ${SEED_MIN_EXPAND} 个种子用户，当前 ${seed.count} 个，结果可能不稳定`;
+  return '';
+}
+function seedHitRate(task) { return task.seed ? 40 + (hash(task.id + task.seed.count) % 46) : null; }
 function detect(query) { return Object.keys(SCENES).find((k) => SCENES[k].match.test(query)); }
 function defaultAnswers(scene) {
   return Object.fromEntries(SCENES[scene].questions.map((q) => [q.id, q.options[q.pick || 0]]));
@@ -98,6 +120,7 @@ function defaultAnswers(scene) {
 function buildConditions(task) {
   const list = SCENES[task.scene].conditions(task.answers).map((c) => ({ ...c }));
   if (task.scope === 'narrow') list.push({ group: 'must', tag: null, name: '行为频次（平台规则）', value: '核心行为至少 2 次' });
+  if (task.seed && task.seed.purpose === 'expand') list.push({ group: 'must', tag: null, name: '相似人群（种子扩展）', value: `与 ${task.seed.count.toLocaleString('zh-CN')} 个种子用户相似度 Top 30%` });
   return list
     .filter((c) => !task.removed.includes(c.tag))
     .map((c) => {
@@ -141,12 +164,12 @@ function newTask(query) {
   const id = 'AUD-' + Date.now().toString(36).toUpperCase();
   return {
     id, scene, query, title: SCENES[scene].title, created: new Date().toISOString(), updated: new Date().toISOString(),
-    version: 1, answers: defaultAnswers(scene), scope: 'wide', target: null, seedCheck: false,
+    version: 1, answers: defaultAnswers(scene), scope: 'wide', target: null, seed: null,
     removed: [], swapped: {}, granted: [], result: null, reportReady: false, periodic: false,
     effects: [], saved: false, messages: [],
   };
 }
-const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask };
+const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask, parseSeeds, seedWarning, SEED_MAX };
 if (typeof module !== 'undefined' && module.exports) { module.exports = Model; return; }
 
 /* ---------------- 界面 ---------------- */
@@ -175,6 +198,7 @@ const ICON = {
 let host = null, options = {}, tasks = [], activeId = null, view = 'home', busy = false;
 let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: false }, toast = '';
 let page = 1, reportTimer = null, lastCount = 0;
+let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
 
 function load() { try { tasks = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { tasks = []; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch { /* 存储不可用时只保留在本次页面 */ } }
@@ -212,13 +236,15 @@ async function start(query) {
   const q = query.trim();
   if (!q || busy) return;
   const task = newTask(q);
+  task.seed = draftSeed; draftSeed = null;
   tasks.unshift(task); activeId = task.id; view = 'task'; draft = ''; panel = { open: false, tab: 'detail', full: false };
   busy = true;
-  push(task, { type: 'user', text: q });
+  push(task, { type: 'user', text: q + (task.seed ? `\n附带种子用户：${fmt(task.seed.count)} 个（${task.seed.name}）· 用途：${SEED_PURPOSE[task.seed.purpose]}` : '') });
   const ack = push(task, { type: 'ack', open: true, steps: [
     { title: '理解需求', detail: `识别为「${task.title}」，保留业务原话`, status: 'wait' },
     { title: '检索历史策略', detail: '检索可复用的历史圈人策略', status: 'wait' },
     { title: '匹配标签资产', detail: '从标签广场匹配可用于圈选的标签', status: 'wait' },
+    ...(task.seed ? [{ title: '读取种子用户', detail: `有效 ${fmt(task.seed.count)} 个，将与业务描述一起交给用户理解 Agent`, status: 'wait' }] : []),
   ] });
   await runSteps(task, ack, 'steps');
   ack.open = false;
@@ -258,10 +284,11 @@ async function execute(task) {
     analysis: [
       { title: '获取数据', detail: '按确认的条件读取标签表；通用级标签已自助开通', tables, tab: 'conditions', status: 'wait' },
       { title: '脚本分析', detail: '统计人群规模、消费分层、城市线级与年龄分布', tab: 'overview', status: 'wait' },
+      ...(task.seed ? [{ title: task.seed.purpose === 'expand' ? '种子相似扩展' : '种子命中校验', detail: task.seed.purpose === 'expand' ? `以 ${fmt(task.seed.count)} 个种子用户为参照，扩展相似人群` : `用 ${fmt(task.seed.count)} 个种子用户检验圈选结果的命中率`, tab: 'overview', status: 'wait' }] : []),
       { title: '报告生成', detail: '生成人群画像报告', tab: 'report', status: 'wait' },
     ] });
   await runSteps(task, msg, 'steps');
-  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), scope: task.scope, conds: buildConditions(task), sql: buildSql(task, buildConditions(task)) };
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), scope: task.scope, conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: task.seed ? { ...task.seed, hit: seedHitRate(task) } : null };
   task.reportReady = false;
   await runSteps(task, msg, 'analysis');
   msg.open = false; msg.openAnalysis = false;
@@ -326,12 +353,38 @@ function render() {
     <section class="qa-chat">${view === 'center' ? taskCenter() : view === 'task' && task ? chat(task) : home()}</section>
     ${showPanel ? resultPanel(task) : ''}
     ${toast ? `<div class="qa-toast" role="status">${esc(toast)}</div>` : ''}
+    ${seedModal ? seedModalView() : ''}
   </div>`;
   const s = host.querySelector('.qa-stream');
   if (s) s.scrollTop = stick ? s.scrollHeight : prevTop;
   if (focusId) { const n = host.querySelector('#' + focusId); if (n) { n.focus(); if (n.setSelectionRange && n.value) n.setSelectionRange(n.value.length, n.value.length); } }
 }
 
+function seedChip(seed, target) {
+  const warn = seedWarning(seed);
+  return `<div class="qa-seed-chip"><span class="qa-seed-ico">${ICON.people}</span><div><b>${fmt(seed.count)} 个种子用户</b><small>${esc(seed.source)} · ${esc(seed.name)} · 用途：${SEED_PURPOSE[seed.purpose]}${seed.sample?.length ? ' · 样例 ' + seed.sample.map(esc).join('、') : ''}</small>${warn ? `<small class="qa-warn">${esc(warn)}</small>` : ''}</div>${target ? `<button type="button" class="qa-link" data-act="seed-open" data-target="${target}">更换</button><button type="button" class="qa-link" data-act="seed-remove" data-target="${target}">移除</button>` : ''}</div>`;
+}
+function seedModalView() {
+  const m = seedModal, packs = tasks.filter((t) => t.result);
+  const p = m.parsed;
+  const body = m.tab === 'file'
+    ? `<label class="qa-seed-drop"><input type="file" id="qa-seed-file" accept=".csv,.txt">${ICON.task}<b>${m.fileName ? esc(m.fileName) : '选择 CSV / TXT 文件'}</b><small>每行一个用户 ID；首行可以是 uid / user_id 表头；最多 ${fmt(SEED_MAX)} 个</small></label>`
+    : m.tab === 'paste'
+      ? `<textarea id="qa-seed-text" rows="6" placeholder="粘贴用户 ID，支持换行、逗号或空格分隔">${esc(m.text)}</textarea>`
+      : (packs.length ? `<div class="qa-seed-packs">${packs.map((t) => `<button type="button" class="${m.packId === t.id ? 'on' : ''}" data-act="seed-pack" data-id="${t.id}"><b>${esc(t.title)}</b><small>${esc(t.result.packId)} · ${fmt(t.result.size)} 人 · V${t.result.version}</small></button>`).join('')}</div>` : '<p class="qa-muted">还没有已产出的人群包。先完成一次圈人，或改用上传 / 粘贴。</p>');
+  const summary = p ? `<div class="qa-seed-sum"><span>有效 <b>${fmt(p.count)}</b></span><span>重复 ${fmt(p.dup)}</span><span>格式不正确 ${fmt(p.invalid)}</span>${p.over ? `<span class="qa-warn">超出上限 ${fmt(p.over)}，已截断</span>` : ''}</div>` : '';
+  const warn = p ? seedWarning({ ...p, purpose: m.purpose }) : '';
+  return `<div class="qa-modal-mask"><div class="qa-modal" role="dialog" aria-label="添加种子用户">
+    <header><b>添加种子用户</b><button type="button" class="qa-icon-btn" data-act="seed-cancel" aria-label="关闭">×</button></header>
+    <p class="qa-muted">种子用户是你已经确认的一批目标用户，会和业务描述一起交给用户理解 Agent。系统只保留数量和脱敏样例。</p>
+    <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID'], ['pack', '已有人群包']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
+    <div class="qa-modal-body">${body}${summary}</div>
+    <div class="qa-card-title">用途</div>
+    <div class="qa-scope">${[['check', '命中校验', '用种子检验圈选结果覆盖了多少，不改变人群范围'], ['expand', '相似扩展', '以种子为参照扩展相似人群，会新增一条圈选条件']].map(([k, n, d]) => `<button type="button" class="${m.purpose === k ? 'on' : ''}" data-act="seed-purpose" data-v="${k}"><b>${n}</b><span>${d}</span></button>`).join('')}</div>
+    ${warn ? `<p class="qa-warn">${esc(warn)}</p>` : ''}
+    <footer><button type="button" class="qa-outline sm" data-act="seed-cancel">取消</button><button type="button" class="qa-primary" data-act="seed-confirm" ${p && p.count ? '' : 'disabled'}>确认添加</button></footer>
+  </div></div>`;
+}
 function sidebar() {
   const list = tasks.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>圈人</em></button>`).join('');
   return `<aside class="qa-side">
@@ -350,6 +403,7 @@ function home() {
   return `<div class="qa-home">
     <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>用一句话描述业务目标，我会追问关键口径、匹配标签、检查权限，并生成可复核的人群包。</p></div>
     ${composer('描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
+    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>可选</em></button><span class="qa-muted">已有一批目标用户？上传后可用于命中校验或相似扩展</span>`}</div>
     <div class="qa-examples">${EXAMPLES.map(([k, v]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}</b><span>${esc(v)}</span></button>`).join('')}</div>
     <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
@@ -410,8 +464,8 @@ function conditionsCard(task, m) {
     <div class="qa-card-title">${ICON.people}圈选口径</div>
     <div class="qa-scope">${[['wide', '宽口径', '保留全部业务条件，覆盖更完整'], ['narrow', '窄口径', '核心行为至少 2 次，意向更明确']].map(([k, n, d]) => `<button type="button" class="${task.scope === k ? 'on' : ''}" data-act="scope" data-v="${k}" ${live ? '' : 'disabled'}><b>${n}</b><span>${d}</span><em>约 ${size(k)} 人</em></button>`).join('')}</div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
-    <label class="qa-toggle-row"><span class="qa-switch ${task.seedCheck ? 'on' : ''}"><input type="checkbox" data-act="seed" ${task.seedCheck ? 'checked' : ''} ${live ? '' : 'disabled'}><i></i></span><b>种子人群校验</b></label>
-    <p class="qa-muted qa-indent">开启后用种子用户检验命中率，需要等待更长时间。</p>
+    <div class="qa-card-title">${ICON.people}种子用户<small>可选</small></div>
+    <div class="qa-cond qa-seed-row">${task.seed ? seedChip(task.seed, live ? 'task' : '') : `<span class="v qa-muted">未添加。添加后可用于命中校验或相似扩展</span>${live ? `<button type="button" class="qa-link" data-act="seed-open" data-target="task">＋ 添加种子用户</button>` : ''}`}</div>
     <div class="qa-card-foot">${live ? `<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button><button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
   </div>
   ${m.sql && live ? `<div class="qa-sql-inline"><div class="qa-card-title">${ICON.check}相关 SQL</div>${sqlBlock(buildSql(task, buildConditions(task)))}</div>` : ''}`;
@@ -433,7 +487,7 @@ function resultCard(task, m) {
   const stale = m.version !== task.result?.version;
   return `<p>我已按要求圈出 ${fmt(task.result && !stale ? task.result.size : 0)} 人。下方是人群结果和人群报告（报告异步产出，约 20 分钟），也可以前往<button type="button" class="qa-link" data-act="center">任务中心</button>管理任务。</p>
   <button type="button" class="qa-result" data-act="panel" data-tab="detail" ${stale ? 'disabled' : ''}>
-    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'} · ${(task.result?.scope || task.scope) === 'narrow' ? '窄口径' : '宽口径'} · V${m.version}</small>
+    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'}${!stale && task.result.seed?.purpose === 'check' ? ` · 种子命中率 ${task.result.seed.hit}%` : ''} · ${(task.result?.scope || task.scope) === 'narrow' ? '窄口径' : '宽口径'} · V${m.version}</small>
     <span class="qa-result-art"><i></i><i></i><i></i></span></button>
   <div class="qa-report-line">${ICON.clock}<span>人群报告 · ${task.reportReady && !stale ? '<b class="ok">已生成</b>' : '生成中'}</span>${!stale ? `<button type="button" class="qa-link" data-act="panel" data-tab="report">查看</button>` : ''}</div>`;
 }
@@ -472,7 +526,7 @@ function panelBody(task) {
   }
   if (panel.tab === 'overview') {
     const dims = [['消费分层', ['L5', 'L4', 'L3', 'L1–L2']], ['城市线级', ['一线', '新一线', '二线', '三线及以下']], ['年龄段', ['18–24', '25–30', '31–40', '40+']]];
-    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['圈选口径', scope === 'narrow' ? '窄口径' : '宽口径'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version]].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['圈选口径', scope === 'narrow' ? '窄口径' : '宽口径'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version], ...(r.seed ? [[r.seed.purpose === 'check' ? '种子命中率' : '种子用户', r.seed.purpose === 'check' ? r.seed.hit + '%' : fmt(r.seed.count) + ' 个 · 相似扩展']] : [])].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
       ${dims.map(([name, keys], d) => { const raw = keys.map((_, i) => 10 + ((h >> (i + d)) % 30)); const sum = raw.reduce((a, b) => a + b, 0); return `<section class="qa-dist"><h4>${name}</h4>${keys.map((k, i) => { const p = Math.round((raw[i] / sum) * 100); return `<div><span>${k}</span><i><b style="width:${p}%"></b></i><em>${p}%</em></div>`; }).join('')}</section>`; }).join('')}`;
   }
   if (panel.tab === 'conditions') {
@@ -508,7 +562,7 @@ async function onClick(e) {
   if (!el || !host.contains(el) || el.disabled) return;
   const act = el.dataset.act, task = current();
   const msg = task && el.dataset.msg ? task.messages.find((m) => m.id === el.dataset.msg) : null;
-  if (['seed', 'periodic'].includes(act) && e.target.tagName !== 'INPUT') return;
+  if (act === 'periodic' && e.target.tagName !== 'INPUT') return;
   switch (act) {
     case 'toggle-side': sidebarOpen = !sidebarOpen; break;
     case 'new': view = 'home'; activeId = null; panel.open = false; break;
@@ -522,7 +576,18 @@ async function onClick(e) {
     case 'clarify-ok': return confirmClarify(task, msg);
     case 'remove': task.removed.push(+el.dataset.tag); save(); break;
     case 'scope': task.scope = el.dataset.v; save(); break;
-    case 'seed': task.seedCheck = e.target.checked; save(); break;
+    case 'seed-open': { const cur = el.dataset.target === 'task' ? task.seed : draftSeed; seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null, purpose: cur?.purpose || 'check', packId: '' }; break; }
+    case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.packId = ''; break;
+    case 'seed-purpose': seedModal.purpose = el.dataset.v; break;
+    case 'seed-pack': { const t = tasks.find((x) => x.id === el.dataset.id); seedModal.packId = t.id; seedModal.parsed = { count: t.result.size, dup: 0, invalid: 0, over: 0, sample: [] }; seedModal.packName = `${t.title} · ${t.result.packId}`; break; }
+    case 'seed-cancel': seedModal = null; break;
+    case 'seed-confirm': {
+      const m = seedModal, p = m.parsed; if (!p || !p.count) return;
+      const seed = { ...p, purpose: m.purpose, source: m.tab === 'file' ? '文件上传' : m.tab === 'paste' ? '粘贴' : '已有人群包', name: m.tab === 'file' ? m.fileName : m.tab === 'paste' ? '手动粘贴' : m.packName };
+      if (m.target === 'task') { task.seed = seed; save(); } else draftSeed = seed;
+      seedModal = null; notify(`已添加 ${fmt(seed.count)} 个种子用户（${SEED_PURPOSE[seed.purpose]}）`); return;
+    }
+    case 'seed-remove': if (el.dataset.target === 'task') { task.seed = null; save(); } else draftSeed = null; break;
     case 'sql-preview': { const m = [...task.messages].reverse().find((x) => x.type === 'conditions'); m.sql = !m.sql; break; }
     case 'conditions-ok': return confirmConditions(task, msg);
     case 'perm-apply': return applyPermission(task, msg);
@@ -558,7 +623,14 @@ function send() {
 }
 function onInput(e) {
   if (e.target.id === 'qa-input') { draft = e.target.value; const b = host.querySelector('[data-act="send"]'); if (b) b.disabled = busy || !draft.trim(); }
+  if (e.target.id === 'qa-seed-text') { seedModal.text = e.target.value; seedModal.parsed = e.target.value.trim() ? parseSeeds(e.target.value) : null; render(); return; }
   if (e.target.id === 'qa-target') { const t = current(); const n = parseInt(e.target.value, 10); t.target = n > 0 ? n : null; save(); host.querySelectorAll('.qa-scope em').forEach((em, i) => { em.textContent = '约 ' + fmt(estimate(t, i ? 'narrow' : 'wide')) + ' 人'; }); }
+}
+async function onChange(e) {
+  if (e.target.id !== 'qa-seed-file' || !seedModal) return;
+  const f = e.target.files?.[0]; if (!f) return;
+  if (!/\.(csv|txt)$/i.test(f.name)) { notify('请上传 CSV 或 TXT 文件'); return; }
+  seedModal.fileName = f.name; seedModal.parsed = parseSeeds(await f.text()); render();
 }
 function onKey(e) {
   if (e.target.id === 'qa-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
@@ -576,6 +648,7 @@ root.AudienceWorkspace = {
     host.classList.add('qa-host');
     host.addEventListener('click', onClick);
     host.addEventListener('input', onInput);
+    host.addEventListener('change', onChange);
     host.addEventListener('keydown', onKey);
     host.addEventListener('toggle', onToggle, true);
     if (activeId && current()) view = 'task';
@@ -586,6 +659,7 @@ root.AudienceWorkspace = {
     if (!host) return;
     host.removeEventListener('click', onClick);
     host.removeEventListener('input', onInput);
+    host.removeEventListener('change', onChange);
     host.removeEventListener('keydown', onKey);
     host.removeEventListener('toggle', onToggle, true);
     host = null; busy = false;
