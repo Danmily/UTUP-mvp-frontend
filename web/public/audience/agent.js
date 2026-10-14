@@ -40,7 +40,6 @@ const SCENES = {
       { group: 'any', tag: 14578, value: '大促敏感度 高 / 中' },
       { group: 'exclude', tag: 14560, value: '退货退款率 高' },
     ],
-    cases: [['美妆沉默老客召回', '宽口径', '回访率 +3.4%', 'LR 文档 · 2026-06 美妆召回'], ['个护老客券包召回', '窄口径', '核销率 +5.2%，覆盖 -61%', 'LR 文档 · 2026-03 个护召回']],
   },
   local: {
     match: /到店|门店|火锅|商圈/, title: '火锅门店周边获客', base: 96000,
@@ -54,7 +53,6 @@ const SCENES = {
       { group: 'any', tag: 14612, value: '团购券核销率 ≥ 中' },
       { group: 'exclude', tag: 14580, value: '近 30 天已到店本门店' },
     ],
-    cases: [['商圈火锅新客获客', '窄口径', '到店核销 +1.8%', 'LR 文档 · 2026-07 生服到店']],
   },
   cross: {
     match: /跨域|高价值|双域/, title: '跨域潜在高价值用户', base: 153000,
@@ -66,7 +64,6 @@ const SCENES = {
       { group: 'must', tag: 14501, value: '电商消费分层 L1–L2' },
       { group: 'any', tag: 14606, value: a.level },
     ],
-    cases: [['电商低消、生服高消人群拉新', '宽口径', '跨域首单 +1.3%', 'LR 文档 · 2026-05 双域拉新']],
   },
   brand: {
     match: /./, title: '羽绒服新品推广人群', base: 268000,
@@ -81,7 +78,6 @@ const SCENES = {
       { group: 'any', tag: 14610, value: '羽绒服兴趣 ≥ 中' },
       { group: 'exclude', tag: 14560, value: '退货退款率 高' },
     ],
-    cases: [['秋冬服饰新品推广', '宽口径', '券核销率 +2.1%', 'LR 文档 · 2026-08 服饰秋上新'], ['羽绒服双 11 预热', '窄口径', '转化率 +4.6%，覆盖 -58%', 'LR 文档 · 2025-11 大促预热']],
   },
 };
 const EXAMPLES = [
@@ -119,7 +115,6 @@ function defaultAnswers(scene) {
 }
 function buildConditions(task) {
   const list = SCENES[task.scene].conditions(task.answers).map((c) => ({ ...c }));
-  if (task.scope === 'narrow') list.push({ group: 'must', tag: null, name: '行为频次（平台规则）', value: '核心行为至少 2 次' });
   if (task.seed && task.seed.purpose === 'expand') list.push({ group: 'must', tag: null, name: '相似人群（种子扩展）', value: `与 ${task.seed.count.toLocaleString('zh-CN')} 个种子用户相似度 Top 30%` });
   return list
     .filter((c) => !task.removed.includes(c.tag))
@@ -131,9 +126,8 @@ function buildConditions(task) {
     .filter(Boolean);
 }
 function hash(s) { let h = 7; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 100003; return h; }
-function estimate(task, scope = task.scope) {
+function estimate(task) {
   let n = SCENES[task.scene].base * (1 + (hash(task.id) % 13) / 100);
-  if (scope === 'narrow') n *= 0.38;
   if (Object.values(task.answers).some((v) => /30 天|3 公里|L4|180 天/.test(v))) n *= 0.6;
   n *= Math.pow(0.9, Object.keys(task.swapped).length);
   n = Math.round(n / 10) * 10;
@@ -155,7 +149,6 @@ function buildSql(task, conds) {
     if (c.group === 'exclude') lines.push(`  AND NOT EXISTS (SELECT 1 FROM ${TAGS[c.tag].table} x WHERE x.user_id = u.user_id AND x.label = '${c.value}')`);
   });
   if (any.length) lines.push(`  AND (${any.join('\n       OR ')})`);
-  if (task.scope === 'narrow') lines.push('  AND u.core_action_cnt >= 2');
   lines.push(`LIMIT  ${estimate(task)};`);
   return lines.join('\n');
 }
@@ -164,7 +157,7 @@ function newTask(query) {
   const id = 'AUD-' + Date.now().toString(36).toUpperCase();
   return {
     id, scene, query, title: SCENES[scene].title, created: new Date().toISOString(), updated: new Date().toISOString(),
-    version: 1, answers: defaultAnswers(scene), scope: 'wide', target: null, seed: null,
+    version: 1, answers: defaultAnswers(scene), target: null, seed: null,
     removed: [], swapped: {}, granted: [], result: null, reportReady: false, periodic: false,
     effects: [], saved: false, messages: [],
   };
@@ -288,7 +281,7 @@ async function execute(task) {
       { title: '报告生成', detail: '生成人群画像报告', tab: 'report', status: 'wait' },
     ] });
   await runSteps(task, msg, 'steps');
-  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), scope: task.scope, conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: task.seed ? { ...task.seed, hit: seedHitRate(task) } : null };
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: task.seed ? { ...task.seed, hit: seedHitRate(task) } : null };
   task.reportReady = false;
   await runSteps(task, msg, 'analysis');
   msg.open = false; msg.openAnalysis = false;
@@ -328,8 +321,6 @@ function modify(task, text) {
   let note = '已保留上一版条件，调整后请确认执行。';
   if (text) {
     push(task, { type: 'user', text });
-    if (/窄/.test(text)) { task.scope = 'narrow'; note = '已切换为窄口径。'; }
-    if (/宽/.test(text)) { task.scope = 'wide'; note = '已切换为宽口径。'; }
     const m = text.match(/(\d+(?:\.\d+)?)\s*(万)?\s*人/);
     if (m) { task.target = Math.round(parseFloat(m[1]) * (m[2] ? 10000 : 1)); note = `目标规模调整为 ${fmt(task.target)} 人。`; }
   }
@@ -423,7 +414,7 @@ function chat(task) {
       ${task.messages.map((m) => message(task, m)).join('')}
       ${busy ? '<div class="qa-typing"><i></i><i></i><i></i></div>' : ''}
     </div>
-    <div class="qa-bottom">${chips}${composer('您也可以用自然语言调整，例如：改成窄口径、目标规模 5 万人、排除近 7 天已触达用户', '发送')}</div>`;
+    <div class="qa-bottom">${chips}${composer('您也可以用自然语言调整，例如：目标规模 5 万人、观察窗口改成近 30 天', '发送')}</div>`;
 }
 
 function bot(inner) { return `<div class="qa-bot"><div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手</div>${inner}</div>`; }
@@ -457,12 +448,10 @@ function conditionsCard(task, m) {
   const live = !m.confirmed && m.version === task.version;
   const conds = buildConditions(task), lack = missingTags(task);
   const row = (c) => `<div class="qa-cond" title="${c.tag ? esc(TAGS[c.tag].table) : '平台规则'}"><span class="k">${esc(tagName(c))}</span><span class="v">${esc(c.value)}</span>${c.tag && lack.includes(c.tag) ? `<span class="qa-lock" title="暂无权限">${ICON.lock}</span>` : ''}${live && c.tag ? `<button type="button" class="qa-x" data-act="remove" data-tag="${c.tag}" aria-label="移除 ${esc(tagName(c))}">×</button>` : ''}</div>`;
-  const size = (s) => fmt(estimate(task, s));
   return `${m.note ? `<p>${esc(m.note)}</p>` : '<p>根据你的需求，整理出以下圈选条件：</p>'}
   <div class="qa-card qa-cond-card ${live ? '' : 'is-frozen'}">
     ${GROUPS.map(([g, label], i) => { const rows = conds.filter((c) => c.group === g); return rows.length ? `<div class="qa-card-title">${[ICON.cycle, ICON.filter, ICON.filter][i]}${label}<small>${g === 'must' ? 'AND' : g === 'any' ? 'OR' : 'NOT'}</small></div>${rows.map(row).join('')}` : ''; }).join('')}
-    <div class="qa-card-title">${ICON.people}圈选口径</div>
-    <div class="qa-scope">${[['wide', '宽口径', '保留全部业务条件，覆盖更完整'], ['narrow', '窄口径', '核心行为至少 2 次，意向更明确']].map(([k, n, d]) => `<button type="button" class="${task.scope === k ? 'on' : ''}" data-act="scope" data-v="${k}" ${live ? '' : 'disabled'}><b>${n}</b><span>${d}</span><em>约 ${size(k)} 人</em></button>`).join('')}</div>
+    <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted">（演示估算）</span></span></div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
     <div class="qa-card-title">${ICON.people}种子用户<small>可选</small></div>
     <div class="qa-cond qa-seed-row">${task.seed ? seedChip(task.seed, live ? 'task' : '') : `<span class="v qa-muted">未添加。添加后可用于命中校验或相似扩展</span>${live ? `<button type="button" class="qa-link" data-act="seed-open" data-target="task">＋ 添加种子用户</button>` : ''}`}</div>
@@ -487,7 +476,7 @@ function resultCard(task, m) {
   const stale = m.version !== task.result?.version;
   return `<p>我已按要求圈出 ${fmt(task.result && !stale ? task.result.size : 0)} 人。下方是人群结果和人群报告（报告异步产出，约 20 分钟），也可以前往<button type="button" class="qa-link" data-act="center">任务中心</button>管理任务。</p>
   <button type="button" class="qa-result" data-act="panel" data-tab="detail" ${stale ? 'disabled' : ''}>
-    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'}${!stale && task.result.seed?.purpose === 'check' ? ` · 种子命中率 ${task.result.seed.hit}%` : ''} · ${(task.result?.scope || task.scope) === 'narrow' ? '窄口径' : '宽口径'} · V${m.version}</small>
+    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'}${!stale && task.result.seed?.purpose === 'check' ? ` · 种子命中率 ${task.result.seed.hit}%` : ''} · V${m.version}</small>
     <span class="qa-result-art"><i></i><i></i><i></i></span></button>
   <div class="qa-report-line">${ICON.clock}<span>人群报告 · ${task.reportReady && !stale ? '<b class="ok">已生成</b>' : '生成中'}</span>${!stale ? `<button type="button" class="qa-link" data-act="panel" data-tab="report">查看</button>` : ''}</div>`;
 }
@@ -515,7 +504,7 @@ function resultPanel(task) {
 }
 
 function panelBody(task) {
-  const r = task.result, conds = r.conds || buildConditions(task), h = hash(task.id + r.version), scope = r.scope || task.scope;
+  const r = task.result, conds = r.conds || buildConditions(task), h = hash(task.id + r.version);
   if (panel.tab === 'detail') {
     const prefs = conds.filter((c) => c.group !== 'exclude' && c.tag).map((c) => c.value.replace('（替代口径）', ''));
     const rows = Array.from({ length: 10 }, (_, i) => { const k = (h + i * 37 + page * 101) % 997; return [`U****${String(1000 + k * 7).slice(-4)}`, ['L5', 'L4', 'L3'][k % 3], prefs[k % Math.max(prefs.length, 1)] || '—', `${1 + (k % 26)} 天前`, `${Math.min(conds.length, 2 + (k % 3))} / ${conds.length}`]; });
@@ -526,7 +515,7 @@ function panelBody(task) {
   }
   if (panel.tab === 'overview') {
     const dims = [['消费分层', ['L5', 'L4', 'L3', 'L1–L2']], ['城市线级', ['一线', '新一线', '二线', '三线及以下']], ['年龄段', ['18–24', '25–30', '31–40', '40+']]];
-    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['圈选口径', scope === 'narrow' ? '窄口径' : '宽口径'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version], ...(r.seed ? [[r.seed.purpose === 'check' ? '种子命中率' : '种子用户', r.seed.purpose === 'check' ? r.seed.hit + '%' : fmt(r.seed.count) + ' 个 · 相似扩展']] : [])].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version], ...(r.seed ? [[r.seed.purpose === 'check' ? '种子命中率' : '种子用户', r.seed.purpose === 'check' ? r.seed.hit + '%' : fmt(r.seed.count) + ' 个 · 相似扩展']] : [])].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
       ${dims.map(([name, keys], d) => { const raw = keys.map((_, i) => 10 + ((h >> (i + d)) % 30)); const sum = raw.reduce((a, b) => a + b, 0); return `<section class="qa-dist"><h4>${name}</h4>${keys.map((k, i) => { const p = Math.round((raw[i] / sum) * 100); return `<div><span>${k}</span><i><b style="width:${p}%"></b></i><em>${p}%</em></div>`; }).join('')}</section>`; }).join('')}`;
   }
   if (panel.tab === 'conditions') {
@@ -537,7 +526,7 @@ function panelBody(task) {
   if (panel.tab === 'report') {
     if (!task.reportReady) return `<div class="qa-empty">${ICON.clock}<b>人群报告生成中</b><p>报告异步产出，约 20 分钟。生成后会在对话中提示。</p><button type="button" class="qa-outline sm" data-act="report-now">立即查看（演示）</button></div>`;
     const feats = conds.filter((c) => c.tag).map((c, i) => [tagName(c), c.value, (1.4 + ((h >> i) % 18) / 10).toFixed(1)]);
-    return `<section class="qa-report"><h4>一句话结论</h4><p>这批人以 ${scope === 'narrow' ? '高意向、低频次放大' : '覆盖优先'} 为主，${feats[0] ? `「${esc(feats[0][0])}」` : ''}是区分度最高的特征，建议分两批触达并保留对照组。</p>
+    return `<section class="qa-report"><h4>一句话结论</h4><p>这批人中，${feats[0] ? `「${esc(feats[0][0])}」` : ''}是区分度最高的特征，建议分两批触达并保留对照组。</p>
       <h4>特征显著性（TGI）</h4><table class="qa-table"><thead><tr><th>标签</th><th>取值</th><th>TGI</th></tr></thead><tbody>${feats.map((f) => `<tr><td>${esc(f[0])}</td><td>${esc(f[1])}</td><td><b>${f[2]}</b></td></tr>`).join('')}</tbody></table>
       <h4>投放建议</h4><ul><li>先对 20% 人群做小流量实验，核心指标与对照组比较后再放量。</li><li>结果回收后在「效果回收」挂上 LR 文档，下一次相似需求会自动引用。</li></ul></section>`;
   }
@@ -575,7 +564,6 @@ async function onClick(e) {
     case 'answer': task.answers[el.dataset.q] = el.dataset.v; save(); break;
     case 'clarify-ok': return confirmClarify(task, msg);
     case 'remove': task.removed.push(+el.dataset.tag); save(); break;
-    case 'scope': task.scope = el.dataset.v; save(); break;
     case 'seed-open': { const cur = el.dataset.target === 'task' ? task.seed : draftSeed; seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null, purpose: cur?.purpose || 'check', packId: '' }; break; }
     case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.packId = ''; break;
     case 'seed-purpose': seedModal.purpose = el.dataset.v; break;
@@ -624,7 +612,7 @@ function send() {
 function onInput(e) {
   if (e.target.id === 'qa-input') { draft = e.target.value; const b = host.querySelector('[data-act="send"]'); if (b) b.disabled = busy || !draft.trim(); }
   if (e.target.id === 'qa-seed-text') { seedModal.text = e.target.value; seedModal.parsed = e.target.value.trim() ? parseSeeds(e.target.value) : null; render(); return; }
-  if (e.target.id === 'qa-target') { const t = current(); const n = parseInt(e.target.value, 10); t.target = n > 0 ? n : null; save(); host.querySelectorAll('.qa-scope em').forEach((em, i) => { em.textContent = '约 ' + fmt(estimate(t, i ? 'narrow' : 'wide')) + ' 人'; }); }
+  if (e.target.id === 'qa-target') { const t = current(); const n = parseInt(e.target.value, 10); t.target = n > 0 ? n : null; save(); const est = host.querySelector('#qa-est'); if (est) est.textContent = '约 ' + fmt(estimate(t)) + ' 人'; }
 }
 async function onChange(e) {
   if (e.target.id !== 'qa-seed-file' || !seedModal) return;

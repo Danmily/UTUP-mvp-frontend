@@ -15,14 +15,13 @@ test('query keywords pick the matching scenario, anything else falls back to bra
   assert.equal(make('随便找点人').scene, 'brand')
 })
 
-test('conditions follow confirmed answers and scope', () => {
+test('conditions follow confirmed answers; there is no wide / narrow scope', () => {
   const t = make('给波司登找羽绒服兴趣用户')
   t.answers.window = '近 30 天'
   assert.match(M.buildConditions(t)[0].value, /近 30 天/)
-  const wide = M.estimate(t)
-  t.scope = 'narrow'
-  assert.ok(M.buildConditions(t).some((c) => c.tag === null && /至少 2 次/.test(c.value)))
-  assert.ok(M.estimate(t) < wide)
+  assert.ok(!('scope' in t))
+  assert.ok(!M.buildConditions(t).some((c) => /至少 2 次/.test(c.value)))
+  assert.doesNotMatch(M.buildSql(t, M.buildConditions(t)), /core_action_cnt/)
 })
 
 test('using other tags swaps or drops restricted tags and never keeps the original', () => {
