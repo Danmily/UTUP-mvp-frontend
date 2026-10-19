@@ -3077,3 +3077,16 @@ margin-right: 18px
 .asset-radio input {
 margin: 0
 }
+
+/* 资产接入：提交前检查清单 */
+.asset-checklist .asset-check-item {
+display: flex;
+align-items: flex-start;
+gap: 8px;
+margin: 0 0 8px;
+line-height: 1.6
+}
+
+.asset-checklist .asset-check-item input {
+margin-top: 3px
+}

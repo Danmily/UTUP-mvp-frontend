@@ -16,6 +16,13 @@ const DB = { 电商DMP: 'ecom_dmp', 生服LDMP: 'life_ldmp', AI用户画像: 'ai
 const SOP = ['准备', '下载模板', '填写', '上传校验', '预览修正', '提交（已上传 / 待分级）', '确认分级', '审核上架', '下线']
 const STATUS_TABS = [['all', '全部资产'], ['uploaded', '已上传'], ['grading', '待分级'], ['online', '已上架'], ['off', '已下线']]
 const PAGE = 10
+/* SOP 六：提交前检查清单，逐项确认后方可提交 */
+const CHECKLIST = [
+  ['tpl', '使用的是当前最新模板，未增删列、未修改表头'],
+  ['required', '必填字段均已填写，未用空格代替内容'],
+  ['enum', '枚举类字段取自模板给定范围，未自行新增值'],
+  ['batch', '已知悉整批口径：一行不合规则本批文件不导入'],
+]
 const seed = () => TAGS.map((t) => ({
   tag_id: 'tag_' + t.id, tag_name: t.name, description: t.desc, coverage: String(t.cov || 0),
   timeliness: t.freq === '实时' ? '2' : '1', update_freq: t.freq === '实时' ? '实时' : (t.freq === 'T+7' ? 'T+7' : 'T+1'),
@@ -50,7 +57,13 @@ export default function AssetIn({ V, pushAudit }) {
   /* 业务合规确认（SOP STEP 3.2）：上传前须联系业务合规同学确认，责任方为供给方，确认记录留档备查 */
   const [comp, setComp] = useState({ done: '', officer: '', at: '', record: '' })
   const [compErr, setCompErr] = useState('')
+  const [checks, setChecks] = useState({})
+  const allChecked = CHECKLIST.every(([k]) => checks[k])
   const setC = (k, v) => { setComp((c) => ({ ...c, [k]: v })); setCompErr('') }
+  function checkChecklist() {
+    if (!allChecked) { setCompErr('提交前检查清单需逐项确认'); return false }
+    return true
+  }
   function checkCompliance() {
     if (comp.done !== 'yes') { setCompErr('请先完成业务合规确认；未确认的资产不能上传'); return false }
     if (!comp.officer.trim()) { setCompErr('请填写合规确认人账号'); return false }
@@ -160,16 +173,18 @@ export default function AssetIn({ V, pushAudit }) {
   }
   const okRows = rows?.filter((r) => !r.errors.length) || [], badRows = rows?.filter((r) => r.errors.length) || []
   function submitImport() {
-    if (!okRows.length) return
+    /* SOP 三：整批校验——一批里只要有一条不合规，本批文件就不导入 */
+    if (!rows?.length || badRows.length) return
     if (!checkCompliance()) return
+    if (!checkChecklist()) return
     upsert(okRows.map((r) => Object.assign(r.asset, compFields())), 'import')
     const log = { at: nowStamp().slice(0, 16), file: fileName, by: V.name, create: okRows.filter((r) => r.action === 'create').length, update: okRows.filter((r) => r.action === 'update').length, fail: badRows.length }
     setLogs((l) => [log, ...l])
     pushAudit?.(`批量导入资产：${fileName}，新增 ${log.create}、更新 ${log.update}、失败 ${log.fail}；合规确认人 ${comp.officer.trim()}（${comp.at.trim()}）`)
     const g = okRows.filter((r) => !r.asset.table_security).length
-    message.success(`已上传 ${okRows.length} 个资产${g ? `（其中 ${g} 个待分级）` : ''}${badRows.length ? `，${badRows.length} 行待修正` : ''}`)
-    setRows(badRows.length ? badRows : null)
-    if (!badRows.length) setTab('list')
+    message.success(`已整批导入 ${okRows.length} 个资产${g ? `（其中 ${g} 个待分级）` : ''}`)
+    setRows(null)
+    setTab('list')
   }
   function downloadErrors() {
     download('资产导入-错误清单.csv', toCsv(badRows.map((r) => ({ ...r.asset, line: r.line, errors: r.errors.join('；') })), ['line', 'errors', ...FIELDS.map((f) => f.key)]))
@@ -272,7 +287,7 @@ export default function AssetIn({ V, pushAudit }) {
       <ol className="asset-steps">
         <li><b>1</b><div><strong>下载模板</strong><p>第 1 行为列名；第 2、3 行是「填写要求」和「字段说明」（以 # 开头，导入时自动跳过）；之后是示例行</p><Button size="small" onClick={() => download('资产导入模板.csv', templateCsv())}>下载导入模板</Button></div></li>
         <li><b>2</b><div><strong>填写并上传</strong><p>一行一个标签，CSV 格式，单次最多 {MAX_ROWS} 行</p><Space><Button size="small" type="primary" onClick={() => fileRef.current?.click()}>上传 CSV</Button><Button size="small" onClick={demoFile}>用演示文件试试</Button></Space><input ref={fileRef} type="file" accept=".csv" hidden onChange={onFile} /></div></li>
-        <li><b>3</b><div><strong>校验、修正、提交</strong><p>以标签 ID 识别新增 / 更新；通过的行可先提交，错误行留下修正</p></div></li>
+        <li><b>3</b><div><strong>校验、修正、提交</strong><p>以标签 ID 识别新增 / 更新；<b>整批校验</b>：只要有一行不合规，本批文件就不导入，修复后重新上传整批文件</p></div></li>
       </ol>
       <section className="asset-need">
         <h4>字段填写要求</h4>
@@ -281,10 +296,20 @@ export default function AssetIn({ V, pushAudit }) {
         <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}<tr><td><code>effective_column_level</code></td><td>最终生效密级</td><td>无需填写</td><td>系统计算，文件中填写会被忽略</td></tr></tbody></table></details>
       </section>
       {complianceBlock('本批资产')}
+      <section className="asset-group asset-checklist">
+        <h4><b>检查</b>提交前检查</h4>
+        {CHECKLIST.map(([k, label]) => (
+          <label key={k} className="asset-radio asset-check-item">
+            <input type="checkbox" checked={!!checks[k]} onChange={() => { setChecks((c) => ({ ...c, [k]: !c[k] })); setCompErr('') }} />
+            {label}
+          </label>
+        ))}
+      </section>
       {fileError && <Alert type="warning" message={fileError} />}
       {rows && <>
         <div className="asset-result-bar"><span>{fileName} · 共 {rows.length} 行：<b className="ok">✅ 新增 {okRows.filter((r) => r.action === 'create').length}</b><b className="up">🔄 更新 {okRows.filter((r) => r.action === 'update').length}</b><b className="bad">❌ 错误 {badRows.length}</b></span>
-          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!okRows.length || comp.done === 'no'} onClick={submitImport}>提交通过的 {okRows.length} 行</Button></Space></div>
+          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!rows.length || badRows.length > 0 || comp.done === 'no' || !allChecked} onClick={submitImport}>导入全部 {rows.length} 行</Button></Space></div>
+        {badRows.length > 0 && <Alert type="error" message={`本批存在 ${badRows.length} 行不合规记录，整批文件不导入。按下表定位修复后，重新上传整批文件。`} />}
         <table className="asset-table">
           <thead><tr><th>行</th><th>结果</th><th>标签</th><th>时效 · 频率</th><th>最终生效密级</th><th>说明</th></tr></thead>
           <tbody>{rows.map((r) => (
