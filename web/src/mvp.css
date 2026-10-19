@@ -3055,3 +3055,25 @@ display: none
 .asset-need-inline{font-style:normal;font-size:11px;margin-left:6px;border-radius:4px;padding:0 5px}
 .asset-need-inline.n-选填{background:var(--au-fill-2);color:var(--au-text-3)}
 .asset-need-inline.n-条件必填{background:var(--au-warning-light);color:var(--au-warning)}
+
+/* ---------- 资产接入：业务合规确认区 ---------- */
+.asset-compliance {
+border: 1px dashed var(--line-2, #d2cee3);
+border-radius: var(--r-sm);
+padding: 12px 14px;
+background: var(--bg2)
+}
+
+.asset-radio {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+font-size: 13px;
+color: var(--text2);
+cursor: pointer;
+margin-right: 18px
+}
+
+.asset-radio input {
+margin: 0
+}

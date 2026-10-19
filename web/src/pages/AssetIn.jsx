@@ -47,6 +47,52 @@ export default function AssetIn({ V, pushAudit }) {
   const [fileError, setFileError] = useState('')
   const [offTarget, setOffTarget] = useState(null), [offReason, setOffReason] = useState('')
   const [statusTab, setStatusTab] = useState('all'), [q, setQ] = useState(''), [src, setSrc] = useState(''), [page, setPage] = useState(1)
+  /* 业务合规确认（SOP STEP 3.2）：上传前须联系业务合规同学确认，责任方为供给方，确认记录留档备查 */
+  const [comp, setComp] = useState({ done: '', officer: '', at: '', record: '' })
+  const [compErr, setCompErr] = useState('')
+  const setC = (k, v) => { setComp((c) => ({ ...c, [k]: v })); setCompErr('') }
+  function checkCompliance() {
+    if (comp.done !== 'yes') { setCompErr('请先完成业务合规确认；未确认的资产不能上传'); return false }
+    if (!comp.officer.trim()) { setCompErr('请填写合规确认人账号'); return false }
+    if (!comp.at.trim()) { setCompErr('请填写确认日期'); return false }
+    setCompErr(''); return true
+  }
+  const compFields = () => ({
+    compliance_officer: comp.officer.trim(),
+    compliance_at: comp.at.trim(),
+    compliance_record: comp.record.trim(),
+  })
+  const complianceBlock = (scope) => (
+    <section className="asset-group asset-compliance">
+      <h4><b>合规</b>业务合规确认</h4>
+      <p className="asset-muted">
+        上传前须按所属业务要求，联系对应的业务合规同学确认本批资产允许接入和使用。责任方为供给方；
+        平台不替业务线寻找合规负责人，也不对资产内容作业务正确性背书。
+      </p>
+      <div className="asset-field wide">
+        <span>是否已找业务合规同学确认，{scope}可以接入和上传？<i>*</i></span>
+        <div className="asset-pair">
+          <label className="asset-radio"><input type="radio" name="comp-done" checked={comp.done === 'yes'} onChange={() => setC('done', 'yes')} />是，已确认</label>
+          <label className="asset-radio"><input type="radio" name="comp-done" checked={comp.done === 'no'} onChange={() => setC('done', 'no')} />否，尚未确认</label>
+        </div>
+      </div>
+      {comp.done === 'no' && <Alert type="warning" message="未完成业务合规确认，暂不能提交。请先联系所属业务的合规同学完成确认并留档，再回到本页提交。" />}
+      {comp.done === 'yes' && (
+        <div className="asset-grid">
+          <label className="asset-field" htmlFor="comp-officer"><span>合规确认人<i>*</i></span>
+            <input className="au-input" id="comp-officer" value={comp.officer} onChange={(e) => setC('officer', e.target.value)} placeholder="如 zhangsan.1" />
+            <small>填写员工账号，便于后续追溯</small></label>
+          <label className="asset-field" htmlFor="comp-at"><span>确认日期<i>*</i></span>
+            <input className="au-input" id="comp-at" value={comp.at} onChange={(e) => setC('at', e.target.value)} placeholder="如 2026-10-18" /></label>
+          <label className="asset-field wide" htmlFor="comp-record"><span>确认记录留档<em className="asset-need-inline n-选填">选填</em></span>
+            <input className="au-input" id="comp-record" value={comp.record} onChange={(e) => setC('record', e.target.value)} placeholder="飞书文档或会话链接" />
+            <small>SOP 要求确认记录留档备查；填写后可在审计日志中追溯来源</small></label>
+        </div>
+      )}
+      {compErr && <Alert type="error" message={compErr} />}
+    </section>
+  )
+
   const [metaTarget, setMetaTarget] = useState(null), [gradeTarget, setGradeTarget] = useState(null), [grade, setGrade] = useState({ table: '', column: '' }), [delTarget, setDelTarget] = useState(null)
   const fileRef = useRef(null)
   const isAdmin = V.role === 'platform'
@@ -74,9 +120,11 @@ export default function AssetIn({ V, pushAudit }) {
     if (!editing && ids.includes(r.asset.tag_id)) r.errors.push('标签 ID 已存在，请到资产列表中编辑')
     setFormResult(r)
     if (r.errors.length) return
+    if (!checkCompliance()) return
+    Object.assign(r.asset, compFields())
     upsert([r.asset], 'user')
     const next = statusAfterSubmit(r.asset)
-    pushAudit?.(`${editing ? '更新' : '上传'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ ${STATUS_LABEL[next]}`, r.asset.effective_column_level)
+    pushAudit?.(`${editing ? '更新' : '上传'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ ${STATUS_LABEL[next]}；合规确认人 ${comp.officer.trim()}（${comp.at.trim()}）`, r.asset.effective_column_level)
     message.success(next === 'grading' ? `已上传，缺少表密级，进入「待分级」：${r.asset.tag_name}` : `已上传，等待审核上架：${r.asset.tag_name}`)
     setTab('list'); setEditing(null); setForm(blank()); setFormResult(null)
   }
@@ -113,10 +161,11 @@ export default function AssetIn({ V, pushAudit }) {
   const okRows = rows?.filter((r) => !r.errors.length) || [], badRows = rows?.filter((r) => r.errors.length) || []
   function submitImport() {
     if (!okRows.length) return
-    upsert(okRows.map((r) => r.asset), 'import')
+    if (!checkCompliance()) return
+    upsert(okRows.map((r) => Object.assign(r.asset, compFields())), 'import')
     const log = { at: nowStamp().slice(0, 16), file: fileName, by: V.name, create: okRows.filter((r) => r.action === 'create').length, update: okRows.filter((r) => r.action === 'update').length, fail: badRows.length }
     setLogs((l) => [log, ...l])
-    pushAudit?.(`批量导入资产：${fileName}，新增 ${log.create}、更新 ${log.update}、失败 ${log.fail}`)
+    pushAudit?.(`批量导入资产：${fileName}，新增 ${log.create}、更新 ${log.update}、失败 ${log.fail}；合规确认人 ${comp.officer.trim()}（${comp.at.trim()}）`)
     const g = okRows.filter((r) => !r.asset.table_security).length
     message.success(`已上传 ${okRows.length} 个资产${g ? `（其中 ${g} 个待分级）` : ''}${badRows.length ? `，${badRows.length} 行待修正` : ''}`)
     setRows(badRows.length ? badRows : null)
@@ -210,10 +259,11 @@ export default function AssetIn({ V, pushAudit }) {
         {field('column_security_level', select('column_security_level', SECURITY_OPTS, '无单独列密级'))}
         <div className="asset-field"><span>最终生效密级（系统计算）</span><div className="asset-eff">{eff ? <LevelChip level={eff} /> : <span className="asset-muted">选择表密级后自动计算</span>}{eff && form.column_security_level && eff !== form.table_security && <small className="asset-up">列密级高于表密级，已升档</small>}</div><small>取表密级与列密级中较高的一级</small></div>
       </div></section>
+      {complianceBlock('该资产')}
       <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
       <datalist id="asset-tables">{Object.keys(DEMO_TABLES).map((o) => <option key={o} value={o} />)}</datalist>
       {formResult?.notes.length > 0 && <Alert type="info" message={formResult.notes.join('；')} />}
-      <div className="asset-actions"><span className="asset-muted">有表密级 → 进入「已上传」等待审核上架；缺表密级 → 进入「待分级」</span><Space><Button onClick={() => setTab('list')}>取消</Button><Button type="primary" onClick={submitForm}>{editing ? '保存' : '上传'}</Button></Space></div>
+      <div className="asset-actions"><span className="asset-muted">有表密级 → 进入「已上传」等待审核上架；缺表密级 → 进入「待分级」</span><Space><Button onClick={() => setTab('list')}>取消</Button><Button type="primary" disabled={comp.done === 'no'} onClick={submitForm}>{editing ? '保存' : '上传'}</Button></Space></div>
     </Card>
   )
 
@@ -230,10 +280,11 @@ export default function AssetIn({ V, pushAudit }) {
         <p className="asset-muted">必填字段为空的行会被标为错误，不能提交；<code>effective_column_level</code> 由系统计算，不需要填写。</p>
         <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}<tr><td><code>effective_column_level</code></td><td>最终生效密级</td><td>无需填写</td><td>系统计算，文件中填写会被忽略</td></tr></tbody></table></details>
       </section>
+      {complianceBlock('本批资产')}
       {fileError && <Alert type="warning" message={fileError} />}
       {rows && <>
         <div className="asset-result-bar"><span>{fileName} · 共 {rows.length} 行：<b className="ok">✅ 新增 {okRows.filter((r) => r.action === 'create').length}</b><b className="up">🔄 更新 {okRows.filter((r) => r.action === 'update').length}</b><b className="bad">❌ 错误 {badRows.length}</b></span>
-          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!okRows.length} onClick={submitImport}>提交通过的 {okRows.length} 行</Button></Space></div>
+          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!okRows.length || comp.done === 'no'} onClick={submitImport}>提交通过的 {okRows.length} 行</Button></Space></div>
         <table className="asset-table">
           <thead><tr><th>行</th><th>结果</th><th>标签</th><th>时效 · 频率</th><th>最终生效密级</th><th>说明</th></tr></thead>
           <tbody>{rows.map((r) => (
