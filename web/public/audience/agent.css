@@ -304,6 +304,9 @@
 .qa-tip { margin: 10px 0 0; padding: 8px 11px; border-radius: 8px; font-size: 12px; line-height: 1.7;
   background: var(--qa-fill-2, #f7f8fa); color: var(--qa-text-2, #4e5969); }
 .qa-tip-run { background: #fff7e8; color: #b25e09; }
+.qa-tip-flow b{display:block;margin-bottom:4px}
+.qa-tip-flow ol{margin:0;padding-left:18px}
+.qa-tip-flow li{margin:2px 0}
 /* 人群包交付说明 */
 .qa-deliver { display: grid; gap: 8px; }
 .qa-deliver-head { display: flex; align-items: baseline; gap: 8px; }
