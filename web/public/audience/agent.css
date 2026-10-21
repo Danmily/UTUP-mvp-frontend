@@ -8,7 +8,8 @@
 .qa.qa-side-closed{grid-template-columns:52px minmax(0,1fr)}
 .qa.qa-with-panel{grid-template-columns:208px minmax(360px,420px) minmax(0,1fr)}
 .qa.qa-side-closed.qa-with-panel{grid-template-columns:52px minmax(360px,420px) minmax(0,1fr)}
-.qa.qa-panel-full{grid-template-columns:0 0 minmax(0,1fr)}
+/* 全屏优先于侧栏收起的列宽规则，否则两者同时命中时面板会被挤成一条 */
+.qa.qa-panel-full,.qa.qa-side-closed.qa-panel-full,.qa.qa-side-closed.qa-with-panel.qa-panel-full{grid-template-columns:minmax(0,1fr)}
 .qa.qa-panel-full>.qa-side,.qa.qa-panel-full>.qa-chat{display:none}
 .qa-muted{color:var(--qa-mute);font-size:12px}
 .qa-center{text-align:center;margin:8px 0 0}
@@ -257,6 +258,9 @@
   .qa .qa-brand,.qa .qa-side-nav span,.qa .qa-side-nav em,.qa .qa-side-title,.qa .qa-hist-list{display:none}
   .qa .qa-side-nav button{justify-content:center;padding:8px 0}
   .qa-with-panel .qa-panel{position:absolute;inset:0 0 0 52px;z-index:3;box-shadow:-6px 0 18px rgba(0,0,0,.08)}
+  /* 窄屏下全屏查看结果：侧栏与对话都隐藏，面板铺满 */
+  .qa.qa-panel-full{grid-template-columns:0 minmax(0,1fr)}
+  .qa.qa-panel-full .qa-panel{inset:0}
   .qa-examples,.qa-kpis{grid-template-columns:1fr 1fr}
 }
 .qa-panel-note{display:flex;align-items:center;gap:6px;margin:10px 16px 0;padding:7px 10px;border-radius:8px;background:#fff7ed;color:var(--qa-warn);font-size:12px}
@@ -322,3 +326,27 @@
 .qa-deliver { display: grid; gap: 8px; }
 .qa-deliver-head { display: flex; align-items: baseline; gap: 8px; }
 .qa-deliver .qa-outline { justify-self: start; }
+
+/* 路径 A：吴极侧 Agent 返回的 Markdown 报告 */
+.qa-rep-grid{display:grid;grid-template-columns:1fr;gap:10px;margin:10px 0}
+/* 结果面板本身较窄，只有全屏时才铺两列 */
+.qa-panel-full .qa-rep-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.qa-rep-card{border:1px solid var(--qa-line);border-radius:10px;padding:10px 12px;background:#fff;min-width:0}
+.qa-rep-card h5{margin:0 0 6px;font-size:12px;color:var(--qa-accent);font-weight:600}
+.qa-rep-card p{margin:0 0 4px}
+.qa-rep-card ul{margin:0;padding-left:16px;color:var(--qa-sub)}
+.qa-rep-card li{margin:2px 0}
+.qa-rep-card .qa-table{font-size:12px}
+.qa-rep-acts{display:flex;align-items:center;gap:10px;margin:4px 0 10px}
+.qa-rep-full{margin-top:4px}
+.qa-md{padding:10px 2px 2px;color:var(--qa-sub)}
+.qa-md h3,.qa-md h4,.qa-md h5,.qa-md h6{margin:14px 0 6px;color:var(--qa-text);font-size:13px}
+.qa-md h3{font-size:15px}
+.qa-md p{margin:0 0 6px}
+.qa-md ul,.qa-md ol{margin:0 0 8px;padding-left:18px}
+.qa-md li{margin:2px 0}
+.qa-md blockquote{margin:0 0 8px;padding:6px 10px;border-left:3px solid #d8ccff;background:var(--qa-accent-bg);border-radius:0 6px 6px 0;color:var(--qa-text)}
+.qa-md code{background:var(--qa-card);border-radius:4px;padding:0 4px;font-size:12px}
+.qa-md .qa-table{margin:0 0 10px}
+.qa-md .qa-sql{margin:0 0 10px}
+.qa-md hr{border:0;border-top:1px solid var(--qa-line);margin:12px 0}

@@ -578,6 +578,113 @@ function resultCard(task, m) {
   ${stale ? '' : `<p class="qa-muted qa-deliver-line">人群包以 Hive 表交付生服 LDMP 建包，${esc(task.result.packId)} · 到 LDMP 使用。<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP →</button></p>`}`;
 }
 
+/* ---- Markdown 渲染 ----
+ * 吴极侧 Agent 的报告以 Markdown 原文返回，门户不二次加工，只做渲染。
+ * 这里是一个够用的子集：标题、列表、表格、代码块、引用、加粗与行内代码。 */
+function mdInline(t) {
+  return esc(t)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+}
+function renderMd(src) {
+  const lines = String(src).replace(/\r/g, '').split('\n');
+  const out = []; let i = 0;
+  const flushTable = () => {
+    const rows = [];
+    while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
+    const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((x) => x.trim());
+    const head = cells(rows[0]);
+    const body = rows.slice(/^\s*\|[\s:|-]+\|\s*$/.test(rows[1] || '') ? 2 : 1).map(cells);
+    out.push(`<table class="qa-table"><thead><tr>${head.map((c) => `<th>${mdInline(c)}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${mdInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+  };
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) {
+      const lang = l.slice(3).trim(); const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre class="qa-sql"${lang ? ` data-lang="${esc(lang)}"` : ''}>${buf.map((x, n) => `<span><i>${n + 1}</i>${esc(x)}</span>`).join('')}</pre>`);
+      continue;
+    }
+    if (/^\s*\|/.test(l)) { flushTable(); continue; }
+    const hd = l.match(/^(#{1,6})\s+(.*)$/);
+    if (hd) { out.push(`<h${Math.min(hd[1].length + 2, 6)}>${mdInline(hd[2])}</h${Math.min(hd[1].length + 2, 6)}>`); i++; continue; }
+    if (/^\s*>\s?/.test(l)) { out.push(`<blockquote>${mdInline(l.replace(/^\s*>\s?/, ''))}</blockquote>`); i++; continue; }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l); const items = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ''));
+      out.push(`<${ordered ? 'ol' : 'ul'}>${items.map((x) => `<li>${mdInline(x)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`);
+      continue;
+    }
+    if (/^\s*---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    if (!l.trim()) { i++; continue; }
+    out.push(`<p>${mdInline(l)}</p>`); i++;
+  }
+  return out.join('');
+}
+
+/* 吴极侧 Agent 报告（演示样例，字段以接口方最终返回为准）。
+ * 注意：报告中的准确率 / 召回率是「标签提取相对参考集」的评估指标，不是最终圈人准确率。 */
+function agentReportMd(task) {
+  const r = task.result, conds = (r && r.conds) || buildConditions(task);
+  const tags = conds.filter((c) => c.tag).map((c) => TAGS[c.tag]);
+  const h2 = hash(task.id + 'rep');
+  const p1 = (72 + (h2 % 12)) / 100, r1 = (61 + ((h2 >> 2) % 15)) / 100;
+  const p2 = (p1 + 0.07).toFixed(2), r2 = (r1 + 0.05).toFixed(2);
+  return [
+    '# 圈人任务报告',
+    '',
+    '## 1. 原始需求',
+    '',
+    `> ${task.query}`,
+    '',
+    `种子用户：${fmt(task.seed ? task.seed.count : 0)} 个（${task.seed ? task.seed.source : '—'}），仅用于本次特征学习，不入库。`,
+    '',
+    '## 2. 数据覆盖',
+    '',
+    '| 项目 | 情况 |',
+    '| --- | --- |',
+    `| 种子可关联用户 | ${fmt(task.seed ? Math.round(task.seed.count * 0.92) : 0)} / ${fmt(task.seed ? task.seed.count : 0)} |`,
+    '| 覆盖底表 | ' + tags.length + ' 张 |',
+    '| 观察窗口 | 近 90 天 |',
+    '| 缺失说明 | 部分种子在生服域无行为记录，未参与跨域特征学习 |',
+    '',
+    '## 3. 参考标签',
+    '',
+    '从种子用户共性中提取，并对齐到可用的标签与底表：',
+    '',
+    '| 标签 | 底表 | 用途 |',
+    '| --- | --- | --- |',
+    ...tags.map((t) => `| ${t.name} | \`${t.table}\` | 兴趣 / 筛选依据 |`),
+    '',
+    '## 4. SQL 迭代指标',
+    '',
+    '以下为**标签提取相对参考集**的评估指标，用于判断本次标签抽取是否合理，**不代表最终圈人的准确率**：',
+    '',
+    '| 迭代 | 准确率 | 召回率 | 说明 |',
+    '| --- | --- | --- | --- |',
+    `| 第 1 轮 | ${p1.toFixed(2)} | ${r1.toFixed(2)} | 初版标签集合，召回偏低 |`,
+    `| 第 2 轮 | ${p2} | ${r2} | 补充兴趣类标签，放宽时间窗口 |`,
+    '',
+    '## 5. 最终 SQL',
+    '',
+    '```sql',
+    (r && r.sql) || buildSql(task, conds),
+    '```',
+    '',
+    '## 6. 错误分析',
+    '',
+    '- 少量种子的行为集中在单一类目，容易把类目偏好放大为人群共性，已在第 2 轮降权。',
+    '- 跨域标签存在口径差异（统计窗口不同），以电商侧口径为准。',
+    '',
+    '## 7. 泛化限制',
+    '',
+    '- 结论基于本次种子，换一批种子结果可能不同，不能当作长期人群定义。',
+    '- 报告与 SQL 生成完成**不等于人群包已生成**，最终人群数以圈人侧在大盘执行的结果为准。',
+    '- 指标为相对参考集的评估值，不能对外当作业务效果。',
+  ].join('\n');
+}
+
 function sqlBlock(sql) {
   return `<pre class="qa-sql">${sql.split('\n').map((l, i) => `<span><i>${i + 1}</i>${esc(l)}</span>`).join('')}</pre>`;
 }
@@ -631,12 +738,34 @@ function panelBody(task) {
   if (panel.tab === 'sql') return `<div class="qa-toolbar"><span class="qa-muted">示例 SQL · 按 V${r.version} 条件生成，不可用于生产</span><span class="qa-spacer"></span><button type="button" class="qa-outline sm" data-act="copy-sql">复制</button></div>${sqlBlock(r.sql || buildSql(task, conds))}`;
   if (panel.tab === 'report') {
     if (!task.reportReady) return `<div class="qa-empty">${ICON.clock}<b>人群报告生成中</b><p>报告异步产出，约 20 分钟。生成后会在对话中提示。</p><button type="button" class="qa-outline sm" data-act="report-now">立即查看（演示）</button></div>`;
+    if (task.path === 'A') return agentReportView(task);
     const feats = conds.filter((c) => c.tag).map((c, i) => [tagName(c), c.value, (1.4 + ((h >> i) % 18) / 10).toFixed(1)]);
     return `<section class="qa-report"><h4>一句话结论</h4><p>这批人中，${feats[0] ? `「${esc(feats[0][0])}」` : ''}是区分度最高的特征，建议分两批触达并保留对照组。</p>
       <h4>特征显著性（TGI）</h4><table class="qa-table"><thead><tr><th>标签</th><th>取值</th><th>TGI</th></tr></thead><tbody>${feats.map((f) => `<tr><td>${esc(f[0])}</td><td>${esc(f[1])}</td><td><b>${f[2]}</b></td></tr>`).join('')}</tbody></table>
       <h4>投放建议</h4><ul><li>先对 20% 人群做小流量实验，核心指标与对照组比较后再放量。</li></ul></section>`;
   }
   return '';
+}
+
+/* 路径 A 的报告由吴极侧 Agent 以 Markdown 返回：
+ * 先给业务四段摘要（目标 / 依据 / 验证 / 局限），完整原文与 SQL 按需展开。 */
+function agentReportView(task) {
+  const r = task.result, conds = (r && r.conds) || buildConditions(task);
+  const tags = conds.filter((c) => c.tag).map((c) => TAGS[c.tag].name);
+  const src = agentReportMd(task);
+  const pick = (title) => { const m = src.match(new RegExp('## [0-9]+\\. ' + title + '\\n([\\s\\S]*?)(?=\\n## |$)')); return m ? m[1].trim() : ''; };
+  const card = (t, body) => `<div class="qa-rep-card"><h5>${t}</h5>${body}</div>`;
+  return `<section class="qa-report">
+    <div class="qa-tip">本报告由吴极侧 Agent 原样返回（Markdown），门户不二次加工。报告中的<b>准确率 / 召回率是标签提取相对参考集的评估指标</b>，不代表最终圈人准确率；<b>报告生成不等于人群包已生成</b>，最终人群数以大盘执行结果为准。</div>
+    <div class="qa-rep-grid">
+      ${card('目标摘要', `<p>${esc(task.query)}</p><p class="qa-muted">种子 ${fmt(task.seed ? task.seed.count : 0)} 个 · ${esc(task.seed ? task.seed.source : '—')} · 仅用于本次特征学习</p>`)}
+      ${card('兴趣与筛选依据', `<p>${esc(tags.slice(0, 4).join('、'))}${tags.length > 4 ? ` 等 ${tags.length} 项` : ''}</p><p class="qa-muted">由 Agent 从种子共性中提取并对齐到可用底表</p>`)}
+      ${card('验证结果', renderMd(pick('SQL 迭代指标')))}
+      ${card('已知局限', renderMd(pick('泛化限制')))}
+    </div>
+    <div class="qa-rep-acts"><button type="button" class="qa-outline sm" data-act="panel" data-tab="sql">查看相关 SQL</button><span class="qa-muted">报告取回方式与可用字段以接口方确认为准</span></div>
+    <details class="qa-proc qa-rep-full"><summary>${ICON.info}<span>展开完整报告（Markdown 原文）</span></summary><div class="qa-md">${renderMd(src)}</div></details>
+  </section>`;
 }
 
 function taskCenter() {
