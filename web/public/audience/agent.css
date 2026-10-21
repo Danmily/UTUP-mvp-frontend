@@ -70,6 +70,7 @@
 /* 连续助手消息合并：后续段落不再重复头像与名字 */
 .qa-bot-cont{margin-top:-6px}
 .qa-bot-name time,.qa-user-name time{font-weight:400;font-size:11px;color:var(--qa-mute);font-variant-numeric:tabular-nums}
+.qa-round-ms{font-style:normal;font-weight:400;font-size:11px;color:var(--qa-sub);background:var(--qa-card);border-radius:5px;padding:1px 6px;font-variant-numeric:tabular-nums}
 /* 生成中：最新一段文字做从左到右的扫光，提示内容正在产出 */
 @keyframes qa-sweep{from{background-position:100% 0}to{background-position:0 0}}
 .qa-bot.is-live>p{background:linear-gradient(90deg,var(--qa-mute) 0%,var(--qa-mute) 38%,var(--qa-accent) 50%,var(--qa-mute) 62%,var(--qa-mute) 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:qa-sweep 1.5s linear infinite}
@@ -350,3 +351,11 @@
 .qa-md .qa-table{margin:0 0 10px}
 .qa-md .qa-sql{margin:0 0 10px}
 .qa-md hr{border:0;border-top:1px solid var(--qa-line);margin:12px 0}
+
+/* 圈选条件按 AND / OR / NOT 分块 */
+.qa-cond-block{margin:0 0 14px}
+.qa-cond-block-head{display:flex;align-items:center;gap:8px;margin:0 0 6px}
+.qa-cond-block-head b{font-size:13px}
+
+.qa-nowrap{white-space:nowrap}
+.qa-ell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

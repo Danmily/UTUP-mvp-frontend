@@ -489,8 +489,25 @@ function chat(task) {
 
 /* 连续的助手消息合并为一段，只在第一条显示头像与名字；最后一条在运行中带生成动效 */
 const hhmmss = (t) => new Date(t).toLocaleTimeString('zh-CN', { hour12: false });
+const secs = (ms) => (ms / 1000).toFixed(1) + 's';
+/* 本轮耗时：从这条助手消息起，到下一条用户消息为止的所有步骤耗时之和 */
+function roundMs(task, i) {
+  let total = 0;
+  for (let k = i; k < task.messages.length; k++) {
+    const m = task.messages[k];
+    if (m.type === 'user') break;
+    for (const key of ['steps', 'analysis']) if (m[key]) total += m[key].reduce((n, x) => n + (x.ms || 0), 0);
+  }
+  return total;
+}
+/* 任务累计耗时：所有步骤 ＋ 路径 A 的 Agent / 大盘两段 */
+function taskMs(task) {
+  let total = 0;
+  for (const m of task.messages) for (const key of ['steps', 'analysis']) if (m[key]) total += m[key].reduce((n, x) => n + (x.ms || 0), 0);
+  return total;
+}
 function bot(inner, o = {}) {
-  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}</div>`;
+  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}${o.ms ? `<em class="qa-round-ms">${o.live ? '执行中' : '本轮 ' + secs(o.ms)}${o.totalMs && o.totalMs !== o.ms ? ` · 累计 ${secs(o.totalMs)}` : ''}</em>` : ''}</div>`;
   return `<div class="qa-bot${o.first === false ? ' qa-bot-cont' : ''}${o.live ? ' is-live' : ''}">${head}${inner}</div>`;
 }
 function stepIcon(s) { return s === 'done' ? `<i class="qa-si done">${ICON.check}</i>` : s === 'running' ? '<i class="qa-si run"></i>' : `<i class="qa-si wait">${ICON.clock}</i>`; }
@@ -506,6 +523,7 @@ function message(task, m, i) {
   if (m.type === 'user') return `<div class="qa-user"><div class="qa-user-name">你<span class="qa-avatar">U</span><time>${hhmmss(m.at)}</time></div><div class="qa-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
   const prev = task.messages[i - 1];
   const o = { first: !prev || prev.type === 'user', at: m.at, live: busy && i === task.messages.length - 1 };
+  if (o.first) { o.ms = roundMs(task, i); o.totalMs = taskMs(task); }
   if (m.type === 'ack') return bot(`<p>${esc(m.title || '已收到你的消息，我将立即开始处理')}</p>${m.longRun ? '<div class="qa-tip qa-tip-run">当前种子人群包运行中，完成后会以飞书消息方式通知，请关注。可以先离开本页。</div>' : ''}${steps(m, 'steps', '查看分析过程', 'open')}`, o);
   if (m.type === 'clarify') return bot(clarifyCard(task, m), o);
   if (m.type === 'conditions') return bot(conditionsCard(task, m), o);
@@ -694,24 +712,16 @@ function sqlBlock(sql) {
 const TABS = [['detail', '人群明细'], ['conditions', '圈选条件'], ['sql', '相关 SQL'], ['report', '人群报告']];
 /* 路径 A 的圈选逻辑由 Agent 报告承载，不单独展示可编辑的条件页（PRD 6.5） */
 const tabsOf = (task) => (task.path === 'A' ? TABS.filter(([k]) => k !== 'conditions') : TABS);
-function timingText(task) {
-  const t = task.timing;
-  if (!t) return '';
-  const sec = (ms) => (ms / 1000).toFixed(1) + 's';
-  /* 评审结论：路径 A 的 Agent 实际运行约 2–3 小时，演示里按秒级加速，需在页面上说明 */
-  return task.path === 'A'
-    ? ` · Agent 生成 SQL／报告 ${sec(t.agent)}、大盘执行生包 ${sec(t.run)}（演示已加速，实际约 2–3 小时）`
-    : ` · 大盘执行生包 ${sec(t.sql)}`;
-}
 
 function resultPanel(task) {
   const r = task.result;
   return `<aside class="qa-panel" aria-label="人群结果">
-    <header class="qa-panel-head"><div><h2>${esc(task.title)} · 人群结果</h2><span>路径 ${task.path} · ${esc(PATHS[task.path].name)} · 更新时间：${esc(r.at)}${timingText(task)}</span></div>
+    <header class="qa-panel-head"><div><h2>${esc(task.title)} · 人群结果</h2></div>
       <div><button type="button" class="qa-mini" data-act="full">${panel.full ? '退出全屏' : '全屏'}</button><button type="button" class="qa-icon-btn" data-act="close-panel" aria-label="关闭结果面板">×</button></div></header>
     <div class="qa-panel-bar qa-deliver">
       <div class="qa-deliver-head"><b>人群包 ${esc(r.packId)}</b><span class="qa-muted">${fmt(r.size)} 人 · V${r.version}</span></div>
       <p class="qa-muted">本期以 Hive 表交付生服 LDMP 建包，复用 LDMP 已打通的下游（实验、投放等）。在门户查看结果，到 LDMP 使用。</p>
+      ${task.path === 'A' ? '<p class="qa-muted">演示环境耗时已加速，实际 Agent 运行约 2–3 小时，完成后以飞书消息通知。</p>' : ''}
       <button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 查看 / 使用</button>
     </div>
     <nav class="qa-tabs">${tabsOf(task).map(([k, n]) => `<button type="button" class="${panel.tab === k ? 'on' : ''}" data-act="panel" data-tab="${k}">${n}</button>`).join('')}</nav>
@@ -723,17 +733,36 @@ function resultPanel(task) {
 function panelBody(task) {
   const r = task.result, conds = r.conds || buildConditions(task), h = hash(task.id + r.version);
   if (panel.tab === 'detail') {
-    const prefs = conds.filter((c) => c.group !== 'exclude' && c.tag).map((c) => c.value.replace('（替代口径）', ''));
-    const rows = Array.from({ length: 10 }, (_, i) => { const k = (h + i * 37 + page * 101) % 997; return [`U****${String(1000 + k * 7).slice(-4)}`, ['L5', 'L4', 'L3'][k % 3], prefs[k % Math.max(prefs.length, 1)] || '—', `${1 + (k % 26)} 天前`, `${Math.min(conds.length, 2 + (k % 3))} / ${conds.length}`]; });
+    /* 明细只透出「这个人为什么进来」，不展示标签取值本身：
+     * 命中条件数与命中标签名用于解释，匹配分用于按目标规模截断，数据日期用于对齐口径。 */
+    const names = conds.filter((c) => c.group !== 'exclude' && c.tag).map((c) => TAGS[c.tag].name);
+    const domainOf = (k) => (k % 5 === 0 ? '跨域' : k % 2 ? '电商' : '生服');
+    const rows = Array.from({ length: 10 }, (_, i) => {
+      const k = (h + i * 37 + page * 101) % 997, j = (k * 13) % 97;
+      const hitN = Math.min(conds.length, 2 + (j % 3));
+      /* 每行命中的标签不同：从标签列表里按偏移取 hitN 个，列表里只展示前两个 */
+      const hit = names.length ? Array.from({ length: Math.min(hitN, names.length) }, (_, n) => names[(j + n) % names.length]) : [];
+      const hitNames = hit.length ? hit.slice(0, 2).join('、') + (hit.length > 2 ? ` 等 ${hit.length} 项` : '') : '—';
+      return [`U****${String(1000 + k * 7).slice(-4)}`, `${hitN} / ${conds.length}`, (0.58 + (j % 41) / 100).toFixed(2), hitNames, domainOf(j), r.at.slice(0, 10)];
+    });
     /* 评审结论：本期人群包只读，人群的增删与投放都在生服 LDMP 侧完成，门户不做批量剔除 */
     return `<div class="qa-toolbar"><input placeholder="输入用户 ID，按回车搜索（演示）"><span class="qa-spacer"></span><span class="qa-muted">任务 code：${r.taskCode} · 人群包 ID：${r.packId}</span><button type="button" class="qa-outline sm" data-act="download">下载</button><button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 建包</button></div>
-      <table class="qa-table"><thead><tr><th>用户（脱敏）</th><th>消费分层</th><th>命中偏好</th><th>最近活跃</th><th>命中条件</th></tr></thead>
-      <tbody>${rows.map((x) => `<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td>${esc(x[2])}</td><td>${x[3]}</td><td>${x[4]}</td></tr>`).join('')}</tbody></table>
+      <table class="qa-table"><thead><tr><th class="qa-nowrap">用户 ID（脱敏）</th><th class="qa-nowrap">命中条件</th><th class="qa-nowrap">匹配分</th><th>命中标签</th><th class="qa-nowrap">来源域</th><th class="qa-nowrap">数据日期</th></tr></thead>
+      <tbody>${rows.map((x) => `<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td><b>${x[2]}</b></td><td class="qa-ell" title="${esc(x[3])}">${esc(x[3])}</td><td>${x[4]}</td><td class="qa-nowrap">${esc(x[5])}</td></tr>`).join('')}</tbody></table>
+      <p class="qa-muted">匹配分用于按目标规模截断，分值越高越贴近目标人群；明细只说明命中了哪些标签，不展示标签取值。</p>
       <div class="qa-pager"><span class="qa-muted">共 ${fmt(r.size)} 人 · 仅展示演示样例 · 人群编辑在 LDMP 侧完成</span>${[1, 2, 3, 4, 5].map((p) => `<button type="button" class="${p === page ? 'on' : ''}" data-act="page" data-p="${p}">${p}</button>`).join('')}</div>`;
   }
   if (panel.tab === 'conditions') {
-    return `<table class="qa-table"><thead><tr><th>条件组</th><th>标签</th><th>取值</th><th>来源表</th><th>权限</th></tr></thead><tbody>${conds.map((c) => `<tr><td>${GROUPS.find((g) => g[0] === c.group)[1]}</td><td><b>${esc(tagName(c))}</b>${c.replaced ? `<small class="qa-muted"> 替代 ${esc(TAGS[c.replaced].name)}</small>` : ''}</td><td>${esc(c.value)}</td><td>${c.tag ? `<code>${TAGS[c.tag].table}</code>` : '平台规则'}</td><td>${c.tag ? esc(shownState(task, c.tag).label) : '—'}</td></tr>`).join('')}</tbody></table>
-      <p class="qa-muted">必须满足 AND（任一满足 OR）AND NOT 排除。修改条件请在对话中点「修改圈选条件」，会生成新版本。</p>`;
+    /* 三个条件组分块展示，组内关系写在小标题上，不再挤在同一张表的「条件组」列里 */
+    const LOGIC = { must: ['AND', '组内条件全部满足'], any: ['OR', '组内满足任意一条即可'], exclude: ['NOT', '命中任意一条即被排除'] };
+    const block = ([g, label]) => {
+      const rows = conds.filter((c) => c.group === g);
+      if (!rows.length) return '';
+      return `<div class="qa-cond-block"><div class="qa-cond-block-head"><b>${label}</b><span class="qa-pill">${LOGIC[g][0]}</span><span class="qa-muted">${LOGIC[g][1]}</span></div>
+        <table class="qa-table"><thead><tr><th>标签</th><th>取值</th><th>来源表</th><th>权限</th></tr></thead><tbody>${rows.map((c) => `<tr><td><b>${esc(tagName(c))}</b>${c.replaced ? `<small class="qa-muted"> 替代 ${esc(TAGS[c.replaced].name)}</small>` : ''}</td><td>${esc(c.value)}</td><td>${c.tag ? `<code>${TAGS[c.tag].table}</code>` : '平台规则'}</td><td>${c.tag ? esc(shownState(task, c.tag).label) : '—'}</td></tr>`).join('')}</tbody></table></div>`;
+    };
+    return `${GROUPS.map(block).join('')}
+      <p class="qa-muted">组间关系：必须满足 AND（任一满足）AND NOT 排除。修改条件请在对话中点「修改圈选条件」，会生成新版本。</p>`;
   }
   if (panel.tab === 'sql') return `<div class="qa-toolbar"><span class="qa-muted">示例 SQL · 按 V${r.version} 条件生成，不可用于生产</span><span class="qa-spacer"></span><button type="button" class="qa-outline sm" data-act="copy-sql">复制</button></div>${sqlBlock(r.sql || buildSql(task, conds))}`;
   if (panel.tab === 'report') {
