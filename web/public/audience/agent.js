@@ -427,11 +427,7 @@ function seedModalView() {
   return `<div class="qa-modal-mask"><div class="qa-modal" role="dialog" aria-label="添加种子用户">
     <header><b>添加种子用户</b><button type="button" class="qa-icon-btn" data-act="seed-cancel" aria-label="关闭">×</button></header>
     <p class="qa-muted">种子用户是你已经确认的一批目标用户（例如上一轮转化最好的那批人），会和业务目标一起交给吴极侧 Agent，由 Agent 学习他们的共性特征后向外扩散。系统只保留数量和脱敏样例，不落完整 ID 列表，本期不建种子库。</p>
-    <div class="qa-tip">本期支持 <b>${SEED_MIN}–${SEED_MAX}</b> 个种子用户；超出部分会被截断。提交后 Agent 需要较长时间运行（约 2–3 小时），完成前可以离开本页。</div>
-    <div class="qa-tip qa-tip-flow"><b>提交后会发生什么</b>
-      <ol><li>Agent 学习种子特征，产出可执行 SQL 与圈选报告</li>
-      <li>圈人侧在大盘执行 SQL，生成人群包（以 Hive 表交付生服 LDMP 建包）</li>
-      <li>完成后以飞书消息通知你，并自动生成结果页面：人群明细 / 相关 SQL / 人群报告</li></ol></div>
+    <div class="qa-tip">本期支持 <b>${SEED_MIN}–${SEED_MAX}</b> 个种子用户；超出部分会被截断。提交后 Agent 需要较长时间运行（约 2–3 小时），完成后会通过飞书 IM bot 通知你。</div>
     <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID'], ['pack', '已有人群包']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
     <div class="qa-modal-body">${body}${summary}</div>
     ${warn ? `<p class="qa-warn">${esc(warn)}</p>` : ''}
