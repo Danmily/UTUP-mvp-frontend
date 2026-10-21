@@ -286,3 +286,13 @@
 .qa-seed-sum{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;color:var(--qa-sub)}
 .qa-seed-sum b{color:var(--qa-ok)}
 .qa-modal footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+/* 首页两条链路入口（PRD 6.1） */
+.qa-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; }
+.qa-entry-card { display: block; text-align: left; padding: 12px 14px; border: 1px solid var(--qa-line, #e5e6eb); border-radius: 10px;
+  background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.qa-entry-card:hover { border-color: var(--qa-primary, #3370ff); }
+.qa-entry-card.on { border-color: var(--qa-primary, #3370ff); box-shadow: 0 0 0 2px rgba(51, 112, 255, .12); }
+.qa-entry-card b { display: block; font-size: 13.5px; color: var(--qa-text, #1d2129); margin-bottom: 4px; }
+.qa-entry-card span { display: block; font-size: 12px; color: var(--qa-text-3, #86909c); line-height: 1.6; }
+@media (max-width: 720px) { .qa-entry { grid-template-columns: 1fr; } }

@@ -87,9 +87,16 @@ const EXAMPLES = [
   ['跨域高价值', '圈出电商消费较低、但生服消费较高的潜在高价值用户'],
 ];
 
-/* 种子用户：可选输入。只保留数量与脱敏样例，不保存完整 ID 列表 */
-const SEED_MAX = 100000, SEED_MIN_EXPAND = 100;
-const SEED_PURPOSE = { check: '命中校验', expand: '相似扩展' };
+/* 种子用户：路径 A 的必填输入，与业务目标一起交给吴极侧 Agent。
+ * 只保留数量与脱敏样例，不保存完整 ID 列表；本期不建独立种子库（PRD 6.1）。 */
+const SEED_MAX = 100000;
+/* 两条链路（PRD 第六节）
+ * A：业务目标 ＋ 种子 UID → 吴极侧 Agent 产出 SQL 与报告 → 圈人侧在大盘执行 → 人群包
+ * B：自然语言 → 必要追问 → 可视化筛选条件 → 用户确认 → 执行条件与 SQL → 大盘执行 → 人群包 */
+const PATHS = {
+  A: { key: 'A', name: '业务目标 ＋ 种子用户', brief: '交给吴极侧 Agent 生成 SQL 与报告，不再逐条确认筛选条件' },
+  B: { key: 'B', name: '自然语言圈人', brief: '按需追问关键口径，可视化确认筛选条件后再执行' },
+};
 function parseSeeds(text) {
   const parts = String(text || '').split(/[\s,，;；]+/).map((x) => x.trim()).filter(Boolean);
   const header = /^(uid|user_?id|id|用户id)$/i;
@@ -105,17 +112,15 @@ function parseSeeds(text) {
 }
 function seedWarning(seed) {
   if (!seed || !seed.count) return '没有识别到有效的用户 ID';
-  if (seed.purpose === 'expand' && seed.count < SEED_MIN_EXPAND) return `相似扩展建议至少 ${SEED_MIN_EXPAND} 个种子用户，当前 ${seed.count} 个，结果可能不稳定`;
   return '';
 }
-function seedHitRate(task) { return task.seed ? 40 + (hash(task.id + task.seed.count) % 46) : null; }
+
 function detect(query) { return Object.keys(SCENES).find((k) => SCENES[k].match.test(query)); }
 function defaultAnswers(scene) {
   return Object.fromEntries(SCENES[scene].questions.map((q) => [q.id, q.options[q.pick || 0]]));
 }
 function buildConditions(task) {
   const list = SCENES[task.scene].conditions(task.answers).map((c) => ({ ...c }));
-  if (task.seed && task.seed.purpose === 'expand') list.push({ group: 'must', tag: null, name: '相似人群（种子扩展）', value: `与 ${task.seed.count.toLocaleString('zh-CN')} 个种子用户相似度 Top 30%` });
   return list
     .filter((c) => !task.removed.includes(c.tag))
     .map((c) => {
@@ -157,7 +162,7 @@ function newTask(query) {
   const id = 'AUD-' + Date.now().toString(36).toUpperCase();
   return {
     id, scene, query, title: SCENES[scene].title, created: new Date().toISOString(), updated: new Date().toISOString(),
-    version: 1, answers: defaultAnswers(scene), target: null, seed: null,
+    version: 1, answers: defaultAnswers(scene), target: null, seed: null, path: 'B', timing: null,
     removed: [], swapped: {}, granted: [], result: null, reportReady: false, periodic: false,
     effects: [], saved: false, messages: [],
   };
@@ -192,6 +197,7 @@ let host = null, options = {}, tasks = [], activeId = null, view = 'home', busy 
 let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: false }, toast = '';
 let page = 1, reportTimer = null, lastCount = 0;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
+let entry = 'B'; // 首页起点：A = 业务目标＋种子，B = 自然语言圈人（PRD 6.1）
 
 function load() { try { tasks = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { tasks = []; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch { /* 存储不可用时只保留在本次页面 */ } }
@@ -228,21 +234,54 @@ async function runSteps(task, msg, key) {
 async function start(query) {
   const q = query.trim();
   if (!q || busy) return;
+  /* 路径 A 要求业务目标与种子 UID 两项齐备，缺一不进入链路（PRD 6.1 / 6.2） */
+  if (entry === 'A' && !draftSeed) return;
   const task = newTask(q);
   task.seed = draftSeed; draftSeed = null;
+  task.path = task.seed ? 'A' : 'B';
   tasks.unshift(task); activeId = task.id; view = 'task'; draft = ''; panel = { open: false, tab: 'detail', full: false };
   busy = true;
-  push(task, { type: 'user', text: q + (task.seed ? `\n附带种子用户：${fmt(task.seed.count)} 个（${task.seed.name}）· 用途：${SEED_PURPOSE[task.seed.purpose]}` : '') });
+  push(task, { type: 'user', text: q + (task.seed ? `\n附带种子用户：${fmt(task.seed.count)} 个（${task.seed.name}）` : '') });
+  if (task.path === 'A') { await runPathA(task); return; }
   const ack = push(task, { type: 'ack', open: true, steps: [
     { title: '理解需求', detail: `识别为「${task.title}」，保留业务原话`, status: 'wait' },
     { title: '检索历史策略', detail: '检索可复用的历史圈人策略', status: 'wait' },
     { title: '匹配标签资产', detail: '从标签广场匹配可用于圈选的标签', status: 'wait' },
-    ...(task.seed ? [{ title: '读取种子用户', detail: `有效 ${fmt(task.seed.count)} 个，将与业务描述一起交给用户理解 Agent`, status: 'wait' }] : []),
   ] });
   await runSteps(task, ack, 'steps');
   ack.open = false;
   push(task, { type: 'clarify', answered: false });
   busy = false; render();
+}
+
+/* 路径 A：目标与种子交给吴极侧 Agent，拿到 SQL 与报告后再由圈人侧在大盘执行。
+ * 不经过追问与条件确认；SQL／报告生成完成不等于人群包已生成（PRD 4.3）。 */
+async function runPathA(task) {
+  busy = true;
+  const t0 = Date.now();
+  const gen = push(task, { type: 'ack', open: true, title: '已收到业务目标与种子用户，开始调用吴极侧 Agent', steps: [
+    { title: '校验输入', detail: `业务目标与 ${fmt(task.seed.count)} 个种子用户齐备`, status: 'wait' },
+    { title: '调用吴极侧 Agent', detail: '把业务目标与种子一并传入，由其生成可执行 SQL 与圈选报告', status: 'wait' },
+  ] });
+  await runSteps(task, gen, 'steps');
+  gen.open = false;
+  const agentMs = Date.now() - t0;
+  push(task, { type: 'agent-out', version: task.version });
+  const t1 = Date.now();
+  const run = push(task, { type: 'ack', open: true, title: 'SQL 与报告已就绪，开始在大盘执行生包', steps: [
+    { title: '大盘执行 SQL', detail: '由圈人侧在大盘执行 Agent 产出的 SQL', status: 'wait' },
+    { title: '生成人群包', detail: '执行完成后产出人群包并关联报告', status: 'wait' },
+  ] });
+  await runSteps(task, run, 'steps');
+  run.open = false;
+  const conds = buildConditions(task);
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds, sql: buildSql(task, conds), seed: { ...task.seed } };
+  task.timing = { agent: agentMs, run: Date.now() - t1 };
+  task.reportReady = true;
+  push(task, { type: 'result', version: task.version });
+  busy = false;
+  panel = { open: true, tab: 'sql', full: false }; page = 1;
+  save(); render();
 }
 
 async function confirmClarify(task, msg) {
@@ -267,6 +306,7 @@ async function confirmConditions(task, msg) {
 
 async function execute(task) {
   busy = true;
+  const t0 = Date.now();
   const tables = [...new Set(buildConditions(task).filter((c) => c.tag).map((c) => c.tag))];
   const msg = push(task, { type: 'exec', version: task.version, open: true, openAnalysis: true,
     steps: [
@@ -277,11 +317,11 @@ async function execute(task) {
     analysis: [
       { title: '获取数据', detail: '按确认的条件读取标签表；通用级标签已自助开通', tables, tab: 'conditions', status: 'wait' },
       { title: '脚本分析', detail: '统计人群规模、消费分层、城市线级与年龄分布', tab: 'overview', status: 'wait' },
-      ...(task.seed ? [{ title: task.seed.purpose === 'expand' ? '种子相似扩展' : '种子命中校验', detail: task.seed.purpose === 'expand' ? `以 ${fmt(task.seed.count)} 个种子用户为参照，扩展相似人群` : `用 ${fmt(task.seed.count)} 个种子用户检验圈选结果的命中率`, tab: 'overview', status: 'wait' }] : []),
       { title: '报告生成', detail: '生成人群画像报告', tab: 'report', status: 'wait' },
     ] });
   await runSteps(task, msg, 'steps');
-  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: task.seed ? { ...task.seed, hit: seedHitRate(task) } : null };
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: null };
+  task.timing = { sql: Date.now() - t0 };
   task.reportReady = false;
   await runSteps(task, msg, 'analysis');
   msg.open = false; msg.openAnalysis = false;
@@ -353,7 +393,7 @@ function render() {
 
 function seedChip(seed, target) {
   const warn = seedWarning(seed);
-  return `<div class="qa-seed-chip"><span class="qa-seed-ico">${ICON.people}</span><div><b>${fmt(seed.count)} 个种子用户</b><small>${esc(seed.source)} · ${esc(seed.name)} · 用途：${SEED_PURPOSE[seed.purpose]}${seed.sample?.length ? ' · 样例 ' + seed.sample.map(esc).join('、') : ''}</small>${warn ? `<small class="qa-warn">${esc(warn)}</small>` : ''}</div>${target ? `<button type="button" class="qa-link" data-act="seed-open" data-target="${target}">更换</button><button type="button" class="qa-link" data-act="seed-remove" data-target="${target}">移除</button>` : ''}</div>`;
+  return `<div class="qa-seed-chip"><span class="qa-seed-ico">${ICON.people}</span><div><b>${fmt(seed.count)} 个种子用户</b><small>${esc(seed.source)} · ${esc(seed.name)}${seed.sample?.length ? ' · 样例 ' + seed.sample.map(esc).join('、') : ''}</small>${warn ? `<small class="qa-warn">${esc(warn)}</small>` : ''}</div>${target ? `<button type="button" class="qa-link" data-act="seed-open" data-target="${target}">更换</button><button type="button" class="qa-link" data-act="seed-remove" data-target="${target}">移除</button>` : ''}</div>`;
 }
 function seedModalView() {
   const m = seedModal, packs = tasks.filter((t) => t.result);
@@ -364,20 +404,18 @@ function seedModalView() {
       ? `<textarea id="qa-seed-text" rows="6" placeholder="粘贴用户 ID，支持换行、逗号或空格分隔">${esc(m.text)}</textarea>`
       : (packs.length ? `<div class="qa-seed-packs">${packs.map((t) => `<button type="button" class="${m.packId === t.id ? 'on' : ''}" data-act="seed-pack" data-id="${t.id}"><b>${esc(t.title)}</b><small>${esc(t.result.packId)} · ${fmt(t.result.size)} 人 · V${t.result.version}</small></button>`).join('')}</div>` : '<p class="qa-muted">还没有已产出的人群包。先完成一次圈人，或改用上传 / 粘贴。</p>');
   const summary = p ? `<div class="qa-seed-sum"><span>有效 <b>${fmt(p.count)}</b></span><span>重复 ${fmt(p.dup)}</span><span>格式不正确 ${fmt(p.invalid)}</span>${p.over ? `<span class="qa-warn">超出上限 ${fmt(p.over)}，已截断</span>` : ''}</div>` : '';
-  const warn = p ? seedWarning({ ...p, purpose: m.purpose }) : '';
+  const warn = p ? seedWarning(p) : '';
   return `<div class="qa-modal-mask"><div class="qa-modal" role="dialog" aria-label="添加种子用户">
     <header><b>添加种子用户</b><button type="button" class="qa-icon-btn" data-act="seed-cancel" aria-label="关闭">×</button></header>
-    <p class="qa-muted">种子用户是你已经确认的一批目标用户，会和业务描述一起交给用户理解 Agent。系统只保留数量和脱敏样例。</p>
+    <p class="qa-muted">种子用户是你已经确认的一批目标用户，会和业务目标一起交给吴极侧 Agent。系统只保留数量和脱敏样例，本期不建种子库。</p>
     <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID'], ['pack', '已有人群包']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
     <div class="qa-modal-body">${body}${summary}</div>
-    <div class="qa-card-title">用途</div>
-    <div class="qa-scope">${[['check', '命中校验', '用种子检验圈选结果覆盖了多少，不改变人群范围'], ['expand', '相似扩展', '以种子为参照扩展相似人群，会新增一条圈选条件']].map(([k, n, d]) => `<button type="button" class="${m.purpose === k ? 'on' : ''}" data-act="seed-purpose" data-v="${k}"><b>${n}</b><span>${d}</span></button>`).join('')}</div>
     ${warn ? `<p class="qa-warn">${esc(warn)}</p>` : ''}
     <footer><button type="button" class="qa-outline sm" data-act="seed-cancel">取消</button><button type="button" class="qa-primary" data-act="seed-confirm" ${p && p.count ? '' : 'disabled'}>确认添加</button></footer>
   </div></div>`;
 }
 function sidebar() {
-  const list = tasks.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>圈人</em></button>`).join('');
+  const list = tasks.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>路径 ${t.path || 'B'}</em></button>`).join('');
   return `<aside class="qa-side">
     <div class="qa-side-head"><span class="qa-brand"><i>${ICON.spark}</i>圈人助手</span><button type="button" class="qa-icon-btn" data-act="toggle-side" aria-label="${sidebarOpen ? '收起' : '展开'}侧栏">${ICON.side}</button></div>
     <nav class="qa-side-nav">
@@ -391,10 +429,16 @@ function sidebar() {
 }
 
 function home() {
+  const isA = entry === 'A';
+  const hint = isA
+    ? '业务目标与种子用户两项都填好后，交给吴极侧 Agent 生成 SQL 与报告，再由圈人侧在大盘执行生包。'
+    : '只说诉求就行。缺关键口径时我会追问，再把筛选条件可视化给你确认，确认后才执行生包。';
   return `<div class="qa-home">
-    <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>用一句话描述业务目标，我会追问关键口径、匹配标签、检查权限，并生成可复核的人群包。</p></div>
-    ${composer('描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
-    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>可选</em></button><span class="qa-muted">已有一批目标用户？上传后可用于命中校验或相似扩展</span>`}</div>
+    <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>${esc(hint)}</p></div>
+    <div class="qa-entry">${Object.values(PATHS).map((p) => `<button type="button" class="qa-entry-card ${entry === p.key ? 'on' : ''}" data-act="entry" data-v="${p.key}">
+      <b>路径 ${p.key} · ${esc(p.name)}</b><span>${esc(p.brief)}</span></button>`).join('')}</div>
+    ${composer(isA ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
+    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>${isA ? '必填' : '不需要'}</em></button><span class="qa-muted">${isA ? '路径 A 需要种子用户：上传或粘贴一批已确认的目标用户 ID' : '路径 B 不需要种子；如果你手上已有一批目标用户，切到路径 A'}</span>`}</div>
     <div class="qa-examples">${EXAMPLES.map(([k, v]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}</b><span>${esc(v)}</span></button>`).join('')}</div>
     <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
@@ -408,7 +452,7 @@ function composer(placeholder, label) {
 function chat(task) {
   const last = task.messages[task.messages.length - 1];
   const chips = task.result && !busy && last?.type === 'result'
-    ? `<div class="qa-chips"><button type="button" data-act="modify">${ICON.filter}修改圈选条件 ${ICON.chev}</button><button type="button" data-act="panel" data-tab="effect">效果回收 ${ICON.chev}</button><button type="button" data-act="save-template">${task.saved ? '已存为模板' : '保存为模板'}</button></div>` : '';
+    ? `<div class="qa-chips">${task.path === 'A' ? '' : `<button type="button" data-act="modify">${ICON.filter}修改圈选条件 ${ICON.chev}</button>`}<button type="button" data-act="panel" data-tab="effect">效果回收 ${ICON.chev}</button><button type="button" data-act="save-template">${task.saved ? '已存为模板' : '保存为模板'}</button></div>` : '';
   return `<header class="qa-chat-head"><h1 title="${esc(task.query)}">${esc(task.title)}</h1>${task.result && !panel.open ? `<button type="button" class="qa-link" data-act="panel" data-tab="detail">查看人群结果</button>` : ''}</header>
     <div class="qa-stream"><div class="qa-date">${esc(new Date(task.created).toLocaleString('zh-CN', { hour12: false }).slice(0, 16))}</div>
       ${task.messages.map((m) => message(task, m)).join('')}
@@ -427,11 +471,12 @@ function steps(msg, key, label, openKey) {
 
 function message(task, m) {
   if (m.type === 'user') return `<div class="qa-user"><div class="qa-user-name">你<span class="qa-avatar">U</span></div><div class="qa-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
-  if (m.type === 'ack') return bot(`<p>已收到你的消息，我将立即开始处理</p>${steps(m, 'steps', '查看分析过程', 'open')}`);
+  if (m.type === 'ack') return bot(`<p>${esc(m.title || '已收到你的消息，我将立即开始处理')}</p>${steps(m, 'steps', '查看分析过程', 'open')}`);
   if (m.type === 'clarify') return bot(clarifyCard(task, m));
   if (m.type === 'conditions') return bot(conditionsCard(task, m));
   if (m.type === 'permission') return bot(permissionCard(task, m));
   if (m.type === 'exec') return bot(`<p>已提交确认，开始圈选</p>${steps(m, 'steps', '执行完成', 'open')}${steps(m, 'analysis', '查看分析过程', 'openAnalysis')}`);
+  if (m.type === 'agent-out') return bot(agentOutCard(task, m));
   if (m.type === 'result') return bot(resultCard(task, m));
   return '';
 }
@@ -444,6 +489,19 @@ function clarifyCard(task, m) {
     <div class="qa-card-foot">${m.answered ? `<span class="qa-done">${ICON.check}已确认</span>` : `<button type="button" class="qa-primary" data-act="clarify-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认口径，生成条件</button>`}</div></div>`;
 }
 
+/* 路径 A：吴极侧 Agent 返回的 SQL 与报告；圈选逻辑由报告说明，用户不逐条确认条件 */
+function agentOutCard(task, m) {
+  const conds = buildConditions(task);
+  return `<p>吴极侧 Agent 已根据业务目标与 ${fmt(task.seed.count)} 个种子用户产出可执行 SQL 与圈选报告。</p>
+  <div class="qa-card">
+    <div class="qa-card-title">${ICON.check}Agent 产出<small>路径 A</small></div>
+    <div class="qa-cond"><span class="k">圈选逻辑</span><span class="v">${esc(conds.slice(0, 3).map((c) => tagName(c)).join('、'))}${conds.length > 3 ? ` 等 ${conds.length} 项` : ''}（详见报告）</span></div>
+    <div class="qa-cond"><span class="k">种子用户</span><span class="v">${fmt(task.seed.count)} 个 · ${esc(task.seed.source)}</span></div>
+    <div class="qa-cond"><span class="k">产出物</span><span class="v">可执行 SQL ＋ 圈选报告</span></div>
+    <div class="qa-card-foot"><span class="qa-muted">SQL 与报告已生成，尚未在大盘执行；人群包以执行结果为准</span></div>
+  </div>`;
+}
+
 function conditionsCard(task, m) {
   const live = !m.confirmed && m.version === task.version;
   const conds = buildConditions(task), lack = missingTags(task);
@@ -453,8 +511,6 @@ function conditionsCard(task, m) {
     ${GROUPS.map(([g, label], i) => { const rows = conds.filter((c) => c.group === g); return rows.length ? `<div class="qa-card-title">${[ICON.cycle, ICON.filter, ICON.filter][i]}${label}<small>${g === 'must' ? 'AND' : g === 'any' ? 'OR' : 'NOT'}</small></div>${rows.map(row).join('')}` : ''; }).join('')}
     <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted">（演示估算）</span></span></div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
-    <div class="qa-card-title">${ICON.people}种子用户<small>可选</small></div>
-    <div class="qa-cond qa-seed-row">${task.seed ? seedChip(task.seed, live ? 'task' : '') : `<span class="v qa-muted">未添加。添加后可用于命中校验或相似扩展</span>${live ? `<button type="button" class="qa-link" data-act="seed-open" data-target="task">＋ 添加种子用户</button>` : ''}`}</div>
     <div class="qa-card-foot">${live ? `<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button><button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
   </div>
   ${m.sql && live ? `<div class="qa-sql-inline"><div class="qa-card-title">${ICON.check}相关 SQL</div>${sqlBlock(buildSql(task, buildConditions(task)))}</div>` : ''}`;
@@ -476,7 +532,7 @@ function resultCard(task, m) {
   const stale = m.version !== task.result?.version;
   return `<p>我已按要求圈出 ${fmt(task.result && !stale ? task.result.size : 0)} 人。下方是人群结果和人群报告（报告异步产出，约 20 分钟），也可以前往<button type="button" class="qa-link" data-act="center">任务中心</button>管理任务。</p>
   <button type="button" class="qa-result" data-act="panel" data-tab="detail" ${stale ? 'disabled' : ''}>
-    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'}${!stale && task.result.seed?.purpose === 'check' ? ` · 种子命中率 ${task.result.seed.hit}%` : ''} · V${m.version}</small>
+    <span class="qa-chip">${ICON.people}人群包</span><b>${esc(task.title)}</b><small>人群规模 ${stale ? '（已被新版本替代）' : fmt(task.result.size) + ' 人'} · V${m.version}</small>
     <span class="qa-result-art"><i></i><i></i><i></i></span></button>
   <div class="qa-report-line">${ICON.clock}<span>人群报告 · ${task.reportReady && !stale ? '<b class="ok">已生成</b>' : '生成中'}</span>${!stale ? `<button type="button" class="qa-link" data-act="panel" data-tab="report">查看</button>` : ''}</div>`;
 }
@@ -487,17 +543,28 @@ function sqlBlock(sql) {
 
 /* ---- 右侧结果面板 ---- */
 const TABS = [['detail', '人群明细'], ['overview', '人群概览'], ['conditions', '圈选条件'], ['sql', '相关 SQL'], ['report', '人群报告'], ['effect', '效果回收']];
+/* 路径 A 的圈选逻辑由 Agent 报告承载，不单独展示可编辑的条件页（PRD 6.5） */
+const tabsOf = (task) => (task.path === 'A' ? TABS.filter(([k]) => k !== 'conditions') : TABS);
+function timingText(task) {
+  const t = task.timing;
+  if (!t) return '';
+  const sec = (ms) => (ms / 1000).toFixed(1) + 's';
+  return task.path === 'A'
+    ? ` · Agent 生成 SQL／报告 ${sec(t.agent)}、大盘执行生包 ${sec(t.run)}`
+    : ` · 大盘执行生包 ${sec(t.sql)}`;
+}
+
 function resultPanel(task) {
   const r = task.result;
   return `<aside class="qa-panel" aria-label="人群结果">
-    <header class="qa-panel-head"><div><h2>${esc(task.title)} · 人群结果</h2><span>更新时间：${esc(r.at)}</span></div>
+    <header class="qa-panel-head"><div><h2>${esc(task.title)} · 人群结果</h2><span>路径 ${task.path} · ${esc(PATHS[task.path].name)} · 更新时间：${esc(r.at)}${timingText(task)}</span></div>
       <div><button type="button" class="qa-mini" data-act="full">${panel.full ? '退出全屏' : '全屏'}</button><button type="button" class="qa-icon-btn" data-act="close-panel" aria-label="关闭结果面板">×</button></div></header>
     <div class="qa-panel-bar"><label class="qa-toggle-row"><span class="qa-switch ${task.periodic ? 'on' : ''}"><input type="checkbox" data-act="periodic" ${task.periodic ? 'checked' : ''}><i></i></span>定期更新${task.periodic ? '<em class="qa-on-badge">已开启</em>' : ''}</label>
       <p class="qa-periodic-note">${task.periodic
         ? `每天 08:00 按 V${r.version} 的圈选条件自动重算，下次更新：明天 08:00。人群包 ID <code>${r.packId}</code> 保持不变，已推送的投放平台会自动使用最新人群。`
         : `开启后，每天 08:00 按本次确认的圈选条件（V${r.version}）自动重算人群，人群包 ID 不变，已推送的投放平台会自动使用最新人群。`}
         条件被修改或标签权限失效时，会暂停更新并在对话中提醒你。</p></div>
-    <nav class="qa-tabs">${TABS.map(([k, n]) => `<button type="button" class="${panel.tab === k ? 'on' : ''}" data-act="panel" data-tab="${k}">${n}</button>`).join('')}</nav>
+    <nav class="qa-tabs">${tabsOf(task).map(([k, n]) => `<button type="button" class="${panel.tab === k ? 'on' : ''}" data-act="panel" data-tab="${k}">${n}</button>`).join('')}</nav>
     ${task.version !== r.version ? `<div class="qa-panel-note">${ICON.info}条件已调整为 V${task.version}，当前展示的是 V${r.version} 的结果；确认执行后更新。</div>` : ''}
     <div class="qa-panel-body">${panelBody(task)}</div>
   </aside>`;
@@ -515,7 +582,7 @@ function panelBody(task) {
   }
   if (panel.tab === 'overview') {
     const dims = [['消费分层', ['L5', 'L4', 'L3', 'L1–L2']], ['城市线级', ['一线', '新一线', '二线', '三线及以下']], ['年龄段', ['18–24', '25–30', '31–40', '40+']]];
-    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version], ...(r.seed ? [[r.seed.purpose === 'check' ? '种子命中率' : '种子用户', r.seed.purpose === 'check' ? r.seed.hit + '%' : fmt(r.seed.count) + ' 个 · 相似扩展']] : [])].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    return `<div class="qa-kpis">${[['人群规模', fmt(r.size) + ' 人'], ['条件数', conds.length + ' 条'], ['版本', 'V' + r.version], ...(r.seed ? [['种子用户', fmt(r.seed.count) + ' 个']] : [])].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
       ${dims.map(([name, keys], d) => { const raw = keys.map((_, i) => 10 + ((h >> (i + d)) % 30)); const sum = raw.reduce((a, b) => a + b, 0); return `<section class="qa-dist"><h4>${name}</h4>${keys.map((k, i) => { const p = Math.round((raw[i] / sum) * 100); return `<div><span>${k}</span><i><b style="width:${p}%"></b></i><em>${p}%</em></div>`; }).join('')}</section>`; }).join('')}`;
   }
   if (panel.tab === 'conditions') {
@@ -564,16 +631,16 @@ async function onClick(e) {
     case 'answer': task.answers[el.dataset.q] = el.dataset.v; save(); break;
     case 'clarify-ok': return confirmClarify(task, msg);
     case 'remove': task.removed.push(+el.dataset.tag); save(); break;
-    case 'seed-open': { const cur = el.dataset.target === 'task' ? task.seed : draftSeed; seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null, purpose: cur?.purpose || 'check', packId: '' }; break; }
+    case 'seed-open': { const cur = el.dataset.target === 'task' ? task.seed : draftSeed; seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null, packId: '' }; break; }
     case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.packId = ''; break;
-    case 'seed-purpose': seedModal.purpose = el.dataset.v; break;
+    case 'entry': entry = el.dataset.v; if (entry === 'B') draftSeed = null; break;
     case 'seed-pack': { const t = tasks.find((x) => x.id === el.dataset.id); seedModal.packId = t.id; seedModal.parsed = { count: t.result.size, dup: 0, invalid: 0, over: 0, sample: [] }; seedModal.packName = `${t.title} · ${t.result.packId}`; break; }
     case 'seed-cancel': seedModal = null; break;
     case 'seed-confirm': {
       const m = seedModal, p = m.parsed; if (!p || !p.count) return;
-      const seed = { ...p, purpose: m.purpose, source: m.tab === 'file' ? '文件上传' : m.tab === 'paste' ? '粘贴' : '已有人群包', name: m.tab === 'file' ? m.fileName : m.tab === 'paste' ? '手动粘贴' : m.packName };
+      const seed = { ...p, source: m.tab === 'file' ? '文件上传' : m.tab === 'paste' ? '粘贴' : '已有人群包', name: m.tab === 'file' ? m.fileName : m.tab === 'paste' ? '手动粘贴' : m.packName };
       if (m.target === 'task') { task.seed = seed; save(); } else draftSeed = seed;
-      seedModal = null; notify(`已添加 ${fmt(seed.count)} 个种子用户（${SEED_PURPOSE[seed.purpose]}）`); return;
+      seedModal = null; notify(`已添加 ${fmt(seed.count)} 个种子用户`); return;
     }
     case 'seed-remove': if (el.dataset.target === 'task') { task.seed = null; save(); } else draftSeed = null; break;
     case 'sql-preview': { const m = [...task.messages].reverse().find((x) => x.type === 'conditions'); m.sql = !m.sql; break; }
@@ -605,9 +672,12 @@ async function onClick(e) {
 function send() {
   const text = draft.trim();
   if (!text || busy) return;
-  draft = '';
   const task = current();
-  if (view === 'task' && task) modify(task, text); else start(text);
+  const isNew = !(view === 'task' && task);
+  /* 路径 A 缺种子时先提示，保留已输入的业务目标，不清空草稿 */
+  if (isNew && entry === 'A' && !draftSeed) { notify('路径 A 需要同时提供业务目标和种子用户，请先添加种子'); return; }
+  draft = '';
+  if (isNew) start(text); else modify(task, text);
 }
 function onInput(e) {
   if (e.target.id === 'qa-input') { draft = e.target.value; const b = host.querySelector('[data-act="send"]'); if (b) b.disabled = busy || !draft.trim(); }
