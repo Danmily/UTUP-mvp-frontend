@@ -66,6 +66,17 @@
 .qa-logo{width:22px;height:22px;border-radius:6px}
 .qa-logo svg{width:13px;height:13px}
 .qa-bot>p{margin:0 0 8px}
+/* 连续助手消息合并：后续段落不再重复头像与名字 */
+.qa-bot-cont{margin-top:-6px}
+.qa-bot-name time,.qa-user-name time{font-weight:400;font-size:11px;color:var(--qa-mute);font-variant-numeric:tabular-nums}
+/* 生成中：最新一段文字做从左到右的扫光，提示内容正在产出 */
+@keyframes qa-sweep{from{background-position:100% 0}to{background-position:0 0}}
+.qa-bot.is-live>p{background:linear-gradient(90deg,var(--qa-mute) 0%,var(--qa-mute) 38%,var(--qa-accent) 50%,var(--qa-mute) 62%,var(--qa-mute) 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:qa-sweep 1.5s linear infinite}
+.qa-bot.is-live>p::after{content:"";display:inline-block;width:6px;height:13px;margin-left:3px;vertical-align:-2px;background:var(--qa-accent);animation:qa-dot 1s infinite}
+@media (prefers-reduced-motion:reduce){.qa-bot.is-live>p{animation:none;color:var(--qa-text);background:none}.qa-bot.is-live>p::after{animation:none}}
+/* 执行耗时 */
+.qa-ms{margin-left:auto;padding-left:8px;font-style:normal;font-size:11px;color:var(--qa-mute);font-variant-numeric:tabular-nums;flex:none;align-self:center}
+.qa-ms-run{color:var(--qa-accent);animation:qa-dot 1.2s infinite}
 .qa-typing{display:flex;gap:4px;padding:6px 0 0 30px}
 .qa-typing i{width:6px;height:6px;border-radius:50%;background:#c4b5fd;animation:qa-dot 1s infinite}
 .qa-typing i:nth-child(2){animation-delay:.15s}.qa-typing i:nth-child(3){animation-delay:.3s}

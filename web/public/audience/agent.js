@@ -238,12 +238,14 @@ function missingTags(task) {
 }
 
 /* ---- 消息与步骤 ---- */
-function push(task, msg) { msg.id = msg.id || Math.random().toString(36).slice(2, 9); task.messages.push(msg); task.updated = new Date().toISOString(); save(); render(); return msg; }
+function push(task, msg) { msg.id = msg.id || Math.random().toString(36).slice(2, 9); msg.at = msg.at || Date.now(); task.messages.push(msg); task.updated = new Date().toISOString(); save(); render(); return msg; }
 async function runSteps(task, msg, key) {
   for (const step of msg[key]) {
     if (step.status === 'done') continue;
+    const t0 = Date.now();
     step.status = 'running'; save(); render();
-    await wait(520);
+    await wait(420 + (hash(step.title) % 5) * 90);
+    step.ms = Date.now() - t0;
     step.status = 'done'; save(); render();
   }
 }
@@ -477,7 +479,7 @@ function chat(task) {
     ? `<div class="qa-chips">${task.path === 'A' ? '' : `<button type="button" data-act="modify">${ICON.filter}修改圈选条件 ${ICON.chev}</button>`}<button type="button" data-act="save-template">${task.saved ? '已存为模板' : '保存为模板'}</button></div>` : '';
   return `<header class="qa-chat-head"><h1 title="${esc(task.query)}">${esc(task.title)}</h1>${task.result && !panel.open ? `<button type="button" class="qa-link" data-act="panel" data-tab="detail">查看人群结果</button>` : ''}</header>
     <div class="qa-stream"><div class="qa-date">${esc(new Date(task.created).toLocaleString('zh-CN', { hour12: false }).slice(0, 16))}</div>
-      ${task.messages.map((m) => message(task, m)).join('')}
+      ${task.messages.map((m, i) => message(task, m, i)).join('')}
       ${busy ? '<div class="qa-typing"><i></i><i></i><i></i></div>' : ''}
     </div>
     <div class="qa-bottom">${chips}${composer(task.path === 'A'
@@ -485,23 +487,32 @@ function chat(task) {
       : '您也可以用自然语言调整，例如：目标规模 5 万人、观察窗口改成近 30 天', '发送')}</div>`;
 }
 
-function bot(inner) { return `<div class="qa-bot"><div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手</div>${inner}</div>`; }
+/* 连续的助手消息合并为一段，只在第一条显示头像与名字；最后一条在运行中带生成动效 */
+const hhmmss = (t) => new Date(t).toLocaleTimeString('zh-CN', { hour12: false });
+function bot(inner, o = {}) {
+  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}</div>`;
+  return `<div class="qa-bot${o.first === false ? ' qa-bot-cont' : ''}${o.live ? ' is-live' : ''}">${head}${inner}</div>`;
+}
 function stepIcon(s) { return s === 'done' ? `<i class="qa-si done">${ICON.check}</i>` : s === 'running' ? '<i class="qa-si run"></i>' : `<i class="qa-si wait">${ICON.clock}</i>`; }
 function steps(msg, key, label, openKey) {
   const list = msg[key], done = list.filter((s) => s.status === 'done').length;
-  return `<details class="qa-proc" data-msg="${msg.id}" data-open="${openKey}" ${msg[openKey] ? 'open' : ''}><summary>${done === list.length ? ICON.check : ICON.info}<span>${label} ${done}/${list.length}</span></summary>
-    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}</span>${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
+  const total = list.reduce((n, s) => n + (s.ms || 0), 0);
+  const ms = (n) => (n / 1000).toFixed(1) + 's';
+  return `<details class="qa-proc" data-msg="${msg.id}" data-open="${openKey}" ${msg[openKey] ? 'open' : ''}><summary>${done === list.length ? ICON.check : ICON.info}<span>${label} ${done}/${list.length}</span>${total ? `<em class="qa-ms">${ms(total)}</em>` : ''}</summary>
+    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}</span>${s.status === 'done' && s.ms ? `<em class="qa-ms">${ms(s.ms)}</em>` : s.status === 'running' ? '<em class="qa-ms qa-ms-run">执行中</em>' : ''}${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
 }
 
-function message(task, m) {
-  if (m.type === 'user') return `<div class="qa-user"><div class="qa-user-name">你<span class="qa-avatar">U</span></div><div class="qa-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
-  if (m.type === 'ack') return bot(`<p>${esc(m.title || '已收到你的消息，我将立即开始处理')}</p>${m.longRun ? '<div class="qa-tip qa-tip-run">当前种子人群包运行中，完成后会以飞书消息方式通知，请关注。可以先离开本页。</div>' : ''}${steps(m, 'steps', '查看分析过程', 'open')}`);
-  if (m.type === 'clarify') return bot(clarifyCard(task, m));
-  if (m.type === 'conditions') return bot(conditionsCard(task, m));
-  if (m.type === 'permission') return bot(permissionCard(task, m));
-  if (m.type === 'exec') return bot(`<p>已提交确认，开始圈选</p>${steps(m, 'steps', '执行完成', 'open')}${steps(m, 'analysis', '查看分析过程', 'openAnalysis')}`);
-  if (m.type === 'agent-out') return bot(agentOutCard(task, m));
-  if (m.type === 'result') return bot(resultCard(task, m));
+function message(task, m, i) {
+  if (m.type === 'user') return `<div class="qa-user"><div class="qa-user-name">你<span class="qa-avatar">U</span><time>${hhmmss(m.at)}</time></div><div class="qa-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
+  const prev = task.messages[i - 1];
+  const o = { first: !prev || prev.type === 'user', at: m.at, live: busy && i === task.messages.length - 1 };
+  if (m.type === 'ack') return bot(`<p>${esc(m.title || '已收到你的消息，我将立即开始处理')}</p>${m.longRun ? '<div class="qa-tip qa-tip-run">当前种子人群包运行中，完成后会以飞书消息方式通知，请关注。可以先离开本页。</div>' : ''}${steps(m, 'steps', '查看分析过程', 'open')}`, o);
+  if (m.type === 'clarify') return bot(clarifyCard(task, m), o);
+  if (m.type === 'conditions') return bot(conditionsCard(task, m), o);
+  if (m.type === 'permission') return bot(permissionCard(task, m), o);
+  if (m.type === 'exec') return bot(`<p>已提交确认，开始圈选</p>${steps(m, 'steps', '执行完成', 'open')}${steps(m, 'analysis', '查看分析过程', 'openAnalysis')}`, o);
+  if (m.type === 'agent-out') return bot(agentOutCard(task, m), o);
+  if (m.type === 'result') return bot(resultCard(task, m), o);
   return '';
 }
 
