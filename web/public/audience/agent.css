@@ -155,6 +155,9 @@
 .qa-result-art i{display:block;width:54px;height:8px;border-radius:4px;background:#e4dcff}
 .qa-report-line{display:flex;align-items:center;gap:6px;color:var(--qa-sub);margin-top:8px;font-size:12px}
 .qa-report-line .ok{color:var(--qa-ok);font-weight:500}
+.qa-deliver-line{margin:6px 0 0;font-size:12px;line-height:1.7}
+.qa-table td .qa-link + .qa-link{margin-left:10px}
+.qa-deliver-line code{font-size:12px}
 
 /* 底部输入 */
 .qa-bottom{width:100%;padding:8px 18px 14px;border-top:1px solid #f0f1f4}
