@@ -296,3 +296,12 @@
 .qa-entry-card b { display: block; font-size: 13.5px; color: var(--qa-text, #1d2129); margin-bottom: 4px; }
 .qa-entry-card span { display: block; font-size: 12px; color: var(--qa-text-3, #86909c); line-height: 1.6; }
 @media (max-width: 720px) { .qa-entry { grid-template-columns: 1fr; } }
+
+/* 提示条：种子限制、长耗时与飞书通知 */
+.qa-tip { margin: 10px 0 0; padding: 8px 11px; border-radius: 8px; font-size: 12px; line-height: 1.7;
+  background: var(--qa-fill-2, #f7f8fa); color: var(--qa-text-2, #4e5969); }
+.qa-tip-run { background: #fff7e8; color: #b25e09; }
+/* 人群包交付说明 */
+.qa-deliver { display: grid; gap: 8px; }
+.qa-deliver-head { display: flex; align-items: baseline; gap: 8px; }
+.qa-deliver .qa-outline { justify-self: start; }
