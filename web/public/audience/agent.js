@@ -238,7 +238,7 @@ const ICON = {
 
 let host = null, options = {}, tasks = [], activeId = null, view = 'home', busy = false;
 let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: false }, toast = '';
-let page = 1, reportTimer = null, lastCount = 0;
+let page = 1, reportTimer = null, lastCount = 0, ticker = null;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
 let histQ = '', centerQ = ''; // 历史对话 / 任务中心关键词
 
@@ -269,9 +269,9 @@ async function runSteps(task, msg, key) {
   for (const step of msg[key]) {
     if (step.status === 'done') continue;
     const t0 = Date.now();
-    step.status = 'running'; save(); render();
+    step.t0 = t0; step.status = 'running'; save(); render();
     await wait(420 + (hash(step.title) % 5) * 90);
-    step.ms = Date.now() - t0;
+    step.ms = Date.now() - t0; delete step.t0;
     step.status = 'done'; save(); render();
   }
 }
@@ -301,7 +301,7 @@ async function runPathA(task) {
   busy = true;
   const t0 = Date.now();
   const gen = push(task, { type: 'ack', open: true, longRun: true,
-    title: '已收到业务目标与种子用户，开始调用吴极侧 Agent', steps: [
+    title: '已收到业务目标与种子用户，开始学习种子特征', steps: [
       ...AGENT_LAYERS.map((x) => ({
         title: x.round ? `${x.title}（第 1/${MAX_ROUND} 轮）` : x.title,
         detail: `${x.layer} · ${x.stage === 'prepare' ? `业务目标与 ${fmt(task.seed.count)} 个种子用户齐备，` : ''}${x.detail}`,
@@ -442,6 +442,7 @@ function render() {
   const s = host.querySelector('.qa-stream');
   if (s) s.scrollTop = stick ? s.scrollHeight : prevTop;
   if (focusId) { const n = host.querySelector('#' + focusId); if (n) { n.focus(); if (n.setSelectionRange && n.value) n.setSelectionRange(n.value.length, n.value.length); } }
+  if (busy) startTicker(); else stopTicker();
 }
 
 function seedChip(seed, target) {
@@ -460,7 +461,7 @@ function seedModalView() {
   const warn = p ? seedWarning(p) : '';
   return `<div class="qa-modal-mask"><div class="qa-modal" role="dialog" aria-label="添加种子用户">
     <header><b>添加种子用户</b><button type="button" class="qa-icon-btn" data-act="seed-cancel" aria-label="关闭">×</button></header>
-    <p class="qa-muted">种子用户是你已经确认的一批目标用户（例如上一轮转化最好的那批人），会和业务目标一起交给吴极侧 Agent，由 Agent 学习他们的共性特征后向外扩散。系统只保留数量和脱敏样例，不落完整 ID 列表，本期不建种子库。</p>
+    <p class="qa-muted">种子用户是你已经确认的一批目标用户（例如上一轮转化最好的那批人），会和业务目标一起用于本次圈选，我会学习他们的共性特征再向外扩散。系统只保留数量和脱敏样例，不落完整 ID 列表，本期不建种子库。</p>
     <div class="qa-tip">本期支持 <b>${SEED_MIN}–${SEED_MAX}</b> 个种子用户；超出部分会被截断。提交后 Agent 需要较长时间运行（约 2–3 小时），完成后会通过飞书 IM bot 通知你。</div>
     <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
     <div class="qa-modal-body">${body}${summary}</div>
@@ -523,25 +524,45 @@ function chat(task) {
 
 /* 连续的助手消息合并为一段，只在第一条显示头像与名字；最后一条在运行中带生成动效 */
 const hhmmss = (t) => new Date(t).toLocaleTimeString('zh-CN', { hour12: false });
-const secs = (ms) => (ms / 1000).toFixed(1) + 's';
-/* 本轮耗时：从这条助手消息起，到下一条用户消息为止的所有步骤耗时之和 */
+/* 执行中要让用户看见秒在走：不足 1 分钟给到 0.1s，超过 1 分钟按「M 分 SS 秒」 */
+function secs(ms) {
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)} 分 ${String(total % 60).padStart(2, '0')} 秒`;
+}
+/* 已完成步骤的耗时 ＋ 正在跑的那一步到此刻为止的耗时 */
+const sumSteps = (m) => ['steps', 'analysis'].reduce((n, key) => n + (m[key] || []).reduce(
+  (k, x) => k + (x.ms || (x.status === 'running' && x.t0 ? Date.now() - x.t0 : 0)), 0), 0);
+/* 本轮耗时：从这条助手消息起，到下一条用户消息为止 */
 function roundMs(task, i) {
   let total = 0;
   for (let k = i; k < task.messages.length; k++) {
     const m = task.messages[k];
     if (m.type === 'user') break;
-    for (const key of ['steps', 'analysis']) if (m[key]) total += m[key].reduce((n, x) => n + (x.ms || 0), 0);
+    total += sumSteps(m);
   }
   return total;
 }
-/* 任务累计耗时：所有步骤 ＋ 路径 A 的 Agent / 大盘两段 */
-function taskMs(task) {
-  let total = 0;
-  for (const m of task.messages) for (const key of ['steps', 'analysis']) if (m[key]) total += m[key].reduce((n, x) => n + (x.ms || 0), 0);
-  return total;
+/* 任务累计耗时 */
+function taskMs(task) { return task.messages.reduce((n, m) => n + sumSteps(m), 0); }
+/* 只刷新时钟文本，不整页重绘：重绘会打断输入焦点和折叠状态 */
+function tickClocks() {
+  if (!host || !host.isConnected) return;
+  const task = current();
+  if (!task) return;
+  host.querySelectorAll('[data-live="round"]').forEach((el) => {
+    const i = +el.dataset.i;
+    el.textContent = `本轮 ${secs(roundMs(task, i))} · 累计 ${secs(taskMs(task))}`;
+  });
+  host.querySelectorAll('[data-live="step"]').forEach((el) => {
+    const t0 = +el.dataset.t0;
+    if (t0) el.textContent = secs(Date.now() - t0);
+  });
 }
+function startTicker() { if (!ticker) ticker = setInterval(tickClocks, 200); }
+function stopTicker() { clearInterval(ticker); ticker = null; }
 function bot(inner, o = {}) {
-  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}${o.ms ? `<em class="qa-round-ms">${o.live ? '执行中' : '本轮 ' + secs(o.ms)}${o.totalMs && o.totalMs !== o.ms ? ` · 累计 ${secs(o.totalMs)}` : ''}</em>` : ''}</div>`;
+  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}${o.ms || o.live ? `<em class="qa-round-ms"${o.live ? ` data-live="round" data-i="${o.index}"` : ''}>本轮 ${secs(o.ms)}${o.totalMs && o.totalMs !== o.ms ? ` · 累计 ${secs(o.totalMs)}` : ''}</em>` : ''}</div>`;
   return `<div class="qa-bot${o.first === false ? ' qa-bot-cont' : ''}${o.live ? ' is-live' : ''}">${head}${inner}</div>`;
 }
 function stepIcon(s) { return s === 'done' ? `<i class="qa-si done">${ICON.check}</i>` : s === 'running' ? '<i class="qa-si run"></i>' : `<i class="qa-si wait">${ICON.clock}</i>`; }
@@ -550,14 +571,14 @@ function steps(msg, key, label, openKey) {
   const total = list.reduce((n, s) => n + (s.ms || 0), 0);
   const ms = (n) => (n / 1000).toFixed(1) + 's';
   return `<details class="qa-proc" data-msg="${msg.id}" data-open="${openKey}" ${msg[openKey] ? 'open' : ''}><summary>${done === list.length ? ICON.check : ICON.info}<span>${label} ${done}/${list.length}</span>${total ? `<em class="qa-ms">${ms(total)}</em>` : ''}</summary>
-    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}${s.skill ? `<small class="qa-skill">skill <code>${esc(s.skill)}</code></small>` : ''}</span>${s.status === 'done' && s.ms ? `<em class="qa-ms">${ms(s.ms)}</em>` : s.status === 'running' ? '<em class="qa-ms qa-ms-run">执行中</em>' : ''}${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
+    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}${s.skill ? `<small class="qa-skill">skill <code>${esc(s.skill)}</code></small>` : ''}</span>${s.status === 'done' && s.ms ? `<em class="qa-ms">${ms(s.ms)}</em>` : s.status === 'running' ? `<em class="qa-ms qa-ms-run" data-live="step" data-t0="${s.t0 || 0}">${s.t0 ? ms(Date.now() - s.t0) : '执行中'}</em>` : ''}${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
 }
 
 function message(task, m, i) {
   if (m.type === 'user') return `<div class="qa-user"><div class="qa-user-name">你<span class="qa-avatar">U</span><time>${hhmmss(m.at)}</time></div><div class="qa-bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`;
   const prev = task.messages[i - 1];
   const o = { first: !prev || prev.type === 'user', at: m.at, live: busy && i === task.messages.length - 1 };
-  if (o.first) { o.ms = roundMs(task, i); o.totalMs = taskMs(task); }
+  if (o.first) { o.ms = roundMs(task, i); o.totalMs = taskMs(task); o.index = i; o.live = busy; }
   if (m.type === 'ack') return bot(`<p>${esc(m.title || '已收到你的消息，我将立即开始处理')}</p>${m.longRun ? '<div class="qa-tip qa-tip-run">当前种子人群包运行中，完成后会以飞书消息方式通知，请关注。可以先离开本页。</div>' : ''}${steps(m, 'steps', '查看分析过程', 'open')}`, o);
   if (m.type === 'clarify') return bot(clarifyCard(task, m), o);
   if (m.type === 'conditions') return bot(conditionsCard(task, m), o);
@@ -581,7 +602,7 @@ function agentOutCard(task, m) {
   /* 只展示 Agent 报告里真实存在的信息：run_id、样本、轮次与产物。
    * 不展示「圈选逻辑＝某几个标签」——那是路径 B 的条件卡，Agent 报告不透传这种结构。 */
   const h2 = hash(task.id + 'rep'), rounds = 2 + (h2 % 2);
-  return `<p>吴极侧 Agent 已根据业务目标与 ${fmt(task.seed.count)} 个种子用户产出可执行 SQL 与圈选报告。</p>
+  return `<p>已根据业务目标与 ${fmt(task.seed.count)} 个种子用户产出可执行 SQL 与圈选报告。</p>
   <div class="qa-card">
     <div class="qa-card-title">${ICON.check}Agent 产出<small>种子扩散</small></div>
     <div class="qa-cond"><span class="k">run_id</span><span class="v"><code>${esc(runIdOf(task))}</code></span></div>
@@ -870,14 +891,14 @@ function agentReportView(task) {
   const pick = (title) => { const m = src.match(new RegExp('## ' + title + '\\n([\\s\\S]*?)(?=\\n## |$)')); return m ? m[1].trim() : ''; };
   const card = (t, body) => `<div class="qa-rep-card"><h5>${t}</h5>${body}</div>`;
   return `<section class="qa-report">
-    <div class="qa-tip">本报告由吴极侧 Agent 原样返回（Markdown），门户不二次加工。其中的<b>召回率 / 误召数是对你给的样本做回测得到的</b>，不代表最终圈人准确率；<b>报告生成不等于人群包已生成</b>，最终人群数以大盘执行结果为准。</div>
+    <div class="qa-tip">以下为本次圈选的研究报告（Markdown 原文，未经二次加工）。其中的<b>召回率 / 误召数是对你给的样本做回测得到的</b>，不代表最终圈人准确率；<b>报告生成不等于人群包已生成</b>，最终人群数以大盘执行结果为准。</div>
     <div class="qa-rep-grid">
       ${card('目标与样本', renderMd(pick('Task')))}
       ${card('迭代结果', renderMd(pick('Iteration Summary')))}
       ${card('选轮结论', renderMd(pick('Selected Result')))}
       ${card('已知局限', renderMd(pick('Generalization Check')))}
     </div>
-    <div class="qa-rep-acts"><span class="qa-muted">报告由 Agent 原样返回，取回方式与可用字段以接口方确认为准</span></div>
+    <div class="qa-rep-acts"><span class="qa-muted">报告为原样产出，字段与取回方式以最终接口为准</span></div>
     <details class="qa-proc qa-rep-full"><summary>${ICON.info}<span>展开完整报告（Markdown 原文）</span></summary><div class="qa-md">${renderMd(src)}</div></details>
   </section>`;
 }
@@ -997,6 +1018,7 @@ root.AudienceWorkspace = {
     host.removeEventListener('change', onChange);
     host.removeEventListener('keydown', onKey);
     host.removeEventListener('toggle', onToggle, true);
+    stopTicker();
     host = null; busy = false;
   },
   openAsset() { view = 'home'; activeId = null; render(); },
