@@ -130,9 +130,10 @@ const AGENT_LAYERS = [
   { stage: 'select_best', layer: '数据对齐与执行层', title: '选定最终 SQL 与报告', detail: '按召回优先选出最佳一轮，产出圈选报告', skill: 'user-cohort-sql-prompt-generator' },
   { stage: 'memory', layer: '数据对齐与执行层', title: '沉淀运行记忆', detail: '写入本次运行现场，供后续复盘与复用', skill: 'mem0-cli' },
 ];
+/* 两个入口对用户只呈现为「要不要带种子用户」，不出现链路 / 路径这类内部概念 */
 const PATHS = {
-  A: { key: 'A', name: '业务目标 ＋ 种子用户', brief: '交给吴极侧 Agent 生成 SQL 与报告，不再逐条确认筛选条件' },
-  B: { key: 'B', name: '自然语言圈人', brief: '按需追问关键口径，可视化确认筛选条件后再执行' },
+  A: { key: 'A', name: '业务目标 ＋ 种子用户', brief: '带一批已确认的目标用户，Agent 学习共性后扩散，不再逐条确认条件' },
+  B: { key: 'B', name: '自然语言圈人', brief: '只说诉求，按需追问关键口径，可视化确认条件后执行' },
 };
 function parseSeeds(text) {
   const parts = String(text || '').split(/[\s,，;；]+/).map((x) => x.trim()).filter(Boolean);
@@ -471,7 +472,7 @@ function sidebar() {
   /* 历史对话会一直累积：带关键词搜索并在列表内滚动，匹配标题与原始诉求 */
   const q = histQ.trim().toLowerCase();
   const hit = q ? tasks.filter((t) => `${t.title} ${t.query}`.toLowerCase().includes(q)) : tasks;
-  const list = hit.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>路径 ${t.path || 'B'}</em></button>`).join('');
+  const list = hit.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span>${t.seed ? `<em>种子 ${fmt(t.seed.count)}</em>` : ''}</button>`).join('');
   return `<aside class="qa-side">
     <div class="qa-side-head"><span class="qa-brand"><i>${ICON.spark}</i>圈人助手</span><button type="button" class="qa-icon-btn" data-act="toggle-side" aria-label="${sidebarOpen ? '收起' : '展开'}侧栏">${ICON.side}</button></div>
     <nav class="qa-side-nav">
@@ -493,9 +494,9 @@ function home() {
   return `<div class="qa-home">
     <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>${esc(hint)}</p></div>
     <div class="qa-entry">${Object.values(PATHS).map((p) => `<button type="button" class="qa-entry-card ${entry === p.key ? 'on' : ''}" data-act="entry" data-v="${p.key}">
-      <b>路径 ${p.key} · ${esc(p.name)}</b><span>${esc(p.brief)}</span></button>`).join('')}</div>
+      <b>${esc(p.name)}</b><span>${esc(p.brief)}</span></button>`).join('')}</div>
     ${composer(isA ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
-    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>${isA ? '必填' : '不需要'}</em></button><span class="qa-muted">${isA ? '路径 A 需要种子用户：上传或粘贴一批已确认的目标用户 ID' : '路径 B 不需要种子；如果你手上已有一批目标用户，切到路径 A'}</span>`}</div>
+    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>${isA ? '必填' : '不需要'}</em></button><span class="qa-muted">${isA ? '上传或粘贴一批已确认的目标用户 ID，Agent 会从他们的共性向外扩散' : '只说诉求就行；如果手上已有一批目标用户，切到「业务目标 ＋ 种子用户」带上种子'}</span>`}</div>
     <div class="qa-examples">${(isA ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
     <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
@@ -516,7 +517,7 @@ function chat(task) {
       ${busy ? '<div class="qa-typing"><i></i><i></i><i></i></div>' : ''}
     </div>
     <div class="qa-bottom">${chips}${composer(task.path === 'A'
-      ? '路径 A 的圈选逻辑由 Agent 从种子用户学习，不逐条改条件；可以补充业务目标，例如：这一版只要华东地区'
+      ? '圈选逻辑由 Agent 从种子用户学习，不逐条改条件；可以补充业务目标，例如：这一版只要华东地区'
       : '您也可以用自然语言调整，例如：目标规模 5 万人、观察窗口改成近 30 天', '发送')}</div>`;
 }
 
@@ -582,7 +583,7 @@ function agentOutCard(task, m) {
   const h2 = hash(task.id + 'rep'), rounds = 2 + (h2 % 2);
   return `<p>吴极侧 Agent 已根据业务目标与 ${fmt(task.seed.count)} 个种子用户产出可执行 SQL 与圈选报告。</p>
   <div class="qa-card">
-    <div class="qa-card-title">${ICON.check}Agent 产出<small>路径 A</small></div>
+    <div class="qa-card-title">${ICON.check}Agent 产出<small>种子扩散</small></div>
     <div class="qa-cond"><span class="k">run_id</span><span class="v"><code>${esc(runIdOf(task))}</code></span></div>
     <div class="qa-cond"><span class="k">样本</span><span class="v">正样本 ${fmt(task.seed.count)} 个 · ${esc(task.seed.source)}；样本在首轮冻结，不随结果调整</span></div>
     <div class="qa-cond"><span class="k">迭代轮次</span><span class="v">${rounds} / 3 轮，已选出最佳一轮</span></div>
@@ -884,10 +885,10 @@ function taskCenter() {
   const q = centerQ.trim().toLowerCase();
   const rows = q ? tasks.filter((t) => `${t.title} ${t.query} ${t.result ? t.result.packId : ''}`.toLowerCase().includes(q)) : tasks;
   return `<header class="qa-chat-head"><h1>圈人任务中心</h1><input id="qa-center-q" class="qa-search" placeholder="搜索任务名、诉求或人群包 ID" value="${esc(centerQ)}"></header><div class="qa-center-body">
-    <table class="qa-table"><thead><tr><th>任务</th><th>链路</th><th>状态</th><th>人群包</th><th>人群规模</th><th>更新时间</th><th></th></tr></thead><tbody>
-    ${rows.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>路径 ${t.path || 'B'}</td><td>${t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="7" class="qa-muted">${q ? '没有匹配的任务' : '还没有任务'}</td></tr>`}
+    <table class="qa-table"><thead><tr><th>任务</th><th>输入方式</th><th>状态</th><th>人群包</th><th>人群规模</th><th>更新时间</th><th></th></tr></thead><tbody>
+    ${rows.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>${t.seed ? `种子 ${fmt(t.seed.count)} 个` : '自然语言'}</td><td>${t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="7" class="qa-muted">${q ? '没有匹配的任务' : '还没有任务'}</td></tr>`}
     </tbody></table>
-    <p class="qa-muted">路径 A 的 Agent 运行约 2–3 小时，完成后会以飞书消息通知；人群包统一以 Hive 表交付生服 LDMP 建包。</p></div>`;
+    <p class="qa-muted">带种子用户的任务需要 Agent 运行约 2–3 小时，完成后会以飞书消息通知；人群包统一以 Hive 表交付生服 LDMP 建包。</p></div>`;
 }
 
 /* ---------------- 事件 ---------------- */
@@ -945,7 +946,7 @@ function send() {
   const task = current();
   const isNew = !(view === 'task' && task);
   /* 路径 A 缺种子时先提示，保留已输入的业务目标，不清空草稿 */
-  if (isNew && entry === 'A' && !draftSeed) { notify('路径 A 需要同时提供业务目标和种子用户，请先添加种子'); return; }
+  if (isNew && entry === 'A' && !draftSeed) { notify('需要同时提供业务目标和种子用户，请先添加种子'); return; }
   draft = '';
   if (isNew) start(text); else modify(task, text);
 }
