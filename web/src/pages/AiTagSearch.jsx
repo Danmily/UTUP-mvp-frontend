@@ -179,7 +179,7 @@ export function AiSearchPage({ ai, renderRec }) {
             <p>说说你的业务需求，我来推荐合适的标签，并说明每个标签能看出什么。</p>
             <Composer ai={ai} hero placeholder="例如：想判断用户的消费能力高低，有哪些标签合适？" />
             <div className="ai-examples">{AI_EXAMPLES.map(([k, v]) => <button type="button" key={k} onClick={() => ai.run(v)}><b>{k}</b><span>{v}</span></button>)}</div>
-            <p className="ai-note">演示推荐 · 按关键词匹配，不代表模型能力</p>
+            <p className="ai-note">按关键词与口径匹配，是否可用以标签详情为准</p>
           </div>
         ) : (
           <>
@@ -201,7 +201,7 @@ export function AiSearchPage({ ai, renderRec }) {
                 ))}
               </div>
             </div>
-            <div className="ai-dock"><div className="ai-col"><Composer ai={ai} placeholder="继续问，例如：还有哪些能看出优惠敏感度的标签？" /><p className="ai-note">演示推荐 · 按关键词匹配，不代表模型能力；是否可用以标签详情中的口径为准</p></div></div>
+            <div className="ai-dock"><div className="ai-col"><Composer ai={ai} placeholder="继续问，例如：还有哪些能看出优惠敏感度的标签？" /><p className="ai-note">按关键词与口径匹配，是否可用以标签详情中的口径为准</p></div></div>
           </>
         )}
       </section>

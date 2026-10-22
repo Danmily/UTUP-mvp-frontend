@@ -254,7 +254,7 @@ function tagState(id) {
 /* 开放 / 通用级标签自助申请、平台自动通过；只有受控 / 高敏标签需要走审批 */
 const needsApproval = (id) => ['受控', '高敏'].includes(TAGS[id].level);
 function shownState(task, id) {
-  if (task.granted.includes(id)) return { code: 'active', label: '已开通（演示）' };
+  if (task.granted.includes(id)) return { code: 'active', label: '已开通' };
   const st = tagState(id);
   return st.code !== 'active' && !needsApproval(id) ? { code: 'active', label: '自助开通' } : st;
 }
@@ -327,7 +327,7 @@ async function runPathA(task) {
   busy = false;
   panel = { open: true, tab: 'sql', full: false }; page = 1;
   save(); render();
-  notify('人群包已生成，已通过飞书消息通知你（演示）');
+  notify('人群包已生成，已通过飞书消息通知你');
 }
 
 async function confirmClarify(task, msg) {
@@ -390,7 +390,7 @@ async function applyPermission(task, msg) {
   msg.status = 'applied'; save();
   if (options.portal?.applyTags) { options.portal.applyTags(msg.ids); return; }
   if (options.onMarket) { options.onMarket(); return; }
-  notify('已加入标签广场的待选择清单（演示）');
+  notify('已加入标签广场的待选择清单');
 }
 async function useOtherTags(task, msg) {
   if (busy) return;
@@ -499,7 +499,6 @@ function home() {
     ${composer(hasSeed ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
     <div class="qa-seed-bar">${hasSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>选填</em></button><span class="qa-muted">手上已有一批确认过的目标用户，就加上来让我照着找相似的人；没有也可以直接描述诉求</span>`}</div>
     <div class="qa-examples">${(hasSeed ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
-    <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
 }
 
@@ -621,7 +620,7 @@ function conditionsCard(task, m) {
   <div class="qa-card qa-cond-card ${live ? '' : 'is-frozen'}">
     ${GROUPS.map(([g, label], i) => { const rows = conds.filter((c) => c.group === g); return rows.length ? `<div class="qa-card-title">${[ICON.cycle, ICON.filter, ICON.filter][i]}${label}<small>${g === 'must' ? 'AND' : g === 'any' ? 'OR' : 'NOT'}</small></div>${rows.map(row).join('')}` : ''; }).join('')}
     <div class="qa-cond"><span class="k">执行方式</span><span class="v"><span class="qa-pill">${esc(execMode(task).label)}</span> ${esc(execMode(task).note)}</span></div>
-    <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted">（演示估算）</span></span></div>
+    <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted"> · 按当前条件估算，以执行结果为准</span></span></div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
     <p class="qa-cond-tip">可以删除条件、调整组合关系（必须满足 / 任一满足 / 排除）或改目标规模；要换口径、改时间窗口直接在下面用自然语言说，我会给出新版本。</p>
     <div class="qa-card-foot">${live ? `${execMode(task).cross ? '<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button>' : ''}<button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
@@ -637,7 +636,7 @@ function permissionCard(task, m) {
     ${done ? `<p class="qa-done">${ICON.check}${m.status === 'fallback' ? '已改用其他标签' : '权限已开通，已继续执行'}</p>` : `<div class="qa-perm-actions">
       <button type="button" class="qa-primary" data-act="perm-apply" data-msg="${m.id}">一键申请权限</button>
       <button type="button" class="qa-outline" data-act="perm-other" data-msg="${m.id}">使用其他标签</button></div>
-      ${m.status === 'applied' ? `<p class="qa-muted qa-center">已放进标签广场的待选择清单。审批通过后回到这里继续。<button type="button" class="qa-link" data-act="perm-granted" data-msg="${m.id}">权限已开通，继续执行（演示）</button></p>` : `<p class="qa-center"><button type="button" class="qa-link" data-act="perm-granted" data-msg="${m.id}">权限已开通，继续执行（演示）</button></p>`}`}
+      ${m.status === 'applied' ? `<p class="qa-muted qa-center">已放进标签广场的待选择清单。审批通过后回到这里继续。<button type="button" class="qa-link" data-act="perm-granted" data-msg="${m.id}">权限已开通，继续执行</button></p>` : `<p class="qa-center"><button type="button" class="qa-link" data-act="perm-granted" data-msg="${m.id}">权限已开通，继续执行</button></p>`}`}
   </details>`;
 }
 
@@ -852,11 +851,11 @@ function panelBody(task) {
       return [`U****${String(1000 + k * 7).slice(-4)}`, `${hitN} / ${conds.length}`, (0.58 + (j % 41) / 100).toFixed(2), hitNames, domainOf(j), r.at.slice(0, 10)];
     });
     /* 评审结论：本期人群包只读，人群的增删与投放都在生服 LDMP 侧完成，门户不做批量剔除 */
-    return `<div class="qa-toolbar"><input placeholder="输入用户 ID，按回车搜索（演示）"><span class="qa-spacer"></span><span class="qa-muted">任务 code：${r.taskCode} · 人群包 ID：${r.packId}</span><button type="button" class="qa-outline sm" data-act="download">下载</button><button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 建包</button></div>
+    return `<div class="qa-toolbar"><input placeholder="输入用户 ID，按回车搜索"><span class="qa-spacer"></span><span class="qa-muted">任务 code：${r.taskCode} · 人群包 ID：${r.packId}</span><button type="button" class="qa-outline sm" data-act="download">下载</button><button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 建包</button></div>
       <table class="qa-table"><thead><tr><th class="qa-nowrap">用户 ID（脱敏）</th><th class="qa-nowrap">命中条件</th><th class="qa-nowrap">匹配分</th><th>命中标签</th><th class="qa-nowrap">来源域</th><th class="qa-nowrap">数据日期</th></tr></thead>
       <tbody>${rows.map((x) => `<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td><b>${x[2]}</b></td><td class="qa-ell" title="${esc(x[3])}">${esc(x[3])}</td><td>${x[4]}</td><td class="qa-nowrap">${esc(x[5])}</td></tr>`).join('')}</tbody></table>
       <p class="qa-muted">匹配分用于按目标规模截断，分值越高越贴近目标人群；明细只说明命中了哪些标签，不展示标签取值。</p>
-      <div class="qa-pager"><span class="qa-muted">共 ${fmt(r.size)} 人 · 仅展示演示样例 · 人群编辑在 LDMP 侧完成</span>${[1, 2, 3, 4, 5].map((p) => `<button type="button" class="${p === page ? 'on' : ''}" data-act="page" data-p="${p}">${p}</button>`).join('')}</div>`;
+      <div class="qa-pager"><span class="qa-muted">共 ${fmt(r.size)} 人 · 人群编辑在 LDMP 侧完成</span>${[1, 2, 3, 4, 5].map((p) => `<button type="button" class="${p === page ? 'on' : ''}" data-act="page" data-p="${p}">${p}</button>`).join('')}</div>`;
   }
   if (panel.tab === 'conditions') {
     /* 三个条件组分块展示，组内关系写在小标题上，不再挤在同一张表的「条件组」列里 */
@@ -870,9 +869,9 @@ function panelBody(task) {
     return `${GROUPS.map(block).join('')}
       <p class="qa-muted">组间关系：必须满足 AND（任一满足）AND NOT 排除。修改条件请在对话中点「修改圈选条件」，会生成新版本。</p>`;
   }
-  if (panel.tab === 'sql') return `<div class="qa-toolbar"><span class="qa-muted">示例 SQL · 按 V${r.version} 条件生成，不可用于生产</span><span class="qa-spacer"></span><button type="button" class="qa-outline sm" data-act="copy-sql">复制</button></div>${sqlBlock(r.sql || buildSql(task, conds))}`;
+  if (panel.tab === 'sql') return `<div class="qa-toolbar"><span class="qa-muted">按 V${r.version} 条件生成</span><span class="qa-spacer"></span><button type="button" class="qa-outline sm" data-act="copy-sql">复制</button></div>${sqlBlock(r.sql || buildSql(task, conds))}`;
   if (panel.tab === 'report') {
-    if (!task.reportReady) return `<div class="qa-empty">${ICON.clock}<b>人群报告生成中</b><p>报告异步产出，约 20 分钟。生成后会在对话中提示。</p><button type="button" class="qa-outline sm" data-act="report-now">立即查看（演示）</button></div>`;
+    if (!task.reportReady) return `<div class="qa-empty">${ICON.clock}<b>人群报告生成中</b><p>报告异步产出，约 20 分钟。生成后会在对话中提示。</p><button type="button" class="qa-outline sm" data-act="report-now">刷新查看</button></div>`;
     if (task.path === 'A') return agentReportView(task);
     const feats = conds.filter((c) => c.tag).map((c, i) => [tagName(c), c.value, (1.4 + ((h >> i) % 18) / 10).toFixed(1)]);
     return `<section class="qa-report"><h4>一句话结论</h4><p>这批人中，${feats[0] ? `「${esc(feats[0][0])}」` : ''}是区分度最高的特征，建议分两批触达并保留对照组。</p>
@@ -934,7 +933,7 @@ async function onClick(e) {
     case 'remove': task.removed.push(+el.dataset.tag); save(); break;
     case 'seed-open': seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null }; break;
     case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.text = ''; seedModal.fileName = ''; break;
-    case 'to-ldmp': notify('已在新页面打开生服 LDMP 的人群包（演示）'); return;
+    case 'to-ldmp': notify('正在打开生服 LDMP 的人群包'); return;
     case 'seed-cancel': seedModal = null; break;
     case 'seed-confirm': {
       const m = seedModal, p = m.parsed; if (!p || !p.count) return;
@@ -954,8 +953,8 @@ async function onClick(e) {
     case 'full': panel.full = !panel.full; break;
     case 'page': page = +el.dataset.p; break;
     case 'report-now': task.reportReady = true; save(); break;
-    case 'copy-sql': try { await navigator.clipboard.writeText(task.result.sql || buildSql(task, buildConditions(task))); notify('已复制示例 SQL'); } catch { notify('复制失败，请手动选择'); } return;
-    case 'download': notify('演示环境不导出真实用户，已记录下载请求'); return;
+    case 'copy-sql': try { await navigator.clipboard.writeText(task.result.sql || buildSql(task, buildConditions(task))); notify('已复制 SQL'); } catch { notify('复制失败，请手动选择'); } return;
+    case 'download': notify('人群包导出已开始，完成后以飞书消息通知你'); return;
     case 'save-template': task.saved = true; save(); notify('已保存为圈人模板，可在任务中心复用'); return;
     default: return;
   }

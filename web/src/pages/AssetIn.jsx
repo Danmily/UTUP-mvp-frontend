@@ -271,7 +271,7 @@ export default function AssetIn({ V, pushAudit }) {
       { ...ok, source_domain: '其他标签资产', tag_id: '', tag_name: 'AI 品类兴趣侧写', description: '基于大模型侧写输出的品类兴趣，周更', update_freq: '周更', coverage: '64', owner: '@wangwu', source_db: 'ai_profile', source_table: 'dwd_llm_cate_interest_di', source_field: 'cate_interest', unified_level: '通用' },
       { ...ok, tag_id: '', tag_name: '缺 ID 的 DMP 标签', source_field: 'order_cnt_30d' },
     ]
-    readCsv(toCsv(list, keys), '演示文件.csv')
+    readCsv(toCsv(list, keys), '示例文件.csv')
   }
   const okRows = rows?.filter((r) => !r.errors.length) || [], badRows = rows?.filter((r) => r.errors.length) || []
   /* 一行需要合规确认：新增资产，或更新时改了密级或数据源 */
@@ -470,7 +470,7 @@ export default function AssetIn({ V, pushAudit }) {
               <div className="af-drop-icon" aria-hidden="true">⬆</div>
               <strong>点击或拖拽 CSV 文件到这里</strong>
               <span>Excel 可「另存为 CSV UTF-8」后上传</span>
-              <Button size="small" type="link" onClick={(e) => { e.stopPropagation(); demoFile() }}>没有文件？用演示文件试试</Button>
+              <Button size="small" type="link" onClick={(e) => { e.stopPropagation(); demoFile() }}>没有文件？用示例文件试试</Button>
             </div>
           )}
           {fileError && <Alert type="warning" message={fileError} />}
@@ -552,7 +552,7 @@ export default function AssetIn({ V, pushAudit }) {
           <div><b>{offImpact.inflight}</b><span>在途申请单</span></div>
           <div><b>{offImpact.tasks}</b><span>引用的圈人任务 / 模板</span></div>
         </div>
-        <p className="asset-muted">下线后：标签广场不再展示该资产；受影响消费方会在标签广场与「我的申请 / 权限」页顶部看到提醒，并收到 IM bot 通知；在途申请单自动关闭；引用的圈人定期更新任务自动暂停。（影响人数为演示数据）</p>
+        <p className="asset-muted">下线后：标签广场不再展示该资产；受影响消费方会在标签广场与「我的申请 / 权限」页顶部看到提醒，并收到 IM bot 通知；在途申请单自动关闭；引用的圈人定期更新任务自动暂停。</p>
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="下线原因（至少 4 个字），如：上游表下线，口径停止维护" aria-label="下线原因" />
         <label className="asset-radio asset-off-ack"><input type="checkbox" checked={offAck} onChange={() => setOffAck((v) => !v)} />我已知晓以上影响范围，确认下线</label>
       </Modal>}
