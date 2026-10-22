@@ -17,13 +17,34 @@ const SECURITY_OF = { 开放: 'L2', 通用: 'L3', 受控: 'L3', 高敏: 'L4' }
 const SOP = ['准备', '下载模板', '填写', '合规确认', '上传并机审', '上线']
 const STATUS_TABS = [['all', '资产总数'], ['online', '已上线'], ['draft', '草稿'], ['off', '已下线']]
 const PAGE = 10
-/* 提交前检查清单（PRD 资产接入 · 提交前检查） */
-const CHECKLIST = [
-  ['tpl', '使用的是当前最新模板，未增删列、未修改表头'],
-  ['required', '必填字段均已填写，未用空格代替内容'],
-  ['enum', '枚举类字段取自模板给定范围，未自行新增值'],
-  ['batch', '已知悉整批口径：一行不合规则本批文件不导入'],
-]
+/* 确认依据附件：图片（可直接粘贴截图）、PDF、Office 文档、邮件；单个 ≤ 10MB，最多 5 个 */
+const MAX_FILES = 5, MAX_FILE_MB = 10
+const FILE_ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.eml,.msg'
+const fileSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
+/* 图片附件生成小缩略图随资产保存，便于在元信息中回看；演示环境不上传原文件 */
+function thumbOf(file) {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) { resolve(''); return }
+    const url = URL.createObjectURL(file), img = new Image()
+    img.onload = () => {
+      const k = Math.min(1, 240 / Math.max(img.width, img.height)), c = document.createElement('canvas')
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', 0.75))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve('') }
+    img.src = url
+  })
+}
+function FileChips({ files, onRemove }) {
+  return <div className="comp-file-list">{files.map((f, i) => (
+    <span key={f.name + i} className="comp-file" title={f.name}>
+      {f.thumb ? <img src={f.thumb} alt="" /> : <i aria-hidden="true">📄</i>}
+      <span><b>{f.name}</b><small>{fileSize(f.size)}</small></span>
+      {onRemove && <button type="button" aria-label={`移除 ${f.name}`} onClick={() => onRemove(i)}>×</button>}
+    </span>
+  ))}</div>
+}
 const LEVEL_OPTS = SECURITY.map((x) => ({ v: x, l: levelLabel(x) }))
 
 /* 演示目录补齐种子资产引用的数据源，保证编辑已上线资产时能通过机审 */
@@ -83,10 +104,8 @@ export default function AssetIn({ V, pushAudit }) {
   const [diff, setDiff] = useState(null), [diffOnly, setDiffOnly] = useState(true) // diff：{ title, rows, onConfirm? }
   const fileRef = useRef(null), errRef = useRef(null)
   /* 合规确认信息（PRD）：合规确认人（员工选择器）、确认结论（通过 / 不通过，仅通过可提交）、确认依据 */
-  const [comp, setComp] = useState({ officer: '', result: '', evidence: '' })
+  const [comp, setComp] = useState({ officer: '', result: '', evidence: '', files: [] })
   const [compErr, setCompErr] = useState('')
-  const [checks, setChecks] = useState({})
-  const allChecked = CHECKLIST.every(([k]) => checks[k])
   const setC = (k, v) => { setComp((c) => ({ ...c, [k]: v })); setCompErr('') }
 
   function setAssets(next) { setAssetsRaw((old) => { const v = typeof next === 'function' ? next(old) : next; try { localStorage.setItem(ASSET_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v }) }
@@ -99,7 +118,21 @@ export default function AssetIn({ V, pushAudit }) {
     if (comp.result !== '通过') { setCompErr(comp.result === '不通过' ? '合规确认结论为「不通过」，不能提交' : '请选择合规确认结论'); return false }
     setCompErr(''); return true
   }
-  const compFields = () => ({ compliance_officer: comp.officer, compliance_result: comp.result, compliance_evidence: comp.evidence.trim(), compliance_at: nowStamp().slice(0, 16) })
+  async function addFiles(list) {
+    const picked = [...(list || [])]
+    if (!picked.length) return
+    const tooBig = picked.filter((f) => f.size > MAX_FILE_MB * 1048576)
+    const ok = picked.filter((f) => f.size <= MAX_FILE_MB * 1048576).slice(0, Math.max(0, MAX_FILES - comp.files.length))
+    if (tooBig.length) message.warning(`${tooBig.map((f) => f.name).join('、')} 超过 ${MAX_FILE_MB}MB，未添加`)
+    if (picked.length - tooBig.length > ok.length) message.warning(`最多上传 ${MAX_FILES} 个附件`)
+    const files = await Promise.all(ok.map(async (f) => ({ name: f.name || `截图-${nowStamp().replace(/\D/g, '').slice(8, 14)}.png`, size: f.size, type: f.type, thumb: await thumbOf(f) })))
+    setComp((c) => ({ ...c, files: [...c.files, ...files].slice(0, MAX_FILES) })); setCompErr('')
+  }
+  function onPasteFiles(e) {
+    const files = [...(e.clipboardData?.files || [])]
+    if (files.length) { e.preventDefault(); addFiles(files) }
+  }
+  const compFields = () => ({ compliance_officer: comp.officer, compliance_result: comp.result, compliance_evidence: comp.evidence.trim(), compliance_files: comp.files, compliance_at: nowStamp().slice(0, 16) })
   const batchNo = () => 'B' + nowStamp().replace(/\D/g, '').slice(2, 14)
   const addLog = (log) => setLogs((l) => [{ no: batchNo(), at: nowStamp().slice(0, 16), by: V.name, officer: comp.officer || '—', result: comp.result || '—', ...log }, ...l])
   const NO_COMP = { officer: '—', result: '无需（未改密级与数据源）' }
@@ -119,9 +152,14 @@ export default function AssetIn({ V, pushAudit }) {
             {['通过', '不通过'].map((v) => <label key={v} className="asset-radio"><input type="radio" name="comp-result" checked={comp.result === v} onChange={() => setC('result', v)} />{v}</label>)}
           </div>
           <small>只有结论为「通过」且必填信息完整时，才允许提交</small></div>
-        <label className="asset-field wide" htmlFor="comp-evidence"><span>确认依据<em className="asset-need-inline n-选填">选填</em></span>
-          <input className="au-input" id="comp-evidence" value={comp.evidence} onChange={(e) => setC('evidence', e.target.value)} placeholder="审批单、群聊、邮件或文档链接" />
-          <small>确认时间与提交人由系统自动记录，并与本次接入批次绑定</small></label>
+        <div className="asset-field wide"><span>确认依据<em className="asset-need-inline n-选填">选填</em></span>
+          <input className="au-input" id="comp-evidence" value={comp.evidence} onChange={(e) => setC('evidence', e.target.value)} onPaste={onPasteFiles} placeholder="审批单、群聊、邮件或文档链接；也可直接粘贴截图" aria-label="确认依据链接" />
+          <div className="comp-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files) }}>
+            <label className="comp-upload">上传附件<input type="file" multiple accept={FILE_ACCEPT} hidden onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} /></label>
+            <span className="asset-muted">支持图片、PDF、Word、Excel、邮件，可拖拽到此处或在上方输入框粘贴截图；单个 ≤ {MAX_FILE_MB}MB，最多 {MAX_FILES} 个</span>
+          </div>
+          {comp.files.length > 0 && <FileChips files={comp.files} onRemove={(i) => setComp((c) => ({ ...c, files: c.files.filter((_, j) => j !== i) }))} />}
+          <small>确认时间与提交人由系统自动记录，并与本次接入批次绑定</small></div>
       </div>
       {comp.result === '不通过' && <Alert type="warning" message="合规确认未通过，暂不能提交。请与合规同学沟通后再提交。" />}
       {compErr && <Alert type="error" message={compErr} />}
@@ -240,7 +278,6 @@ export default function AssetIn({ V, pushAudit }) {
     /* 整批校验：一批里只要有一条不合规，本批文件就不导入 */
     if (!rows?.length || badRows.length) return
     if (batchNeedsComp && !checkCompliance()) return
-    if (!allChecked) { setCompErr('提交前检查清单需逐项确认'); return }
     upsert(okRows.map((r) => (rowNeedsComp(r) ? Object.assign(r.asset, compFields()) : r.asset)), V.name)
     const created = okRows.filter((r) => r.action === 'create').length, updated = okRows.filter((r) => r.action === 'update').length
     addLog({ mode: '批量', file: fileName, created, updated, failed: 0, ...(batchNeedsComp ? {} : NO_COMP) })
@@ -402,19 +439,10 @@ export default function AssetIn({ V, pushAudit }) {
         <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}</tbody></table></details>
       </section>
       {batchNeedsComp ? complianceBlock('本批资产') : <div className="asset-comp-skip">✅ 本批均为已有资产的更新，且未修改密级与数据源，无需重新合规确认，提交后直接进入平台机审。</div>}
-      <section className="asset-group asset-checklist">
-        <h4><b>检查</b>提交前检查清单</h4>
-        {CHECKLIST.map(([k, label]) => (
-          <label key={k} className="asset-radio asset-check-item">
-            <input type="checkbox" checked={!!checks[k]} onChange={() => { setChecks((c) => ({ ...c, [k]: !c[k] })); setCompErr('') }} />
-            {label}
-          </label>
-        ))}
-      </section>
       {fileError && <Alert type="warning" message={fileError} />}
       {rows && <>
         <div className="asset-result-bar"><span>{fileName} · 共 {rows.length} 行：<b className="ok">✅ 新增 {okRows.filter((r) => r.action === 'create').length}</b><b className="up">🔄 更新 {okRows.filter((r) => r.action === 'update').length}</b><b className="bad">❌ 错误 {badRows.length}</b></span>
-          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!rows.length || badRows.length > 0 || (batchNeedsComp && comp.result === '不通过') || !allChecked} onClick={submitImport}>导入全部 {rows.length} 行</Button></Space></div>
+          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!rows.length || badRows.length > 0 || (batchNeedsComp && comp.result === '不通过')} onClick={submitImport}>导入全部 {rows.length} 行</Button></Space></div>
         {badRows.length > 0 && <Alert type="error" message={`机审未通过：本批存在 ${badRows.length} 行不合规记录，整批文件不导入。按下表定位修复后，重新上传整批文件。`} />}
         <table className="asset-table">
           <thead><tr><th>行</th><th>结果</th><th>标签</th><th>时效 · 频率</th><th>最终生效密级</th><th>说明</th></tr></thead>
@@ -457,7 +485,7 @@ export default function AssetIn({ V, pushAudit }) {
       {metaTarget && <Modal open width={680} title={`元信息 · ${metaTarget.tag_name}`} onCancel={() => setMetaTarget(null)} footer={<Space><Button onClick={() => setMetaTarget(null)}>关闭</Button>{metaTarget.status !== 'off' && <Button type="primary" onClick={() => { const a = metaTarget; setMetaTarget(null); editAsset(a) }}>编辑</Button>}</Space>}>
         <div className="asset-meta-head">{statusTag(metaTarget.status)}<span>元信息完整度 <b>{completeness(metaTarget)}%</b></span><span className="asset-muted">最近更新 {metaTarget.updated} · {metaTarget.by}</span></div>
         {FORM_GROUPS.map((g) => <section key={g} className="asset-meta-group"><h4>{g}</h4><dl>{FIELDS.filter((f) => f.group === g).map((f) => <div key={f.key}><dt>{f.label}</dt><dd className={String(metaTarget[f.key] ?? '').trim() || !f.required ? '' : 'missing'}>{f.key === 'unified_level' && metaTarget.unified_level ? <LevelChip level={metaTarget.unified_level} /> : String(metaTarget[f.key] ?? '').trim() || '未填写'}</dd></div>)}</dl></section>)}
-        {metaTarget.compliance_officer && <section className="asset-meta-group"><h4>合规确认</h4><dl><div><dt>合规确认人</dt><dd>{metaTarget.compliance_officer}</dd></div><div><dt>确认结论</dt><dd>{metaTarget.compliance_result}</dd></div><div><dt>确认依据</dt><dd>{metaTarget.compliance_evidence || '未填写'}</dd></div><div><dt>确认时间</dt><dd>{metaTarget.compliance_at}</dd></div></dl></section>}
+        {metaTarget.compliance_officer && <section className="asset-meta-group"><h4>合规确认</h4><dl><div><dt>合规确认人</dt><dd>{metaTarget.compliance_officer}</dd></div><div><dt>确认结论</dt><dd>{metaTarget.compliance_result}</dd></div><div><dt>确认依据</dt><dd>{metaTarget.compliance_evidence || (metaTarget.compliance_files?.length ? '见附件' : '未填写')}</dd></div><div><dt>确认时间</dt><dd>{metaTarget.compliance_at}</dd></div></dl>{metaTarget.compliance_files?.length > 0 && <FileChips files={metaTarget.compliance_files} />}</section>}
       </Modal>}
       {diff && (() => {
         const changed = diff.rows.filter((x) => x.changed)

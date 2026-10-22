@@ -3117,3 +3117,16 @@ margin-top: 3px
 .asset-table td.asset-src{min-width:210px}
 .asset-table td.asset-src small{word-break:normal;overflow-wrap:anywhere}
 .asset-comp-skip{margin:12px 0;padding:10px 14px;border:1px dashed var(--au-border);border-radius:10px;background:var(--au-success-light);color:var(--au-text-2);font-size:13px;line-height:1.6}
+/* 合规确认依据：附件上传 */
+.comp-drop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;padding:8px 10px;border:1px dashed var(--au-border);border-radius:8px;background:#fafbfc}
+.comp-upload{display:inline-flex;align-items:center;height:28px;padding:0 12px;border:1px solid var(--au-primary);border-radius:6px;color:var(--au-primary);background:#fff;font-size:12px;cursor:pointer;white-space:nowrap}
+.comp-upload:hover{background:var(--au-primary-light)}
+.comp-file-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.comp-file{display:inline-flex;align-items:center;gap:8px;max-width:260px;padding:6px 8px;border:1px solid var(--au-border);border-radius:8px;background:#fff}
+.comp-file img{width:40px;height:40px;object-fit:cover;border-radius:4px;flex:none}
+.comp-file i{font-style:normal;font-size:22px;width:40px;text-align:center;flex:none}
+.comp-file span{display:flex;flex-direction:column;min-width:0}
+.comp-file b{font-weight:500;font-size:12px;color:var(--au-text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-file small{font-size:11px;color:var(--au-text-3)}
+.comp-file button{border:0;background:none;color:var(--au-text-3);font-size:16px;cursor:pointer;padding:0 2px}
+.comp-file button:hover{color:var(--au-danger)}
