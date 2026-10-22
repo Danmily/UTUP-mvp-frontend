@@ -57,9 +57,9 @@ const sumImpact = (list) => list.map(impactOf).reduce((s, x) => ({ holders: s.ho
 
 /* 更新对比：左栏线上版本，右栏本次提交，逐字段比较 */
 const showVal = (k, v) => { const t = String(v ?? '').trim(); if (!t) return '—'; return k === 'unified_level' ? levelLabel(t) : t }
-/* 编辑已上线资产时，只有密级 / 统一级别变化才需要重新做合规确认；其他字段保存后直接机审 */
-const LEVEL_KEYS = ['security_level', 'unified_level']
-const levelChanged = (before, after) => LEVEL_KEYS.some((k) => String(before?.[k] ?? '').trim() !== String(after?.[k] ?? '').trim())
+/* 编辑已上线资产时，只有密级或数据源（来源域 / 源库 / 源表 / 源字段）变化才需要重新做合规确认；其他字段保存后直接机审 */
+const COMP_KEYS = ['security_level', 'unified_level', 'source_domain', 'source_db', 'source_table', 'source_field']
+const compChanged = (before, after) => COMP_KEYS.some((k) => String(before?.[k] ?? '').trim() !== String(after?.[k] ?? '').trim())
 function diffRows(before, after) {
   return FIELDS
     .map((f) => ({ key: f.key, label: f.label, before: showVal(f.key, before[f.key]), after: showVal(f.key, after[f.key]) }))
@@ -102,7 +102,7 @@ export default function AssetIn({ V, pushAudit }) {
   const compFields = () => ({ compliance_officer: comp.officer, compliance_result: comp.result, compliance_evidence: comp.evidence.trim(), compliance_at: nowStamp().slice(0, 16) })
   const batchNo = () => 'B' + nowStamp().replace(/\D/g, '').slice(2, 14)
   const addLog = (log) => setLogs((l) => [{ no: batchNo(), at: nowStamp().slice(0, 16), by: V.name, officer: comp.officer || '—', result: comp.result || '—', ...log }, ...l])
-  const NO_COMP = { officer: '—', result: '无需（未改密级）' }
+  const NO_COMP = { officer: '—', result: '无需（未改密级与数据源）' }
 
   const complianceBlock = (scope) => (
     <section className="asset-group asset-compliance">
@@ -145,7 +145,7 @@ export default function AssetIn({ V, pushAudit }) {
   /* 表单对应的线上资产：编辑已上线 / 已下线资产，或新建时填了本人名下已有的资产 ID */
   const formBefore = editingAsset && !editingDraft ? editingAsset
     : !editing ? assets.find((a) => a.status !== 'draft' && a.tag_id === String(form.tag_id || '').trim() && a.owner === String(form.owner || '').trim()) : null
-  const needCompForm = !formBefore || levelChanged(formBefore, form)
+  const needCompForm = !formBefore || compChanged(formBefore, form)
   function editAsset(a) { setEditing(a.tag_id); setForm({ ...blank(), ...a, tag_id: a.autoDraftId ? '' : a.tag_id }); setFormResult(null); setTab('form') }
   function newAsset() { setEditing(null); setForm(blank()); setFormResult(null); setTab('form') }
   function resetForm() { setDiff(null); setTab('list'); setEditing(null); setForm(blank()); setFormResult(null) }
@@ -158,9 +158,9 @@ export default function AssetIn({ V, pushAudit }) {
     const r = validateAsset(form, { existing, taken: existing, ownerOf })
     setFormResult(r)
     if (r.errors.length) { addLog({ mode: '单个', created: 0, updated: 0, failed: 1, file: r.asset.tag_name || '—' }); return }
-    /* 资产 ID 已存在且为本人资产：按更新处理；只有密级 / 统一级别变化才需要重新合规确认 */
+    /* 资产 ID 已存在且为本人资产：按更新处理；只有密级或数据源变化才需要重新合规确认 */
     const before = r.action === 'update' ? others.find((a) => a.tag_id === r.asset.tag_id) : null
-    const needComp = !before || levelChanged(before, r.asset)
+    const needComp = !before || compChanged(before, r.asset)
     if (needComp) {
       if (!checkCompliance()) return
       Object.assign(r.asset, compFields())
@@ -178,7 +178,7 @@ export default function AssetIn({ V, pushAudit }) {
     if (draftKey && draftKey !== r.asset.tag_id) setAssets((old) => old.filter((x) => x.tag_id !== draftKey))
     upsert([r.asset], V.name) // 未重新确认时沿用该资产已有的合规确认记录
     addLog({ mode: '单个', created: isUpdate ? 0 : 1, updated: isUpdate ? 1 : 0, failed: 0, file: r.asset.tag_name, ...(needComp ? {} : NO_COMP) })
-    pushAudit?.(`${isUpdate ? '更新' : '接入'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ 机审通过，已上线；${needComp ? `合规确认人 ${comp.officer}` : '未改密级，沿用原合规确认'}`, r.asset.unified_level)
+    pushAudit?.(`${isUpdate ? '更新' : '接入'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ 机审通过，已上线；${needComp ? `合规确认人 ${comp.officer}` : '未改密级与数据源，沿用原合规确认'}`, r.asset.unified_level)
     message.success(`机审通过，${isUpdate ? '更新已生效' : '已上线'}：${r.asset.tag_name}`)
     resetForm()
   }
@@ -233,8 +233,8 @@ export default function AssetIn({ V, pushAudit }) {
     readCsv(toCsv(list, keys), '演示文件.csv')
   }
   const okRows = rows?.filter((r) => !r.errors.length) || [], badRows = rows?.filter((r) => r.errors.length) || []
-  /* 一行需要合规确认：新增资产，或更新时改了密级 / 统一级别 */
-  const rowNeedsComp = (r) => r.action === 'create' || levelChanged(assets.find((a) => a.tag_id === r.asset.tag_id), r.asset)
+  /* 一行需要合规确认：新增资产，或更新时改了密级或数据源 */
+  const rowNeedsComp = (r) => r.action === 'create' || compChanged(assets.find((a) => a.tag_id === r.asset.tag_id), r.asset)
   const batchNeedsComp = !rows || rows.some(rowNeedsComp)
   function submitImport() {
     /* 整批校验：一批里只要有一条不合规，本批文件就不导入 */
@@ -244,7 +244,7 @@ export default function AssetIn({ V, pushAudit }) {
     upsert(okRows.map((r) => (rowNeedsComp(r) ? Object.assign(r.asset, compFields()) : r.asset)), V.name)
     const created = okRows.filter((r) => r.action === 'create').length, updated = okRows.filter((r) => r.action === 'update').length
     addLog({ mode: '批量', file: fileName, created, updated, failed: 0, ...(batchNeedsComp ? {} : NO_COMP) })
-    pushAudit?.(`批量导入资产：${fileName}，新增 ${created}、更新 ${updated}；${batchNeedsComp ? `合规确认人 ${comp.officer}` : '均未改密级，沿用原合规确认'}`)
+    pushAudit?.(`批量导入资产：${fileName}，新增 ${created}、更新 ${updated}；${batchNeedsComp ? `合规确认人 ${comp.officer}` : '均未改密级与数据源，沿用原合规确认'}`)
     message.success(`机审通过，已整批导入并上线 ${okRows.length} 个资产（新增 ${created}、更新 ${updated}）`)
     setRows(null)
     setTab('list')
@@ -377,9 +377,9 @@ export default function AssetIn({ V, pushAudit }) {
         <section key={g} className="asset-group"><h4><b>{i + 1}</b>{g}</h4><div className="asset-grid">{FIELDS.filter((f) => f.group === g).map((f) => control[f.key]())}</div></section>
       ))}
       {needCompForm ? <>
-        {formBefore && <Alert type="warning" message="本次修改了密级 / 统一级别，需重新完成合规确认后才能提交" />}
+        {formBefore && <Alert type="warning" message="本次修改了密级或数据源，需重新完成合规确认后才能提交" />}
         {complianceBlock('该资产')}
-      </> : <div className="asset-comp-skip">✅ 本次未修改密级 / 统一级别，无需重新合规确认，保存后直接进入平台机审（沿用该资产已有的合规确认记录）。如修改密级，需补充合规确认信息。</div>}
+      </> : <div className="asset-comp-skip">✅ 本次未修改密级与数据源，无需重新合规确认，保存后直接进入平台机审（沿用该资产已有的合规确认记录）。如修改密级、统一级别、来源域、源库、源表或源字段，需补充合规确认信息。</div>}
       <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
       <datalist id="asset-dbs">{[...new Set(Object.keys(DEMO_TABLES).map((k) => k.split('.')[0]))].map((o) => <option key={o} value={o} />)}</datalist>
       <datalist id="asset-tables">{Object.keys(DEMO_TABLES).filter((k) => !form.source_db || k.startsWith(form.source_db + '.')).map((k) => <option key={k} value={k.split('.')[1]} />)}</datalist>
@@ -401,7 +401,7 @@ export default function AssetIn({ V, pushAudit }) {
         {['必填', '条件必填', '选填'].map((n) => <div key={n} className="asset-need-row"><span className={`asset-need-tag n-${n}`}>{n}</span><div>{FIELDS.filter((f) => needOf(f) === n).map((f) => <span key={f.key} className="asset-need-chip" title={f.hint}><code>{f.key}</code>{f.label}{needNote(f) && <em>（{needNote(f)}）</em>}</span>)}</div></div>)}
         <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}</tbody></table></details>
       </section>
-      {batchNeedsComp ? complianceBlock('本批资产') : <div className="asset-comp-skip">✅ 本批均为已有资产的更新，且未修改密级 / 统一级别，无需重新合规确认，提交后直接进入平台机审。</div>}
+      {batchNeedsComp ? complianceBlock('本批资产') : <div className="asset-comp-skip">✅ 本批均为已有资产的更新，且未修改密级与数据源，无需重新合规确认，提交后直接进入平台机审。</div>}
       <section className="asset-group asset-checklist">
         <h4><b>检查</b>提交前检查清单</h4>
         {CHECKLIST.map(([k, label]) => (
@@ -463,7 +463,7 @@ export default function AssetIn({ V, pushAudit }) {
         const changed = diff.rows.filter((x) => x.changed)
         return <Modal open width={760} title={diff.title} onCancel={() => setDiff(null)} footer={<Space>{diff.onConfirm ? <><Button onClick={() => setDiff(null)}>返回修改</Button><Button type="primary" onClick={diff.onConfirm}>确认更新</Button></> : <Button onClick={() => setDiff(null)}>关闭</Button>}</Space>}>
           <div className="asset-diff-head"><span>共修改 <b>{changed.length}</b> 个字段</span><label className="asset-radio"><input type="checkbox" checked={diffOnly} onChange={() => setDiffOnly((v) => !v)} />只看有变化的字段</label></div>
-          {changed.some((x) => LEVEL_KEYS.includes(x.key)) ? <Alert type="warning" message="密级 / 统一级别有变化：本次提交附带新的合规确认记录" /> : <Alert type="info" message="未修改密级 / 统一级别：沿用原合规确认记录，确认后直接进入机审" />}
+          {changed.some((x) => COMP_KEYS.includes(x.key)) ? <Alert type="warning" message="密级或数据源有变化：本次提交附带新的合规确认记录" /> : <Alert type="info" message="未修改密级与数据源：沿用原合规确认记录，确认后直接进入机审" />}
           <table className="asset-table asset-diff">
             <thead><tr><th>字段</th><th>线上版本</th><th>本次提交</th></tr></thead>
             <tbody>{diff.rows.filter((x) => !diffOnly || x.changed).map((x) => <tr key={x.key} className={x.changed ? 'is-changed' : ''}><td>{x.label}</td><td className="before">{x.before}</td><td className="after">{x.after}</td></tr>)}</tbody>
