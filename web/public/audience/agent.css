@@ -367,3 +367,8 @@
 /* 首页示例的单域 / 跨域标记 */
 .qa-ex-tag{margin-left:6px;font-style:normal;font-weight:400;font-size:10px;color:var(--qa-sub);background:var(--qa-card);border-radius:4px;padding:1px 5px}
 .qa-ex-tag.is-cross{color:var(--qa-accent);background:var(--qa-accent-bg)}
+
+/* 条件行的组合关系下拉 */
+.qa-grp{border:1px solid var(--qa-line);border-radius:6px;background:#fff;color:var(--qa-sub);font-size:11px;padding:2px 4px;margin-left:6px;flex:none}
+.qa-grp:focus{outline:none;border-color:#c9b8ff}
+.qa-cond-tip{margin:8px 2px 0;color:var(--qa-mute);font-size:12px;line-height:1.7}

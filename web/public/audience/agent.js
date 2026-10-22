@@ -166,7 +166,9 @@ function buildConditions(task) {
     .map((c) => {
       const swap = c.tag ? task.swapped[c.tag] : undefined;
       if (swap === null) return null;
-      return swap ? { ...c, tag: swap, value: c.value + '（替代口径）', replaced: c.tag } : c;
+      const moved = c.tag && task.moved ? task.moved[c.tag] : undefined;
+      const base = swap ? { ...c, tag: swap, value: c.value + '（替代口径）', replaced: c.tag } : c;
+      return moved ? { ...base, group: moved } : base;
     })
     .filter(Boolean);
 }
@@ -175,6 +177,7 @@ function estimate(task) {
   let n = SCENES[task.scene].base * (1 + (hash(task.id) % 13) / 100);
   if (Object.values(task.answers).some((v) => /30 天|3 公里|L4|180 天/.test(v))) n *= 0.6;
   n *= Math.pow(0.9, Object.keys(task.swapped).length);
+  n *= Math.pow(0.93, Object.keys(task.moved || {}).length); // 组合关系被调整过，规模随之变化
   n = Math.round(n / 10) * 10;
   return task.target && task.target < n ? task.target : n;
 }
@@ -203,7 +206,7 @@ function newTask(query) {
   return {
     id, scene, query, title: SCENES[scene].title, created: new Date().toISOString(), updated: new Date().toISOString(),
     version: 1, answers: defaultAnswers(scene), target: null, seed: null, path: 'B', timing: null,
-    removed: [], swapped: {}, granted: [], result: null, reportReady: false,
+    removed: [], swapped: {}, moved: {}, granted: [], result: null, reportReady: false,
     effects: [], saved: false, messages: [],
   };
 }
@@ -238,7 +241,6 @@ let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: 
 let page = 1, reportTimer = null, lastCount = 0;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
 let histQ = '', centerQ = ''; // 历史对话 / 任务中心关键词
-let entry = 'B'; // 首页起点：A = 业务目标＋种子，B = 自然语言圈人（PRD 6.1）
 
 function load() { try { tasks = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { tasks = []; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch { /* 存储不可用时只保留在本次页面 */ } }
@@ -277,8 +279,6 @@ async function runSteps(task, msg, key) {
 async function start(query) {
   const q = query.trim();
   if (!q || busy) return;
-  /* 路径 A 要求业务目标与种子 UID 两项齐备，缺一不进入链路（PRD 6.1 / 6.2） */
-  if (entry === 'A' && !draftSeed) return;
   const task = newTask(q);
   task.seed = draftSeed; draftSeed = null;
   task.path = task.seed ? 'A' : 'B';
@@ -486,18 +486,18 @@ function sidebar() {
   </aside>`;
 }
 
+/* 只有一个入口：说诉求 ＋（可选）带一批种子用户。
+ * 带了种子就走种子扩散，没带就走追问确认，用户不需要先选形态。 */
 function home() {
-  const isA = entry === 'A';
-  const hint = isA
-    ? '业务目标与种子用户两项都填好后，交给吴极侧 Agent 生成 SQL 与报告，再由圈人侧在大盘执行生包。'
-    : '只说诉求就行。缺关键口径时我会追问，再把筛选条件可视化给你确认，确认后才执行生包。';
+  const hasSeed = !!draftSeed;
+  const hint = hasSeed
+    ? '已带上种子用户，我会先学习他们的共性，再向外扩散出相似人群；完成后以飞书消息通知你。'
+    : '说清你想圈的人就行。缺关键口径时我会追问，再把筛选条件可视化给你确认，确认后才执行生包。';
   return `<div class="qa-home">
     <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>${esc(hint)}</p></div>
-    <div class="qa-entry">${Object.values(PATHS).map((p) => `<button type="button" class="qa-entry-card ${entry === p.key ? 'on' : ''}" data-act="entry" data-v="${p.key}">
-      <b>${esc(p.name)}</b><span>${esc(p.brief)}</span></button>`).join('')}</div>
-    ${composer(isA ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
-    <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>${isA ? '必填' : '不需要'}</em></button><span class="qa-muted">${isA ? '上传或粘贴一批已确认的目标用户 ID，Agent 会从他们的共性向外扩散' : '只说诉求就行；如果手上已有一批目标用户，切到「业务目标 ＋ 种子用户」带上种子'}</span>`}</div>
-    <div class="qa-examples">${(isA ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
+    ${composer(hasSeed ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
+    <div class="qa-seed-bar">${hasSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>选填</em></button><span class="qa-muted">手上已有一批确认过的目标用户，就加上来让我照着找相似的人；没有也可以直接描述诉求</span>`}</div>
+    <div class="qa-examples">${(hasSeed ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
     <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
 }
@@ -595,13 +595,14 @@ function agentOutCard(task, m) {
 function conditionsCard(task, m) {
   const live = !m.confirmed && m.version === task.version;
   const conds = buildConditions(task), lack = missingTags(task);
-  const row = (c) => `<div class="qa-cond" title="${c.tag ? esc(TAGS[c.tag].table) : '平台规则'}"><span class="k">${esc(tagName(c))}</span><span class="v">${esc(c.value)}</span>${c.tag && lack.includes(c.tag) ? `<span class="qa-lock" title="暂无权限">${ICON.lock}</span>` : ''}${live && c.tag ? `<button type="button" class="qa-x" data-act="remove" data-tag="${c.tag}" aria-label="移除 ${esc(tagName(c))}">×</button>` : ''}</div>`;
+  const row = (c) => `<div class="qa-cond" title="${c.tag ? esc(TAGS[c.tag].table) : '平台规则'}"><span class="k">${esc(tagName(c))}</span><span class="v">${esc(c.value)}</span>${c.tag && lack.includes(c.tag) ? `<span class="qa-lock" title="暂无权限">${ICON.lock}</span>` : ''}${live && c.tag ? `<select class="qa-grp" data-tag="${c.tag}" aria-label="调整 ${esc(tagName(c))} 的组合关系">${GROUPS.map(([g, label]) => `<option value="${g}"${c.group === g ? ' selected' : ''}>${label}</option>`).join('')}</select><button type="button" class="qa-x" data-act="remove" data-tag="${c.tag}" aria-label="移除 ${esc(tagName(c))}">×</button>` : ''}</div>`;
   return `${m.note ? `<p>${esc(m.note)}</p>` : '<p>根据你的需求，整理出以下圈选条件：</p>'}
   <div class="qa-card qa-cond-card ${live ? '' : 'is-frozen'}">
     ${GROUPS.map(([g, label], i) => { const rows = conds.filter((c) => c.group === g); return rows.length ? `<div class="qa-card-title">${[ICON.cycle, ICON.filter, ICON.filter][i]}${label}<small>${g === 'must' ? 'AND' : g === 'any' ? 'OR' : 'NOT'}</small></div>${rows.map(row).join('')}` : ''; }).join('')}
     <div class="qa-cond"><span class="k">执行方式</span><span class="v"><span class="qa-pill">${esc(execMode(task).label)}</span> ${esc(execMode(task).note)}</span></div>
     <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted">（演示估算）</span></span></div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
+    <p class="qa-cond-tip">可以删除条件、调整组合关系（必须满足 / 任一满足 / 排除）或改目标规模；要换口径、改时间窗口直接在下面用自然语言说，我会给出新版本。</p>
     <div class="qa-card-foot">${live ? `${execMode(task).cross ? '<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button>' : ''}<button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
   </div>
   ${m.sql && live ? `<div class="qa-sql-inline"><div class="qa-card-title">${ICON.check}相关 SQL</div>${sqlBlock(buildSql(task, buildConditions(task)))}</div>` : ''}`;
@@ -913,7 +914,6 @@ async function onClick(e) {
     case 'seed-open': seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null }; break;
     case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.text = ''; seedModal.fileName = ''; break;
     case 'to-ldmp': notify('已在新页面打开生服 LDMP 的人群包（演示）'); return;
-    case 'entry': entry = el.dataset.v; if (entry === 'B') draftSeed = null; break;
     case 'seed-cancel': seedModal = null; break;
     case 'seed-confirm': {
       const m = seedModal, p = m.parsed; if (!p || !p.count) return;
@@ -945,8 +945,6 @@ function send() {
   if (!text || busy) return;
   const task = current();
   const isNew = !(view === 'task' && task);
-  /* 路径 A 缺种子时先提示，保留已输入的业务目标，不清空草稿 */
-  if (isNew && entry === 'A' && !draftSeed) { notify('需要同时提供业务目标和种子用户，请先添加种子'); return; }
   draft = '';
   if (isNew) start(text); else modify(task, text);
 }
@@ -958,6 +956,12 @@ function onInput(e) {
   if (e.target.id === 'qa-target') { const t = current(); const n = parseInt(e.target.value, 10); t.target = n > 0 ? n : null; save(); const est = host.querySelector('#qa-est'); if (est) est.textContent = '约 ' + fmt(estimate(t)) + ' 人'; }
 }
 async function onChange(e) {
+  /* 条件行的组合关系下拉：改完立即重算预估人数 */
+  if (e.target.classList && e.target.classList.contains('qa-grp')) {
+    const t = current(); if (!t) return;
+    t.moved = { ...(t.moved || {}), [e.target.dataset.tag]: e.target.value };
+    save(); render(); return;
+  }
   if (e.target.id !== 'qa-seed-file' || !seedModal) return;
   const f = e.target.files?.[0]; if (!f) return;
   if (!/\.(csv|txt)$/i.test(f.name)) { notify('请上传 CSV 或 TXT 文件'); return; }
