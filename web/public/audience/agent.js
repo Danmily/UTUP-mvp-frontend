@@ -214,6 +214,7 @@ let host = null, options = {}, tasks = [], activeId = null, view = 'home', busy 
 let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: false }, toast = '';
 let page = 1, reportTimer = null, lastCount = 0;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
+let histQ = '', centerQ = ''; // 历史对话 / 任务中心关键词
 let entry = 'B'; // 首页起点：A = 业务目标＋种子，B = 自然语言圈人（PRD 6.1）
 
 function load() { try { tasks = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { tasks = []; } }
@@ -414,28 +415,31 @@ function seedChip(seed, target) {
   const warn = seedWarning(seed);
   return `<div class="qa-seed-chip"><span class="qa-seed-ico">${ICON.people}</span><div><b>${fmt(seed.count)} 个种子用户</b><small>${esc(seed.source)} · ${esc(seed.name)}${seed.sample?.length ? ' · 样例 ' + seed.sample.map(esc).join('、') : ''}</small>${warn ? `<small class="qa-warn">${esc(warn)}</small>` : ''}</div>${target ? `<button type="button" class="qa-link" data-act="seed-open" data-target="${target}">更换</button><button type="button" class="qa-link" data-act="seed-remove" data-target="${target}">移除</button>` : ''}</div>`;
 }
+/* 种子只支持上传与粘贴：一期上限 100 个，而已产出的人群包动辄几十万人，
+ * 直接当种子既超限也没有意义；真要从人群包里抽样做种子属于另一个需求。 */
 function seedModalView() {
-  const m = seedModal, packs = tasks.filter((t) => t.result);
+  const m = seedModal;
   const p = m.parsed;
   const body = m.tab === 'file'
     ? `<label class="qa-seed-drop"><input type="file" id="qa-seed-file" accept=".csv,.txt">${ICON.task}<b>${m.fileName ? esc(m.fileName) : '选择 CSV / TXT 文件'}</b><small>每行一个用户 ID；首行可以是 uid / user_id 表头；本期支持 ${SEED_MIN}–${SEED_MAX} 个</small></label>`
-    : m.tab === 'paste'
-      ? `<textarea id="qa-seed-text" rows="6" placeholder="粘贴用户 ID，支持换行、逗号或空格分隔">${esc(m.text)}</textarea>`
-      : (packs.length ? `<div class="qa-seed-packs">${packs.map((t) => `<button type="button" class="${m.packId === t.id ? 'on' : ''}" data-act="seed-pack" data-id="${t.id}"><b>${esc(t.title)}</b><small>${esc(t.result.packId)} · ${fmt(t.result.size)} 人 · V${t.result.version}</small></button>`).join('')}</div>` : '<p class="qa-muted">还没有已产出的人群包。先完成一次圈人，或改用上传 / 粘贴。</p>');
+    : `<textarea id="qa-seed-text" rows="6" placeholder="粘贴用户 ID，支持换行、逗号或空格分隔">${esc(m.text)}</textarea>`;
   const summary = p ? `<div class="qa-seed-sum"><span>有效 <b>${fmt(p.count)}</b></span><span>重复 ${fmt(p.dup)}</span><span>格式不正确 ${fmt(p.invalid)}</span>${p.over ? `<span class="qa-warn">超出上限 ${fmt(p.over)}，已截断</span>` : ''}</div>` : '';
   const warn = p ? seedWarning(p) : '';
   return `<div class="qa-modal-mask"><div class="qa-modal" role="dialog" aria-label="添加种子用户">
     <header><b>添加种子用户</b><button type="button" class="qa-icon-btn" data-act="seed-cancel" aria-label="关闭">×</button></header>
     <p class="qa-muted">种子用户是你已经确认的一批目标用户（例如上一轮转化最好的那批人），会和业务目标一起交给吴极侧 Agent，由 Agent 学习他们的共性特征后向外扩散。系统只保留数量和脱敏样例，不落完整 ID 列表，本期不建种子库。</p>
     <div class="qa-tip">本期支持 <b>${SEED_MIN}–${SEED_MAX}</b> 个种子用户；超出部分会被截断。提交后 Agent 需要较长时间运行（约 2–3 小时），完成后会通过飞书 IM bot 通知你。</div>
-    <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID'], ['pack', '已有人群包']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
+    <nav class="qa-tabs">${[['file', '上传文件'], ['paste', '粘贴 ID']].map(([k, l]) => `<button type="button" class="${m.tab === k ? 'on' : ''}" data-act="seed-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
     <div class="qa-modal-body">${body}${summary}</div>
     ${warn ? `<p class="qa-warn">${esc(warn)}</p>` : ''}
     <footer><button type="button" class="qa-outline sm" data-act="seed-cancel">取消</button><button type="button" class="qa-primary" data-act="seed-confirm" ${seedOk(p) ? '' : 'disabled'}>确认添加</button></footer>
   </div></div>`;
 }
 function sidebar() {
-  const list = tasks.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>路径 ${t.path || 'B'}</em></button>`).join('');
+  /* 历史对话会一直累积：带关键词搜索并在列表内滚动，匹配标题与原始诉求 */
+  const q = histQ.trim().toLowerCase();
+  const hit = q ? tasks.filter((t) => `${t.title} ${t.query}`.toLowerCase().includes(q)) : tasks;
+  const list = hit.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span><em>路径 ${t.path || 'B'}</em></button>`).join('');
   return `<aside class="qa-side">
     <div class="qa-side-head"><span class="qa-brand"><i>${ICON.spark}</i>圈人助手</span><button type="button" class="qa-icon-btn" data-act="toggle-side" aria-label="${sidebarOpen ? '收起' : '展开'}侧栏">${ICON.side}</button></div>
     <nav class="qa-side-nav">
@@ -443,8 +447,9 @@ function sidebar() {
       <button type="button" data-act="center" class="${view === 'center' ? 'on' : ''}">${ICON.task}<span>圈人任务中心</span></button>
       <button type="button" data-act="kb" class="is-soon">${ICON.book}<span>策略知识库</span><em>规划中</em></button>
     </nav>
-    <div class="qa-side-title">历史对话</div>
-    <div class="qa-hist-list">${list || '<p class="qa-muted">暂无历史对话</p>'}</div>
+    <div class="qa-side-title">历史对话<span>${fmt(tasks.length)}</span></div>
+    ${tasks.length > 5 ? `<div class="qa-hist-search"><input id="qa-hist-q" placeholder="搜索历史对话" value="${esc(histQ)}">${histQ ? '<button type="button" class="qa-icon-btn" data-act="hist-clear" aria-label="清空搜索">×</button>' : ''}</div>` : ''}
+    <div class="qa-hist-list">${list || `<p class="qa-muted">${q ? '没有匹配的历史对话' : '暂无历史对话'}</p>`}</div>
   </aside>`;
 }
 
@@ -794,9 +799,11 @@ function agentReportView(task) {
 }
 
 function taskCenter() {
-  return `<header class="qa-chat-head"><h1>圈人任务中心</h1></header><div class="qa-center-body">
+  const q = centerQ.trim().toLowerCase();
+  const rows = q ? tasks.filter((t) => `${t.title} ${t.query} ${t.result ? t.result.packId : ''}`.toLowerCase().includes(q)) : tasks;
+  return `<header class="qa-chat-head"><h1>圈人任务中心</h1><input id="qa-center-q" class="qa-search" placeholder="搜索任务名、诉求或人群包 ID" value="${esc(centerQ)}"></header><div class="qa-center-body">
     <table class="qa-table"><thead><tr><th>任务</th><th>链路</th><th>状态</th><th>人群包</th><th>人群规模</th><th>更新时间</th><th></th></tr></thead><tbody>
-    ${tasks.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>路径 ${t.path || 'B'}</td><td>${t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="qa-muted">还没有任务</td></tr>'}
+    ${rows.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>路径 ${t.path || 'B'}</td><td>${t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="7" class="qa-muted">${q ? '没有匹配的任务' : '还没有任务'}</td></tr>`}
     </tbody></table>
     <p class="qa-muted">路径 A 的 Agent 运行约 2–3 小时，完成后会以飞书消息通知；人群包统一以 Hive 表交付生服 LDMP 建包。</p></div>`;
 }
@@ -809,6 +816,7 @@ async function onClick(e) {
   const msg = task && el.dataset.msg ? task.messages.find((m) => m.id === el.dataset.msg) : null;
   switch (act) {
     case 'toggle-side': sidebarOpen = !sidebarOpen; break;
+    case 'hist-clear': histQ = ''; break;
     case 'new': view = 'home'; activeId = null; panel.open = false; break;
     case 'center': view = 'center'; panel.open = false; break;
     case 'market': if (options.onMarket) options.onMarket(); else location.href = 'https://utup-mvp-frontend.vercel.app/#market'; return;
@@ -819,15 +827,14 @@ async function onClick(e) {
     case 'answer': task.answers[el.dataset.q] = el.dataset.v; save(); break;
     case 'clarify-ok': return confirmClarify(task, msg);
     case 'remove': task.removed.push(+el.dataset.tag); save(); break;
-    case 'seed-open': { const cur = el.dataset.target === 'task' ? task.seed : draftSeed; seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null, packId: '' }; break; }
-    case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.packId = ''; break;
+    case 'seed-open': seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null }; break;
+    case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.text = ''; seedModal.fileName = ''; break;
     case 'to-ldmp': notify('已在新页面打开生服 LDMP 的人群包（演示）'); return;
     case 'entry': entry = el.dataset.v; if (entry === 'B') draftSeed = null; break;
-    case 'seed-pack': { const t = tasks.find((x) => x.id === el.dataset.id); seedModal.packId = t.id; seedModal.parsed = { count: t.result.size, dup: 0, invalid: 0, over: 0, sample: [] }; seedModal.packName = `${t.title} · ${t.result.packId}`; break; }
     case 'seed-cancel': seedModal = null; break;
     case 'seed-confirm': {
       const m = seedModal, p = m.parsed; if (!p || !p.count) return;
-      const seed = { ...p, source: m.tab === 'file' ? '文件上传' : m.tab === 'paste' ? '粘贴' : '已有人群包', name: m.tab === 'file' ? m.fileName : m.tab === 'paste' ? '手动粘贴' : m.packName };
+      const seed = { ...p, source: m.tab === 'file' ? '文件上传' : '粘贴', name: m.tab === 'file' ? m.fileName : '手动粘贴' };
       if (m.target === 'task') { task.seed = seed; save(); } else draftSeed = seed;
       seedModal = null; notify(`已添加 ${fmt(seed.count)} 个种子用户`); return;
     }
@@ -862,6 +869,8 @@ function send() {
 }
 function onInput(e) {
   if (e.target.id === 'qa-input') { draft = e.target.value; const b = host.querySelector('[data-act="send"]'); if (b) b.disabled = busy || !draft.trim(); }
+  if (e.target.id === 'qa-hist-q') { histQ = e.target.value; render(); return; }
+  if (e.target.id === 'qa-center-q') { centerQ = e.target.value; render(); return; }
   if (e.target.id === 'qa-seed-text') { seedModal.text = e.target.value; seedModal.parsed = e.target.value.trim() ? parseSeeds(e.target.value) : null; render(); return; }
   if (e.target.id === 'qa-target') { const t = current(); const n = parseInt(e.target.value, 10); t.target = n > 0 ? n : null; save(); const est = host.querySelector('#qa-est'); if (est) est.textContent = '约 ' + fmt(estimate(t)) + ' 人'; }
 }
