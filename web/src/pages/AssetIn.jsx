@@ -6,7 +6,7 @@ import {
   FIELDS, FORM_GROUPS, SECURITY, SECURITY_LEVELS, DOMAINS, TIMELINESS, FREQS, OFFICIAL, STATUS_LABEL, MAX_ROWS, ASSET_KEY,
   DEMO_ME, DEMO_OWNERS, DEMO_OFFICERS, DEMO_TABLES, TAG_ID_DOMAINS,
   freqText, parseCsv, templateCsv, toCsv, validateAsset, validateImport, missingColumns,
-  completeness, normalizeStatus, statusAfterSubmit, needOf, needNote, needsTagId, autoTagId, levelMatches,
+  completeness, normalizeStatus, statusAfterSubmit, needOf, needsTagId, autoTagId, levelMatches,
 } from '../flows/asset-model.mjs'
 
 /* 资产管理（PRD 三「供给方版本更新 v1.1」）：资产接入（单个录入 / 批量导入）、平台机审上线、草稿、更新左右对比、
@@ -433,11 +433,6 @@ export default function AssetIn({ V, pushAudit }) {
         <li><b>2</b><div><strong>填写并上传</strong><p>一行一个资产，CSV 格式，单次最多 {MAX_ROWS} 行。批量更新：先在资产列表「导出我的资产」，修改后在此上传</p><Space><Button size="small" type="primary" onClick={() => fileRef.current?.click()}>上传 CSV</Button><Button size="small" onClick={demoFile}>用演示文件试试</Button></Space><input ref={fileRef} type="file" accept=".csv" hidden onChange={onFile} /></div></li>
         <li><b>3</b><div><strong>平台机审、提交</strong><p>按资产 ID 识别新增 / 更新（本人资产按更新处理，可查看差异；他人资产报冲突）；<b>整批校验</b>：只要有一行不合规，本批文件就不导入，修复后重新上传整批文件</p></div></li>
       </ol>
-      <section className="asset-need">
-        <h4>字段填写要求</h4>
-        {['必填', '条件必填', '选填'].map((n) => <div key={n} className="asset-need-row"><span className={`asset-need-tag n-${n}`}>{n}</span><div>{FIELDS.filter((f) => needOf(f) === n).map((f) => <span key={f.key} className="asset-need-chip" title={f.hint}><code>{f.key}</code>{f.label}{needNote(f) && <em>（{needNote(f)}）</em>}</span>)}</div></div>)}
-        <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}</tbody></table></details>
-      </section>
       {batchNeedsComp ? complianceBlock('本批资产') : <div className="asset-comp-skip">✅ 本批均为已有资产的更新，且未修改密级与数据源，无需重新合规确认，提交后直接进入平台机审。</div>}
       {fileError && <Alert type="warning" message={fileError} />}
       {rows && <>
