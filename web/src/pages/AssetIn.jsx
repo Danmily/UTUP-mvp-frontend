@@ -14,7 +14,6 @@ import {
 const DB = { 电商DMP: 'ecom_dmp', 生服LDMP: 'life_ldmp', AI用户画像: 'ai_profile', 双域算法资产: 'xd_algo' }
 const DOMAIN_OF = { 电商DMP: 'DMP', 生服LDMP: 'LDMP' }
 const SECURITY_OF = { 开放: 'L2', 通用: 'L3', 受控: 'L3', 高敏: 'L4' }
-const SOP = ['准备', '下载模板', '填写', '合规确认', '上传并机审', '上线']
 const STATUS_TABS = [['all', '资产总数'], ['online', '已上线'], ['draft', '草稿'], ['off', '已下线']]
 const PAGE = 10
 /* 确认依据附件：图片（可直接粘贴截图）、PDF、Office 文档、邮件；单个 ≤ 10MB，最多 5 个 */
@@ -48,7 +47,7 @@ function FileChips({ files, onRemove }) {
 const LEVEL_OPTS = SECURITY.map((x) => ({ v: x, l: levelLabel(x) }))
 
 /* 演示目录补齐种子资产引用的数据源，保证编辑已上线资产时能通过机审 */
-for (const t of TAGS) { const k = `${DB[t.src] || 'ecom_dmp'}.${t.table}`; if (!DEMO_TABLES[k]) DEMO_TABLES[k] = ['label_value'] }
+for (const t of TAGS) { const k = `${DB[t.src] || 'ecom_dmp'}.${t.table}`; DEMO_TABLES[k] = [...new Set([...(DEMO_TABLES[k] || []), 'label_value'])] }
 const seed = () => TAGS.map((t) => ({
   source_domain: DOMAIN_OF[t.src] || '其他标签资产', tag_id: 'tag_' + t.id, tag_name: t.name, description: t.desc,
   timeliness: t.freq === '实时' ? '实时' : '离线', update_freq: t.freq === '实时' ? '实时' : t.freq === 'T+7' ? '周更' : 'T+1', coverage: String(t.cov || ''),
@@ -137,32 +136,36 @@ export default function AssetIn({ V, pushAudit }) {
   const addLog = (log) => setLogs((l) => [{ no: batchNo(), at: nowStamp().slice(0, 16), by: V.name, officer: comp.officer || '—', result: comp.result || '—', ...log }, ...l])
   const NO_COMP = { officer: '—', result: '无需（未改密级与数据源）' }
 
-  const complianceBlock = (scope) => (
-    <section className="asset-group asset-compliance">
-      <h4><b>合规</b>合规确认信息</h4>
-      <p className="asset-muted">提交前须联系所属业务的合规同学，确认{scope}允许接入和使用。由供给方填写确认结果并留存凭证；平台负责字段、格式、枚举值和重复记录校验，不替业务寻找合规负责人，也不对资产内容作业务正确性背书。</p>
-      <div className="asset-grid">
-        <label className="asset-field" htmlFor="comp-officer"><span>合规确认人<i>*</i></span>
+  const complianceBlock = (scope, num) => (
+    <section className="af-sec">
+      <header className="af-sec-head">
+        <b className="af-num">{num}</b>
+        <div><h4>合规确认</h4><p>提交前联系所属业务的合规同学，确认{scope}允许接入和使用；确认结果由供给方填写并留存凭证</p></div>
+      </header>
+      <div className="af-grid">
+        <label className="af-field" htmlFor="comp-officer"><span>合规确认人<i>*</i></span>
           <select className="au-input" id="comp-officer" value={comp.officer} onChange={(e) => setC('officer', e.target.value)}>
             <option value="">选择员工</option>{DEMO_OFFICERS.map((o) => <option key={o}>{o}</option>)}
-          </select>
-          <small>使用员工选择器，不允许填写纯文本姓名</small></label>
-        <div className="asset-field"><span>确认结论<i>*</i></span>
-          <div className="asset-pair">
-            {['通过', '不通过'].map((v) => <label key={v} className="asset-radio"><input type="radio" name="comp-result" checked={comp.result === v} onChange={() => setC('result', v)} />{v}</label>)}
-          </div>
-          <small>只有结论为「通过」且必填信息完整时，才允许提交</small></div>
-        <div className="asset-field wide"><span>确认依据<em className="asset-need-inline n-选填">选填</em></span>
-          <input className="au-input" id="comp-evidence" value={comp.evidence} onChange={(e) => setC('evidence', e.target.value)} onPaste={onPasteFiles} placeholder="审批单、群聊、邮件或文档链接；也可直接粘贴截图" aria-label="确认依据链接" />
-          <div className="comp-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files) }}>
-            <label className="comp-upload">上传附件<input type="file" multiple accept={FILE_ACCEPT} hidden onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} /></label>
-            <span className="asset-muted">支持图片、PDF、Word、Excel、邮件，可拖拽到此处或在上方输入框粘贴截图；单个 ≤ {MAX_FILE_MB}MB，最多 {MAX_FILES} 个</span>
+          </select></label>
+        <div className="af-field"><span>确认结论<i>*</i></span>
+          <div className="af-seg" role="radiogroup" aria-label="确认结论">
+            {['通过', '不通过'].map((v) => <button key={v} type="button" role="radio" aria-checked={comp.result === v} className={comp.result === v ? `on ${v === '通过' ? 'ok' : 'bad'}` : ''} onClick={() => setC('result', v)}>{v}</button>)}
+          </div></div>
+        <div className="af-field wide"><span>确认依据<em>选填</em></span>
+          <div className="af-evidence" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files) }}>
+            <input className="au-input" id="comp-evidence" value={comp.evidence} onChange={(e) => setC('evidence', e.target.value)} onPaste={onPasteFiles} placeholder="粘贴审批单 / 群聊 / 邮件链接，或直接粘贴截图" aria-label="确认依据链接" />
+            <label className="af-upload">＋ 附件<input type="file" multiple accept={FILE_ACCEPT} hidden onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} /></label>
           </div>
           {comp.files.length > 0 && <FileChips files={comp.files} onRemove={(i) => setComp((c) => ({ ...c, files: c.files.filter((_, j) => j !== i) }))} />}
-          <small>确认时间与提交人由系统自动记录，并与本次接入批次绑定</small></div>
+          <small>支持图片、PDF、Office 文档、邮件，可拖拽或粘贴；单个 ≤ {MAX_FILE_MB}MB，最多 {MAX_FILES} 个。确认时间与提交人由系统自动记录</small></div>
       </div>
       {comp.result === '不通过' && <Alert type="warning" message="合规确认未通过，暂不能提交。请与合规同学沟通后再提交。" />}
       {compErr && <Alert type="error" message={compErr} />}
+    </section>
+  )
+  const compSkip = (text) => (
+    <section className="af-sec af-sec-skip">
+      <header className="af-sec-head"><b className="af-num">✓</b><div><h4>合规确认 · 无需重新确认</h4><p>{text}</p></div></header>
     </section>
   )
 
@@ -344,19 +347,19 @@ export default function AssetIn({ V, pushAudit }) {
           <tr key={a.tag_id}>
             <td className="asset-check">{a.status === 'online' && <input type="checkbox" aria-label={`勾选 ${a.tag_name}`} checked={sel.includes(a.tag_id)} onChange={() => toggle(a.tag_id)} />}</td>
             <td><button type="button" className="asset-name" onClick={() => setMetaTarget(a)}>{a.tag_name}</button><small>{a.autoDraftId ? '资产 ID 未填写' : a.tag_id}</small></td>
-            <td className="asset-src">{a.source_domain || '—'}<small>{a.source_db}.{a.source_table}</small><small>{a.source_field}</small></td>
+            <td className="asset-src" title={`${a.source_db}.${a.source_table}.${a.source_field}`}>{a.source_domain || '—'}<small>{a.source_db}.{a.source_table}</small><small>{a.source_field}</small></td>
             <td>{freqText(a)}</td>
             <td>{a.coverage ? `${a.coverage}%` : '—'}</td>
             <td>{a.unified_level ? <LevelChip level={a.unified_level} /> : '—'}</td>
             <td>{statusTag(a.status)}{a.status === 'off' && <small>{a.offAt} 下线{a.offReason ? ` · ${a.offReason}` : ''}</small>}</td>
-            <td className="asset-ops">
+            <td><div className="asset-ops">
               <Button size="small" type="link" onClick={() => setMetaTarget(a)}>元信息</Button>
               {a.status !== 'off' && <Button size="small" type="link" onClick={() => editAsset(a)}>编辑</Button>}
               {a.status === 'draft' && <Button size="small" type="link" onClick={() => { editAsset(a); message.info('补充必填信息与合规确认后点击「提交」，机审通过即上线') }}>提交</Button>}
               {a.status === 'online' && <Button size="small" type="link" onClick={() => openOff([a])}>下线</Button>}
               {a.status === 'off' && <Button size="small" type="link" onClick={() => goOnline(a)}>重新上线</Button>}
               {a.status !== 'online' && <Button size="small" type="link" onClick={() => setDelTarget(a)}>删除</Button>}
-            </td>
+            </div></td>
           </tr>
         ))}</tbody>
       </table>
@@ -408,51 +411,97 @@ export default function AssetIn({ V, pushAudit }) {
   }
   const formView = (
     <Card title={editing ? `${editingDraft ? '编辑草稿' : '编辑资产'} · ${editingAsset?.tag_name || editing}` : '单个录入'} extra={<Button onClick={() => setTab('list')}>返回列表</Button>}>
-      <div className="asset-sop" aria-label="资产接入流程">{SOP.map((s, i) => <span key={s}><b>{i + 1}</b>{s}</span>)}</div>
-      <div ref={errRef}>{formResult?.errors.length > 0 && <Alert type="error" message="机审未通过，请先修正以下问题" description={formResult.errors.join('；')} />}</div>
-      {FORM_GROUPS.map((g, i) => (
-        <section key={g} className="asset-group"><h4><b>{i + 1}</b>{g}</h4><div className="asset-grid">{FIELDS.filter((f) => f.group === g).map((f) => control[f.key]())}</div></section>
-      ))}
-      {needCompForm ? <>
-        {formBefore && <Alert type="warning" message="本次修改了密级或数据源，需重新完成合规确认后才能提交" />}
-        {complianceBlock('该资产')}
-      </> : <div className="asset-comp-skip">✅ 本次未修改密级与数据源，无需重新合规确认，保存后直接进入平台机审（沿用该资产已有的合规确认记录）。如修改密级、统一级别、来源域、源库、源表或源字段，需补充合规确认信息。</div>}
-      <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
-      <datalist id="asset-dbs">{[...new Set(Object.keys(DEMO_TABLES).map((k) => k.split('.')[0]))].map((o) => <option key={o} value={o} />)}</datalist>
-      <datalist id="asset-tables">{Object.keys(DEMO_TABLES).filter((k) => !form.source_db || k.startsWith(form.source_db + '.')).map((k) => <option key={k} value={k.split('.')[1]} />)}</datalist>
-      {formResult?.notes.length > 0 && <Alert type="info" message={formResult.notes.join('；')} />}
-      <div className="asset-actions"><span className="asset-muted">提交后平台机审，通过即上线；资产 ID 已是本人资产时按更新处理，先展示左右对比</span><Space><Button onClick={() => setTab('list')}>取消</Button>{(!editing || editingDraft) && <Button onClick={saveDraft}>保存草稿</Button>}<Button type="primary" disabled={needCompForm && comp.result === '不通过'} onClick={submitForm}>{formBefore ? '保存并提交机审' : '提交'}</Button></Space></div>
+      <div className="af-flow">
+        <div ref={errRef}>{formResult?.errors.length > 0 && <Alert type="error" message="机审未通过，请先修正以下问题" description={formResult.errors.join('；')} />}</div>
+        {FORM_GROUPS.map((g, i) => (
+          <section key={g} className="af-sec">
+            <header className="af-sec-head"><b className="af-num">{i + 1}</b><div><h4>{g}</h4></div></header>
+            <div className="af-grid">{FIELDS.filter((f) => f.group === g).map((f) => control[f.key]())}</div>
+          </section>
+        ))}
+        {needCompForm ? <>
+          {formBefore && <Alert type="warning" message="本次修改了密级或数据源，需重新完成合规确认后才能提交" />}
+          {complianceBlock('该资产', FORM_GROUPS.length + 1)}
+        </> : compSkip('本次未修改密级与数据源，沿用该资产已有的合规确认记录，保存后直接进入平台机审。修改密级、统一级别或数据源时需重新确认。')}
+        <datalist id="asset-owners">{DEMO_OWNERS.map((o) => <option key={o} value={o} />)}</datalist>
+        <datalist id="asset-dbs">{[...new Set(Object.keys(DEMO_TABLES).map((k) => k.split('.')[0]))].map((o) => <option key={o} value={o} />)}</datalist>
+        <datalist id="asset-tables">{Object.keys(DEMO_TABLES).filter((k) => !form.source_db || k.startsWith(form.source_db + '.')).map((k) => <option key={k} value={k.split('.')[1]} />)}</datalist>
+        {formResult?.notes.length > 0 && <Alert type="info" message={formResult.notes.join('；')} />}
+        <div className="af-actions"><span className="asset-muted">提交后平台机审，通过即上线；资产 ID 已是本人资产时按更新处理，先展示左右对比</span><Space><Button onClick={() => setTab('list')}>取消</Button>{(!editing || editingDraft) && <Button onClick={saveDraft}>保存草稿</Button>}<Button type="primary" disabled={needCompForm && comp.result === '不通过'} onClick={submitForm}>{formBefore ? '保存并提交机审' : '提交'}</Button></Space></div>
+      </div>
     </Card>
   )
 
+  /* 批量导入三步：进度随操作推进 */
+  const compDone = !batchNeedsComp || (comp.officer && comp.result === '通过')
+  const stepDone = [!!rows, compDone, !!rows && !badRows.length && compDone]
+  const stepNow = stepDone.findIndex((d) => !d)
+  const created = okRows.filter((r) => r.action === 'create').length, updatedN = okRows.filter((r) => r.action === 'update').length
+  function onDropCsv(e) { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) onFile({ target: { files: [f], value: '' } }) }
   const importView = (
     <Card title="批量导入" extra={<Button onClick={() => setTab('list')}>返回列表</Button>}>
-      <div className="asset-sop" aria-label="资产接入流程">{SOP.map((s, i) => <span key={s}><b>{i + 1}</b>{s}</span>)}</div>
-      <ol className="asset-steps">
-        <li><b>1</b><div><strong>下载模板</strong><p>第 1 行为列名；第 2、3 行是「填写要求」和「字段说明」（以 # 开头，导入时自动跳过）；之后是示例行。按列顺序填写，不增删列、不修改表头</p><Button size="small" onClick={() => download('资产导入模板.csv', templateCsv())}>下载最新模板</Button></div></li>
-        <li><b>2</b><div><strong>填写并上传</strong><p>一行一个资产，CSV 格式，单次最多 {MAX_ROWS} 行。批量更新：先在资产列表「导出我的资产」，修改后在此上传</p><Space><Button size="small" type="primary" onClick={() => fileRef.current?.click()}>上传 CSV</Button><Button size="small" onClick={demoFile}>用演示文件试试</Button></Space><input ref={fileRef} type="file" accept=".csv" hidden onChange={onFile} /></div></li>
-        <li><b>3</b><div><strong>平台机审、提交</strong><p>按资产 ID 识别新增 / 更新（本人资产按更新处理，可查看差异；他人资产报冲突）；<b>整批校验</b>：只要有一行不合规，本批文件就不导入，修复后重新上传整批文件</p></div></li>
-      </ol>
-      {batchNeedsComp ? complianceBlock('本批资产') : <div className="asset-comp-skip">✅ 本批均为已有资产的更新，且未修改密级与数据源，无需重新合规确认，提交后直接进入平台机审。</div>}
-      {fileError && <Alert type="warning" message={fileError} />}
-      {rows && <>
-        <div className="asset-result-bar"><span>{fileName} · 共 {rows.length} 行：<b className="ok">✅ 新增 {okRows.filter((r) => r.action === 'create').length}</b><b className="up">🔄 更新 {okRows.filter((r) => r.action === 'update').length}</b><b className="bad">❌ 错误 {badRows.length}</b></span>
-          <Space>{badRows.length > 0 && <Button size="small" onClick={downloadErrors}>下载错误清单</Button>}<Button size="small" type="primary" disabled={!rows.length || badRows.length > 0 || (batchNeedsComp && comp.result === '不通过')} onClick={submitImport}>导入全部 {rows.length} 行</Button></Space></div>
-        {badRows.length > 0 && <Alert type="error" message={`机审未通过：本批存在 ${badRows.length} 行不合规记录，整批文件不导入。按下表定位修复后，重新上传整批文件。`} />}
-        <table className="asset-table">
-          <thead><tr><th>行</th><th>结果</th><th>标签</th><th>时效 · 频率</th><th>最终生效密级</th><th>说明</th></tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.line} className={r.errors.length ? 'is-bad' : ''}>
-              <td>{r.line}</td>
-              <td>{r.errors.length ? <Tag color="danger">错误</Tag> : r.action === 'update' ? <Tag color="primary">更新</Tag> : <Tag color="success">新增</Tag>}</td>
-              <td><b>{r.asset.tag_name || '—'}</b><small>{r.asset.tag_id || '—'}</small></td>
-              <td>{r.asset.timeliness ? freqText(r.asset) : '—'}</td>
-              <td>{SECURITY.includes(r.asset.unified_level) ? <LevelChip level={r.asset.unified_level} /> : '—'}</td>
-              <td className="asset-msgs">{r.errors.map((e) => <p key={e} className="bad">{e}</p>)}{r.notes.map((n) => <p key={n}>{n}</p>)}{r.action === 'update' && !r.errors.length && <p>本人名下已有资产，按更新处理 <Button size="small" type="link" onClick={() => { const before = assets.find((a) => a.tag_id === r.asset.tag_id); setDiffOnly(true); setDiff({ title: `更新差异 · ${before.tag_name}（${before.tag_id}）`, rows: diffRows(before, r.asset) }) }}>查看差异</Button></p>}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </>}
+      <div className="af-flow">
+        <ol className="af-stepper">
+          {['下载模板并填写', '合规确认', '上传并机审'].map((t, i) => (
+            <li key={t} className={stepDone[i] ? 'done' : i === stepNow ? 'now' : ''}><b>{stepDone[i] ? '✓' : i + 1}</b><span>{t}</span></li>
+          ))}
+        </ol>
+
+        <section className="af-sec">
+          <header className="af-sec-head">
+            <b className="af-num">1</b>
+            <div><h4>下载模板并填写</h4><p>按列顺序填写，不增删列、不修改表头；模板第 2、3 行是填写要求与字段说明，导入时自动跳过</p></div>
+            <Button onClick={() => download('资产导入模板.csv', templateCsv())}>下载最新模板</Button>
+          </header>
+          <p className="af-tip">批量更新：先在资产列表点「导出我的资产」，修改后在第 3 步上传，系统按资产 ID 识别为更新</p>
+        </section>
+
+        {batchNeedsComp ? complianceBlock('本批资产', 2) : compSkip('本批均为已有资产的更新，且未修改密级与数据源，沿用原合规确认记录，提交后直接进入平台机审。')}
+
+        <section className="af-sec">
+          <header className="af-sec-head">
+            <b className="af-num">3</b>
+            <div><h4>上传并机审</h4><p>CSV 格式，单次最多 {MAX_ROWS} 行；整批校验，只要有一行不合规，本批文件就不导入</p></div>
+            {rows && <Button onClick={() => fileRef.current?.click()}>重新上传</Button>}
+          </header>
+          <input ref={fileRef} type="file" accept=".csv" hidden onChange={onFile} />
+          {!rows && (
+            <div className="af-drop" role="button" tabIndex={0} onClick={() => fileRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter') fileRef.current?.click() }} onDragOver={(e) => e.preventDefault()} onDrop={onDropCsv}>
+              <div className="af-drop-icon" aria-hidden="true">⬆</div>
+              <strong>点击或拖拽 CSV 文件到这里</strong>
+              <span>Excel 可「另存为 CSV UTF-8」后上传</span>
+              <Button size="small" type="link" onClick={(e) => { e.stopPropagation(); demoFile() }}>没有文件？用演示文件试试</Button>
+            </div>
+          )}
+          {fileError && <Alert type="warning" message={fileError} />}
+          {rows && <>
+            <div className="af-file">
+              <span className="af-file-name">📄 {fileName}<small>共 {rows.length} 行</small></span>
+              <span className="af-stat ok">新增 {created}</span><span className="af-stat up">更新 {updatedN}</span><span className={`af-stat ${badRows.length ? 'bad' : 'zero'}`}>错误 {badRows.length}</span>
+              {badRows.length > 0 && <Button size="small" type="link" onClick={downloadErrors}>下载错误清单</Button>}
+            </div>
+            {badRows.length > 0 && <Alert type="error" message={`机审未通过：${badRows.length} 行不合规，整批文件不导入。按下表修复后重新上传。`} />}
+            <div className="af-table-wrap"><table className="asset-table">
+              <thead><tr><th>行</th><th>结果</th><th>标签</th><th>时效 · 频率</th><th>密级</th><th>说明</th></tr></thead>
+              <tbody>{rows.map((r) => (
+                <tr key={r.line} className={r.errors.length ? 'is-bad' : ''}>
+                  <td>{r.line}</td>
+                  <td>{r.errors.length ? <Tag color="danger">错误</Tag> : r.action === 'update' ? <Tag color="primary">更新</Tag> : <Tag color="success">新增</Tag>}</td>
+                  <td><b>{r.asset.tag_name || '—'}</b><small>{r.asset.tag_id || '—'}</small></td>
+                  <td>{r.asset.timeliness ? freqText(r.asset) : '—'}</td>
+                  <td>{SECURITY.includes(r.asset.unified_level) ? <LevelChip level={r.asset.unified_level} /> : '—'}</td>
+                  <td className="asset-msgs">{r.errors.map((e) => <p key={e} className="bad">{e}</p>)}{r.notes.map((n) => <p key={n}>{n}</p>)}{r.action === 'update' && !r.errors.length && <p>本人名下已有资产，按更新处理 <Button size="small" type="link" onClick={() => { const before = assets.find((a) => a.tag_id === r.asset.tag_id); setDiffOnly(true); setDiff({ title: `更新差异 · ${before.tag_name}（${before.tag_id}）`, rows: diffRows(before, r.asset) }) }}>查看差异</Button></p>}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          </>}
+        </section>
+
+        <div className="af-actions">
+          <span className="asset-muted">{!rows ? '上传文件后显示机审结果' : badRows.length ? '修复错误行后重新上传整批文件' : !compDone ? '完成合规确认后即可导入' : `机审通过：将导入并上线 ${rows.length} 个资产（新增 ${created}、更新 ${updatedN}）`}</span>
+          <Button type="primary" disabled={!rows?.length || badRows.length > 0 || (batchNeedsComp && comp.result === '不通过')} onClick={submitImport}>{rows ? `导入并上线 ${rows.length} 行` : '导入并上线'}</Button>
+        </div>
+      </div>
     </Card>
   )
 
