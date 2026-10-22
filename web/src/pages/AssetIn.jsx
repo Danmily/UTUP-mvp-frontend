@@ -7,7 +7,7 @@ import { LevelChip } from '../mvp-ui.jsx'
 import {
   FIELDS, SECURITY, SOURCES, FREQ_OFFLINE, STATUS_LABEL, MAX_ROWS, DEMO_OWNERS, DEMO_TABLES,
   effectiveLevel, freqText, parseCsv, templateCsv, toCsv, validateAsset, validateImport, missingColumns,
-  completeness, normalizeStatus, statusAfterSubmit, needOf, needNote,
+  completeness, normalizeStatus, statusAfterSubmit, needOf, needNote, needsTagId, autoTagId, TAG_ID_SOURCES,
 } from '../flows/asset-model.mjs'
 
 /* 资产接入（V2 · 3.2）：标签资产的上传、分级、审核上架、下线与增删改查；演示数据存于浏览器 */
@@ -129,7 +129,8 @@ export default function AssetIn({ V, pushAudit }) {
   function editAsset(a) { setEditing(a.tag_id); setForm({ ...blank(), ...a }); setFormResult(null); setTab('form') }
   function newAsset() { setEditing(null); setForm(blank()); setFormResult(null); setTab('form') }
   function submitForm() {
-    const r = validateAsset(form, { existing: editing ? [] : ids })
+    /* taken：生成 tag_id 时要避开平台上已有的 ID（编辑时排除自己） */
+    const r = validateAsset(form, { existing: editing ? [] : ids, taken: ids.filter((x) => x !== editing) })
     if (!editing && ids.includes(r.asset.tag_id)) r.errors.push('标签 ID 已存在，请到资产列表中编辑')
     setFormResult(r)
     if (r.errors.length) return
@@ -168,6 +169,9 @@ export default function AssetIn({ V, pushAudit }) {
       { ...ok, tag_id: 'tag_14520', tag_name: '品类偏好序列 Top10', source_table: 'ecom_dmp.dws_ecom_cate_pref_df', source_field: 'cate_pref_top10' },
       { ...ok, tag_id: 'visit_level', tag_name: '到店频次分层', coverage: '120', timeliness: '1', update_freq: '', owner: '@nobody', source_system: '生服LDMP', source_table: 'life_ldmp.dws_life_visit_freq_df', source_field: 'visit_cnt' },
       { ...ok, tag_id: 'visit_level', tag_name: '重复的标签', table_security: '机密' },
+      /* 新规则演示：非 DMP 来源留空 tag_id 会自动生成；DMP 来源留空则报错 */
+      { ...ok, tag_id: '', tag_name: 'AI 品类兴趣侧写', description: '基于大模型侧写输出的品类兴趣，T+7 更新', coverage: '64', update_freq: 'T+7', owner: '@wangwu', owner_team: 'AI 画像团队', source_system: 'AI用户画像', source_table: 'ai_profile.dwd_llm_cate_interest_di', source_field: 'cate_interest', table_security: '通用' },
+      { ...ok, tag_id: '', tag_name: '缺 ID 的 DMP 标签', source_field: 'order_cnt_30d' },
     ]
     readCsv(toCsv(rows, keys), '演示文件.csv')
   }
@@ -249,14 +253,38 @@ export default function AssetIn({ V, pushAudit }) {
   )
 
   const eff = effectiveLevel(form.table_security, form.column_security_level)
+  /* 接入电商 DMP / 生服 LDMP 时 tag_id 必填（要和平台对齐）；其他来源留空由平台生成 */
+  const tagIdNeeded = needsTagId(form.source_system)
+  const autoId = !tagIdNeeded && form.source_table && form.source_field
+    ? autoTagId(form.source_table, form.source_field, ids.filter((x) => x !== editing))
+    : ''
+  const tagIdHint = tagIdNeeded
+    ? `接入 ${TAG_ID_SOURCES.join(' / ')} 的资产必填，须与平台上的 tag_id 一致，否则两边对不上`
+    : !form.source_system
+      ? '先在「表单归属」选择所属域：电商DMP / 生服LDMP 必填，其他来源可留空'
+      : autoId
+        ? `该来源无需填写；留空将生成 ${autoId}`
+        : '该来源无需填写；留空时由平台按来源表与字段生成'
   const input = (k, props = {}) => <input className="au-input" id={`asset-${k}`} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder={FIELDS.find((f) => f.key === k)?.example ? '如 ' + FIELDS.find((f) => f.key === k).example : ''} {...props} />
   const select = (k, opts, empty) => <select className="au-input" id={`asset-${k}`} value={form[k]} onChange={(e) => set(k, e.target.value)}>{empty && <option value="">{empty}</option>}{opts.map((o) => <option key={o.v ?? o} value={o.v ?? o}>{o.l ?? o}</option>)}</select>
-  const field = (k, el, wide) => { const f = FIELDS.find((x) => x.key === k); return <label className={`asset-field${wide ? ' wide' : ''}`} htmlFor={`asset-${k}`}><span>{f.label}{f.required ? <i>*</i> : <em className={`asset-need-inline n-${needOf(f)}`}>{needOf(f)}</em>}</span>{el}{f.hint && <small>{f.hint}</small>}</label> }
+  /* need 可按当前表单覆盖：tag_id 是否必填取决于已选的所属域 */
+  const field = (k, el, wide, opt = {}) => {
+    const f = FIELDS.find((x) => x.key === k)
+    const need = opt.need || (f.required ? '必填' : needOf(f))
+    return (
+      <label className={`asset-field${wide ? ' wide' : ''}`} htmlFor={`asset-${k}`}>
+        <span>{f.label}{need === '必填' ? <i>*</i> : <em className={`asset-need-inline n-${need}`}>{need}</em>}</span>
+        {el}
+        {(opt.hint || f.hint) && <small>{opt.hint || f.hint}</small>}
+      </label>
+    )
+  }
   const formView = (
     <Card title={editing ? `编辑资产 · ${editing}` : '单个录入'} extra={<Button onClick={() => setTab('list')}>返回列表</Button>}>
       {formResult?.errors.length > 0 && <Alert type="error" message="请先修正以下问题" description={formResult.errors.join('；')} />}
       <section className="asset-group"><h4><b>1</b>基础展示</h4><div className="asset-grid">
-        {field('tag_id', input('tag_id', { disabled: !!editing }))}
+        {field('tag_id', input('tag_id', { disabled: !!editing, placeholder: tagIdNeeded ? '如 age_seq_v3，须与平台上的 tag_id 一致' : '可留空，由平台按来源表与字段生成' }),
+          false, { need: tagIdNeeded ? '必填' : '选填', hint: tagIdHint })}
         {field('tag_name', input('tag_name'))}
         {field('description', <textarea className="au-textarea" id="asset-description" rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="该标签的业务含义、加工逻辑…" />, true)}
         {field('coverage', input('coverage'))}
@@ -293,6 +321,7 @@ export default function AssetIn({ V, pushAudit }) {
         <h4>字段填写要求</h4>
         {['必填', '条件必填', '选填'].map((n) => <div key={n} className="asset-need-row"><span className={`asset-need-tag n-${n}`}>{n}</span><div>{FIELDS.filter((f) => needOf(f) === n).map((f) => <span key={f.key} className="asset-need-chip" title={f.hint}><code>{f.key}</code>{f.label}{needNote(f) && <em>（{needNote(f)}）</em>}</span>)}</div></div>)}
         <p className="asset-muted">必填字段为空的行会被标为错误，不能提交；<code>effective_column_level</code> 由系统计算，不需要填写。</p>
+        <p className="asset-muted"><code>tag_id</code> 按来源域区分：接入 <b>{TAG_ID_SOURCES.join(' / ')}</b> 的资产必须填写，并与平台上的 tag_id 保持一致；其他来源（{SOURCES.filter((x) => !TAG_ID_SOURCES.includes(x)).join(' / ')}）本身没有 tag_id，留空即可，平台会按「来源表_来源字段」生成并在校验结果里显示。<code>tag_id</code> 这一列仍需保留在文件中。</p>
         <details className="asset-spec"><summary>查看完整字段说明（{FIELDS.length} 列）</summary><table className="asset-table"><thead><tr><th>列名</th><th>名称</th><th>填写要求</th><th>说明</th></tr></thead><tbody>{FIELDS.map((f) => <tr key={f.key}><td><code>{f.key}</code></td><td>{f.label}</td><td><span className={`asset-need-tag n-${needOf(f)}`}>{needOf(f)}</span></td><td>{[f.hint, needNote(f)].filter(Boolean).join('；')}</td></tr>)}<tr><td><code>effective_column_level</code></td><td>最终生效密级</td><td>无需填写</td><td>系统计算，文件中填写会被忽略</td></tr></tbody></table></details>
       </section>
       {complianceBlock('本批资产')}

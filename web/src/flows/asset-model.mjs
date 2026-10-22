@@ -1,9 +1,15 @@
 /* 资产接入模型（对应 docs/门户V2功能说明.md 3.2）：字段、联动规则、批量导入校验。纯函数，便于测试 */
 export const SECURITY = ['开放', '通用', '受控', '高敏'] // 从低到高
 /* 填写要求：必填 / 条件必填（满足条件时必填）/ 选填 */
-export const needOf = (f) => (f.required ? '必填' : f.key === 'update_freq' ? '条件必填' : '选填')
-export const needNote = (f) => (f.key === 'update_freq' ? '离线（timeliness=1）时必填；实时自动为「实时」' : f.key === 'table_security' ? '不填则进入「待分级」' : '')
+export const needOf = (f) => (f.required ? '必填' : ['update_freq', 'tag_id'].includes(f.key) ? '条件必填' : '选填')
+export const needNote = (f) => (f.key === 'update_freq' ? '离线（timeliness=1）时必填；实时自动为「实时」'
+  : f.key === 'tag_id' ? `接入 ${TAG_ID_SOURCES.join(' / ')} 的资产必填，须与平台上的 tag_id 一致；其他来源留空由平台生成`
+  : f.key === 'table_security' ? '不填则进入「待分级」' : '')
 export const SOURCES = ['电商DMP', '生服LDMP', 'AI用户画像', '双域算法资产']
+/* tag_id 的归属：电商 DMP / 生服 LDMP 的标签在各自平台上已经有 tag_id，接入时必须带上并保持一致，
+ * 否则两边对不上；其余资产（AI 画像、双域算法）本质是表字段，没有 tag_id，由平台按来源表与字段生成。 */
+export const TAG_ID_SOURCES = ['电商DMP', '生服LDMP']
+export const needsTagId = (source) => TAG_ID_SOURCES.includes(String(source || '').trim())
 export const FREQ_OFFLINE = ['T+1', 'T+7']
 /* 资产状态：待分级（缺表密级）→ 已上传（待审核）→ 已上架 → 已下线 */
 export const STATUS_LABEL = { grading: '待分级', uploaded: '已上传', online: '已上架', off: '已下线' }
@@ -13,7 +19,7 @@ export const MAX_ROWS = 500
 
 /* 导入模板列，顺序即模板列顺序；effective_column_level 由系统计算，不在模板中 */
 export const FIELDS = [
-  { key: 'tag_id', label: '标签 ID', group: '基础展示', required: true, hint: '全平台唯一，字母 / 数字 / 下划线', example: 'age_seq_v3' },
+  { key: 'tag_id', label: '标签 ID', group: '基础展示', required: false, column: true, hint: '全平台唯一，字母 / 数字 / 下划线；电商DMP / 生服LDMP 必填且与平台一致，其他来源可留空由平台生成', example: 'age_seq_v3' },
   { key: 'tag_name', label: '标签中文名', group: '基础展示', required: true, hint: '≤ 50 字', example: '近30日下单序列' },
   { key: 'description', label: '业务口径描述', group: '基础展示', required: true, hint: '业务含义与加工逻辑，≥ 10 字', example: '近 30 天用户下单的类目序列，按下单时间倒序，T+1 更新' },
   { key: 'coverage', label: '覆盖率', group: '基础展示', required: true, hint: '0–100，最多 1 位小数，可带 %', example: '82.4' },
@@ -83,19 +89,38 @@ export function toCsv(rows, keys) { return [keys.join(','), ...rows.map((r) => k
 export function templateCsv() {
   const keys = FIELDS.map((f) => f.key)
   const sample = Object.fromEntries(FIELDS.map((f) => [f.key, f.example]))
+  const noId = { ...sample, tag_id: '', tag_name: 'AI 品类兴趣侧写', description: '基于大模型侧写输出的品类兴趣，T+7 更新', coverage: '64', timeliness: '1', update_freq: 'T+7', owner: '@wangwu', owner_team: 'AI 画像团队', source_system: 'AI用户画像', source_table: 'ai_profile.dwd_llm_cate_interest_di', source_field: 'cate_interest', table_security: '通用', column_security_level: '' }
   const realtime = { ...sample, tag_id: 'live_watch_rt', tag_name: '直播实时观看状态', description: '用户当前是否在直播间观看，秒级更新，用于实时触达', coverage: '35', timeliness: '2', update_freq: '', source_table: 'ecom_dmp.dwd_user_order_di', source_field: 'order_cnt_30d', table_security: '通用', column_security_level: '受控' }
   const need = Object.fromEntries(FIELDS.map((f, i) => [f.key, (i === 0 ? '#填写要求：' : '') + needOf(f)]))
   const hint = Object.fromEntries(FIELDS.map((f, i) => [f.key, (i === 0 ? '#说明：' : '') + [f.label, f.hint, f.hint.includes('必填') ? '' : needNote(f)].filter(Boolean).join('；')]))
-  return toCsv([need, hint, sample, realtime], keys)
+  return toCsv([need, hint, sample, realtime, noId], keys)
+}
+
+/* 非 DMP 来源留空时按「表名_字段名」生成 tag_id，与已有 ID 冲突时加序号 */
+export function autoTagId(sourceTable, sourceField, taken = []) {
+  const table = String(sourceTable || '').split('.').pop() || 'asset'
+  const base = `${table}_${String(sourceField || 'value')}`.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toLowerCase()
+  if (!taken.includes(base)) return base
+  let n = 2
+  while (taken.includes(`${base}_${n}`)) n++
+  return `${base}_${n}`
 }
 
 /* 单行校验：返回规范化后的资产、错误与提示。existing = 平台已有 tag_id；dupIds = 文件内重复的 tag_id */
-export function validateAsset(input, { existing = [], dupIds = [] } = {}) {
+export function validateAsset(input, { existing = [], dupIds = [], taken = [] } = {}) {
   const errors = [], notes = []
   const a = Object.fromEntries(FIELDS.map((f) => [f.key, String(input[f.key] ?? '').trim()]))
   for (const f of FIELDS) if (f.required && !a[f.key]) errors.push(`${f.label}必填`)
   if (a.tag_id && !/^[A-Za-z0-9_]+$/.test(a.tag_id)) errors.push('标签 ID 只能包含字母、数字、下划线')
   if (a.tag_id && dupIds.includes(a.tag_id)) errors.push('文件内标签 ID 重复')
+  /* tag_id：DMP 来源必填且与平台一致；其他来源留空由平台生成 */
+  if (!a.tag_id) {
+    if (needsTagId(a.source_system)) errors.push(`接入 ${TAG_ID_SOURCES.join(' / ')} 的资产必须填写标签 ID，并与平台上的 tag_id 一致`)
+    else if (a.source_table && a.source_field) {
+      a.tag_id = autoTagId(a.source_table, a.source_field, [...existing, ...taken])
+      notes.push(`未填写标签 ID，已按来源表与字段生成：${a.tag_id}`)
+    } else errors.push('未填写标签 ID 时，需要来源表与来源字段用于生成')
+  }
   if (a.tag_name.length > 50) errors.push('标签中文名超过 50 字')
   if (a.description && a.description.length < 10) errors.push('业务口径描述至少 10 字')
   if (a.coverage) {
@@ -130,8 +155,14 @@ export function validateImport(records, existing) {
   const count = {}
   records.forEach((r) => { const id = String(r.tag_id || '').trim(); if (id) count[id] = (count[id] || 0) + 1 })
   const dupIds = Object.keys(count).filter((k) => count[k] > 1)
-  return records.slice(0, MAX_ROWS).map((r, i) => ({ line: i + 2, ...validateAsset(r, { existing, dupIds }) }))
+  const taken = [] // 本批内已占用（含自动生成）的 ID，避免同批重复
+  return records.slice(0, MAX_ROWS).map((r, i) => {
+    const res = validateAsset(r, { existing, dupIds, taken })
+    if (res.asset.tag_id) taken.push(res.asset.tag_id)
+    return { line: i + 2, ...res }
+  })
 }
 export function missingColumns(header) {
-  return FIELDS.filter((f) => f.required && !header.includes(f.key)).map((f) => f.key)
+  /* tag_id 不再强制填写，但列必须保留：DMP 来源要靠它对齐平台上的标签 */
+  return FIELDS.filter((f) => (f.required || f.column) && !header.includes(f.key)).map((f) => f.key)
 }
