@@ -26,6 +26,23 @@ const TAGS = {
 /* 无权限时「使用其他标签」的替代关系；null 表示直接去掉该条件 */
 const ALT = { 14520: 14555, 14501: 14566, 14578: 14572, 14580: 14612, 14660: 14566, 14606: 14612, 14560: null, 14624: 14630 };
 const GROUPS = [['must', '必须满足'], ['any', '任一满足'], ['exclude', '排除']];
+/* 执行方式按域判定（PRD 4.3）：单域直接由生服 DMP 按条件生包，跨域才需要生成 SQL 再到大盘执行 */
+const tagDomain = (id) => (/_xd_/.test(TAGS[id].table) ? '跨域' : /life/.test(TAGS[id].table) ? '生服' : '电商');
+function taskDomains(task) {
+  return [...new Set(buildConditions(task).filter((c) => c.tag).map((c) => tagDomain(c.tag)))];
+}
+function execMode(task) {
+  const ds = taskDomains(task);
+  const cross = ds.includes('跨域') || ds.length > 1;
+  return {
+    cross,
+    domains: ds,
+    label: cross ? `跨域（${ds.filter((x) => x !== '跨域').join(' × ') || '多域'}）` : `单域（${ds[0] || '电商'}）`,
+    note: cross
+      ? '跨域场景：需要先生成 SQL，再到大盘执行生包'
+      : '单域场景：由生服 DMP 直接按条件生包，不生成 SQL',
+  };
+}
 
 const SCENES = {
   recall: {
@@ -82,10 +99,10 @@ const SCENES = {
 };
 /* 两条链路的输入形态不同：A 以业务目标为主、条件由 Agent 从种子里学；B 需要把口径说清楚 */
 const EXAMPLES_B = [
-  ['新品推广', '给波司登找对羽绒服感兴趣、近 90 天有服饰消费、中高消费能力的用户，用于新品推广'],
-  ['老客召回', '召回买过美妆、但最近一段时间没有下单的老用户，排除高退货人群'],
-  ['门店获客', '为上海一家火锅门店找有火锅偏好、可能到店的潜在新客'],
-  ['跨域高价值', '圈出电商消费较低、但生服消费较高的潜在高价值用户'],
+  ['新品推广', '给波司登找对羽绒服感兴趣、近 90 天有服饰消费、中高消费能力的用户，用于新品推广', '单域 · 电商'],
+  ['老客召回', '召回买过美妆、但最近一段时间没有下单的老用户，排除高退货人群', '单域 · 电商'],
+  ['门店获客', '为上海一家火锅门店找有火锅偏好、可能到店的潜在新客', '单域 · 生服'],
+  ['跨域高价值', '圈出电商消费较低、但生服消费较高的潜在高价值用户', '跨域'],
 ];
 const EXAMPLES_A = [
   ['种子扩散', '这批种子是上一轮复购最好的老客，帮我找一批相似的人，用于双十一新品推广'],
@@ -336,12 +353,19 @@ async function execute(task) {
   busy = true;
   const t0 = Date.now();
   const tables = [...new Set(buildConditions(task).filter((c) => c.tag).map((c) => c.tag))];
-  const msg = push(task, { type: 'exec', version: task.version, open: true, openAnalysis: true,
-    steps: [
-      { title: '生成圈选 SQL', detail: '生服 DMP 可直接按条件生包；跨域场景才需要生成 SQL（按需）', tab: 'sql', status: 'wait' },
-      { title: '圈选人群', tab: 'detail', status: 'wait' },
+  const mode = execMode(task);
+  /* 单域不出现「生成 SQL」这一状态；跨域才多这一步（PRD 4.3） */
+  const steps = mode.cross
+    ? [
+      { title: '生成圈选 SQL', detail: '跨域场景：把确认的条件转成可执行 SQL', tab: 'sql', status: 'wait' },
+      { title: '大盘执行生包', detail: '执行 SQL 并产出人群包', tab: 'detail', status: 'wait' },
       { title: '同步人群报告生产数据', tab: 'report', status: 'wait' },
-    ],
+    ]
+    : [
+      { title: '下发生服 DMP 生包', detail: `单域场景（${mode.domains[0] || '电商'}）：直接按确认的条件生包，不生成 SQL`, tab: 'detail', status: 'wait' },
+      { title: '同步人群报告生产数据', tab: 'report', status: 'wait' },
+    ];
+  const msg = push(task, { type: 'exec', version: task.version, open: true, openAnalysis: true, steps,
     analysis: [
       { title: '获取数据', detail: '按确认的条件读取标签表；通用级标签已自助开通', tables, tab: 'conditions', status: 'wait' },
       { title: '脚本分析', detail: '统计人群规模、消费分层、城市线级与年龄分布', tab: 'overview', status: 'wait' },
@@ -349,7 +373,7 @@ async function execute(task) {
     ] });
   await runSteps(task, msg, 'steps');
   task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: null };
-  task.timing = { sql: Date.now() - t0 };
+  task.timing = { sql: Date.now() - t0, cross: mode.cross };
   task.reportReady = false;
   await runSteps(task, msg, 'analysis');
   msg.open = false; msg.openAnalysis = false;
@@ -472,7 +496,7 @@ function home() {
       <b>路径 ${p.key} · ${esc(p.name)}</b><span>${esc(p.brief)}</span></button>`).join('')}</div>
     ${composer(isA ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
     <div class="qa-seed-bar">${draftSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>${isA ? '必填' : '不需要'}</em></button><span class="qa-muted">${isA ? '路径 A 需要种子用户：上传或粘贴一批已确认的目标用户 ID' : '路径 B 不需要种子；如果你手上已有一批目标用户，切到路径 A'}</span>`}</div>
-    <div class="qa-examples">${(isA ? EXAMPLES_A : EXAMPLES_B).map(([k, v]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}</b><span>${esc(v)}</span></button>`).join('')}</div>
+    <div class="qa-examples">${(isA ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
     <p class="qa-foot">演示环境 · 人群、规模与收益均为模拟数据</p>
   </div>`;
 }
@@ -574,9 +598,10 @@ function conditionsCard(task, m) {
   return `${m.note ? `<p>${esc(m.note)}</p>` : '<p>根据你的需求，整理出以下圈选条件：</p>'}
   <div class="qa-card qa-cond-card ${live ? '' : 'is-frozen'}">
     ${GROUPS.map(([g, label], i) => { const rows = conds.filter((c) => c.group === g); return rows.length ? `<div class="qa-card-title">${[ICON.cycle, ICON.filter, ICON.filter][i]}${label}<small>${g === 'must' ? 'AND' : g === 'any' ? 'OR' : 'NOT'}</small></div>${rows.map(row).join('')}` : ''; }).join('')}
+    <div class="qa-cond"><span class="k">执行方式</span><span class="v"><span class="qa-pill">${esc(execMode(task).label)}</span> ${esc(execMode(task).note)}</span></div>
     <div class="qa-cond"><span class="k">预估人数</span><span class="v"><b id="qa-est">约 ${fmt(estimate(task))} 人</b><span class="qa-muted">（演示估算）</span></span></div>
     <div class="qa-cond"><span class="k">目标规模</span>${live ? `<input id="qa-target" type="number" min="100" step="100" placeholder="不限" value="${task.target || ''}"><span class="v qa-muted">人，超出时按偏好分截取</span>` : `<span class="v">${task.target ? fmt(task.target) + ' 人' : '不限'}</span>`}</div>
-    <div class="qa-card-foot">${live ? `<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button><button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
+    <div class="qa-card-foot">${live ? `${execMode(task).cross ? '<button type="button" class="qa-link" data-act="sql-preview">查看相关 SQL</button>' : ''}<button type="button" class="qa-primary" data-act="conditions-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认并执行</button>` : `<span class="qa-done">${ICON.check}已提交确认 · V${m.version}</span>`}</div>
   </div>
   ${m.sql && live ? `<div class="qa-sql-inline"><div class="qa-card-title">${ICON.check}相关 SQL</div>${sqlBlock(buildSql(task, buildConditions(task)))}</div>` : ''}`;
 }
@@ -765,8 +790,11 @@ function sqlBlock(sql) {
 /* ---- 右侧结果面板 ---- */
 /* 评审结论：本期只保留人群明细、圈选条件、相关 SQL、人群报告；人群概览与效果回收后置 */
 const TABS = [['detail', '人群明细'], ['conditions', '圈选条件'], ['sql', '相关 SQL'], ['report', '人群报告']];
-/* 路径 A 的圈选逻辑由 Agent 报告承载，不单独展示可编辑的条件页（PRD 6.5） */
-const tabsOf = (task) => (task.path === 'A' ? TABS.filter(([k]) => k !== 'conditions') : TABS);
+/* 路径 A 的圈选逻辑由 Agent 报告承载，不单独展示可编辑的条件页（PRD 6.5）；
+ * 路径 B 的单域场景不生成 SQL，也就没有「相关 SQL」页签 */
+const tabsOf = (task) => (task.path === 'A'
+  ? TABS.filter(([k]) => k !== 'conditions')
+  : execMode(task).cross ? TABS : TABS.filter(([k]) => k !== 'sql'));
 
 function resultPanel(task) {
   const r = task.result;
@@ -775,6 +803,7 @@ function resultPanel(task) {
       <div><button type="button" class="qa-mini" data-act="full">${panel.full ? '退出全屏' : '全屏'}</button><button type="button" class="qa-icon-btn" data-act="close-panel" aria-label="关闭结果面板">×</button></div></header>
     <div class="qa-panel-bar qa-deliver">
       <div class="qa-deliver-head"><b>人群包 ${esc(r.packId)}</b><span class="qa-muted">${fmt(r.size)} 人 · V${r.version}</span></div>
+      ${task.path === 'B' ? `<p class="qa-muted">执行方式：${esc(execMode(task).label)} · ${esc(execMode(task).note)}</p>` : ''}
       <p class="qa-muted">本期以 Hive 表交付生服 LDMP 建包，复用 LDMP 已打通的下游（实验、投放等）。在门户查看结果，到 LDMP 使用。</p>
       <button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 查看 / 使用</button>
     </div>

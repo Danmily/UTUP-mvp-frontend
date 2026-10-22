@@ -363,3 +363,7 @@
 /* 步骤条里的 skill 来源 */
 .qa-skill{display:block;margin-top:3px;color:var(--qa-mute);font-size:11px}
 .qa-skill code{background:var(--qa-card);border-radius:4px;padding:0 4px;font-size:11px}
+
+/* 首页示例的单域 / 跨域标记 */
+.qa-ex-tag{margin-left:6px;font-style:normal;font-weight:400;font-size:10px;color:var(--qa-sub);background:var(--qa-card);border-radius:4px;padding:1px 5px}
+.qa-ex-tag.is-cross{color:var(--qa-accent);background:var(--qa-accent-bg)}

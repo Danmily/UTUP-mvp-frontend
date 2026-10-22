@@ -143,7 +143,7 @@ Agent 返回 Markdown，前端直接渲染，章节顺序保持原样（Task / S
 
 ## 六、待确认（给吴极侧）
 
-1. **负样本**：`user-cohort-sql-prompt-generator` 要求正负样本，负样本缺失时 precision 风险高。当前 demo 只收了一批种子（正样本），是否要在输入上拆成「目标样本 / 排除样本」？不拆的话，报告里必须带 precision 风险提示。
+1. ~~**负样本**~~：**已定为二期**。一期只收一批种子（正样本），报告中须带 precision 风险提示；二期再把输入拆成「目标样本 / 排除样本」。
 2. **事件推送方式**：上面的事件契约是推送（webhook / 消息）还是前端轮询 run 状态？`run_id` 是否可作为查询键。
 3. **报告取回**：最终报告是 Markdown 文件路径，门户侧如何取回（接口返回正文，还是给可访问的文件地址）。
 4. **badcase 反思入口**：`user-tag-badcase-reflection` 面向的是 `user-tag-search` / `user-tag-auto-research`，人群链路是否有对应的 cohort badcase 复盘能力？一期不做，但要知道后续挂在哪。
