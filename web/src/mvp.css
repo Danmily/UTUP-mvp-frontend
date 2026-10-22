@@ -3090,3 +3090,12 @@ line-height: 1.6
 .asset-checklist .asset-check-item input {
 margin-top: 3px
 }
+/* 资产更新：左右对比 */
+.asset-diff-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;font-size:13px}
+.asset-diff-head b{color:var(--au-primary)}
+.asset-diff th:first-child{width:130px}
+.asset-diff th:nth-child(2),.asset-diff th:nth-child(3){width:calc((100% - 130px) / 2)}
+.asset-diff td{word-break:break-all}
+.asset-diff tr.is-changed td{background:#fffbe6}
+.asset-diff tr.is-changed td.before{color:var(--au-text-3);text-decoration:line-through}
+.asset-diff tr.is-changed td.after{color:var(--au-text-1);font-weight:500}

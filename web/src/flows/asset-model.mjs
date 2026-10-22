@@ -4,17 +4,18 @@ export const SECURITY = ['开放', '通用', '受控', '高敏'] // 从低到高
 export const needOf = (f) => (f.required ? '必填' : ['update_freq', 'tag_id'].includes(f.key) ? '条件必填' : '选填')
 export const needNote = (f) => (f.key === 'update_freq' ? '离线（timeliness=1）时必填；实时自动为「实时」'
   : f.key === 'tag_id' ? `接入 ${TAG_ID_SOURCES.join(' / ')} 的资产必填，须与平台上的 tag_id 一致；其他来源留空由平台生成`
-  : f.key === 'table_security' ? '不填则进入「待分级」' : '')
+  : '')
 export const SOURCES = ['电商DMP', '生服LDMP', 'AI用户画像', '双域算法资产']
 /* tag_id 的归属：电商 DMP / 生服 LDMP 的标签在各自平台上已经有 tag_id，接入时必须带上并保持一致，
  * 否则两边对不上；其余资产（AI 画像、双域算法）本质是表字段，没有 tag_id，由平台按来源表与字段生成。 */
 export const TAG_ID_SOURCES = ['电商DMP', '生服LDMP']
 export const needsTagId = (source) => TAG_ID_SOURCES.includes(String(source || '').trim())
 export const FREQ_OFFLINE = ['T+1', 'T+7']
-/* 资产状态：待分级（缺表密级）→ 已上传（待审核）→ 已上架 → 已下线 */
-export const STATUS_LABEL = { grading: '待分级', uploaded: '已上传', online: '已上架', off: '已下线' }
-export const normalizeStatus = (s) => (s === 'pending' ? 'uploaded' : s)
-export const statusAfterSubmit = (a) => (a.table_security ? 'uploaded' : 'grading')
+/* 资产状态（PRD 三 v1.1）：草稿 → 提交后平台机审，通过即已上线 → 已下线。一期不设人工审核与分级环节 */
+export const STATUS_LABEL = { draft: '草稿', online: '已上线', off: '已下线' }
+/* 兼容旧版本地数据：待分级视为草稿，已上传 / 待审核视为已上线 */
+export const normalizeStatus = (s) => (s === 'grading' ? 'draft' : s === 'pending' || s === 'uploaded' ? 'online' : s)
+export const statusAfterSubmit = () => 'online'
 export const MAX_ROWS = 500
 
 /* 导入模板列，顺序即模板列顺序；effective_column_level 由系统计算，不在模板中 */
@@ -30,7 +31,7 @@ export const FIELDS = [
   { key: 'source_system', label: '所属域', group: '表单归属', required: true, hint: SOURCES.join(' / '), example: '电商DMP' },
   { key: 'source_table', label: '来源表', group: '表单归属', required: true, hint: '库名.表名', example: 'ecom_dmp.dwd_user_order_di' },
   { key: 'source_field', label: '来源字段', group: '表单归属', required: true, hint: '来源表中存在的字段', example: 'order_cate_seq' },
-  { key: 'table_security', label: '表密级', group: '密级', required: false, hint: '开放/L2 / 通用/L3基础 / 受控/L3高 / 高敏/L4（填写四档简称即可）；暂不确定可留空，提交后进入「待分级」', example: '受控' },
+  { key: 'table_security', label: '表密级', group: '密级', required: true, hint: '开放/L2 / 通用/L3基础 / 受控/L3高 / 高敏/L4（填写四档简称即可）', example: '受控' },
   { key: 'column_security_level', label: '列密级', group: '密级', required: false, hint: '有单独列密级时填写，否则留空', example: '' },
 ]
 
@@ -106,8 +107,9 @@ export function autoTagId(sourceTable, sourceField, taken = []) {
   return `${base}_${n}`
 }
 
-/* 单行校验：返回规范化后的资产、错误与提示。existing = 平台已有 tag_id；dupIds = 文件内重复的 tag_id */
-export function validateAsset(input, { existing = [], dupIds = [], taken = [] } = {}) {
+/* 单行校验：返回规范化后的资产、错误与提示。existing = 平台已有 tag_id；dupIds = 文件内重复的 tag_id；
+ * ownerOf = 已有资产的 Owner（tag_id → owner），用于区分「本人资产按更新处理」与「他人资产冲突」 */
+export function validateAsset(input, { existing = [], dupIds = [], taken = [], ownerOf = {} } = {}) {
   const errors = [], notes = []
   const a = Object.fromEntries(FIELDS.map((f) => [f.key, String(input[f.key] ?? '').trim()]))
   for (const f of FIELDS) if (f.required && !a[f.key]) errors.push(`${f.label}必填`)
@@ -143,21 +145,21 @@ export function validateAsset(input, { existing = [], dupIds = [], taken = [] } 
   else if (a.source_table && a.source_field && !DEMO_TABLES[a.source_table].includes(a.source_field)) errors.push(`来源表中没有字段 ${a.source_field}`)
   if (a.table_security && !SECURITY.includes(a.table_security)) errors.push(`表密级需为：${SECURITY.join(' / ')}`)
   if (a.column_security_level && !SECURITY.includes(a.column_security_level)) errors.push(`列密级需为：${SECURITY.join(' / ')} 或留空`)
-  if (!a.table_security) notes.push('未填写表密级，提交后进入「待分级」，确认分级后才能审核上架')
   if (input.effective_column_level) notes.push('最终生效密级由系统计算，已忽略文件中的填写值')
   a.effective_column_level = effectiveLevel(a.table_security, a.column_security_level)
   if (a.column_security_level && a.effective_column_level !== a.table_security) notes.push(`列密级高于表密级，最终生效密级升为「${a.effective_column_level}」`)
   const action = existing.includes(a.tag_id) ? 'update' : 'create'
+  if (action === 'update' && ownerOf[a.tag_id] && a.owner && ownerOf[a.tag_id] !== a.owner) errors.push(`标签 ID 属于他人资产（Owner ${ownerOf[a.tag_id]}），不能覆盖；如需新建，请换一个标签 ID`)
   return { asset: a, errors, notes, action }
 }
 
-export function validateImport(records, existing) {
+export function validateImport(records, existing, ownerOf = {}) {
   const count = {}
   records.forEach((r) => { const id = String(r.tag_id || '').trim(); if (id) count[id] = (count[id] || 0) + 1 })
   const dupIds = Object.keys(count).filter((k) => count[k] > 1)
   const taken = [] // 本批内已占用（含自动生成）的 ID，避免同批重复
   return records.slice(0, MAX_ROWS).map((r, i) => {
-    const res = validateAsset(r, { existing, dupIds, taken })
+    const res = validateAsset(r, { existing, dupIds, taken, ownerOf })
     if (res.asset.tag_id) taken.push(res.asset.tag_id)
     return { line: i + 2, ...res }
   })

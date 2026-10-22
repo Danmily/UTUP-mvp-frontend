@@ -33,13 +33,19 @@ test('template round-trips through the CSV parser with all columns', () => {
   assert.deepEqual(header, FIELDS.map((f) => f.key)); assert.equal(missingColumns(header).length, 0)
   assert.ok(records.every((r) => validateAsset(r).errors.length === 0))
 })
-test('missing table security is allowed and routes to 待分级; completeness counts filled fields', async () => {
+test('table security is required; machine check passing goes straight online; legacy statuses are mapped', async () => {
   const { statusAfterSubmit, completeness, normalizeStatus } = await import('../web/src/flows/asset-model.mjs')
   const r = validateAsset({ ...ok, table_security: '' })
-  assert.equal(r.errors.length, 0); assert.ok(r.notes.some((n) => /待分级/.test(n)))
-  assert.equal(statusAfterSubmit(r.asset), 'grading'); assert.equal(statusAfterSubmit(ok), 'uploaded')
+  assert.ok(r.errors.some((e) => /表密级必填/.test(e)))
+  assert.equal(statusAfterSubmit(ok), 'online')
   assert.equal(completeness(ok), 100); assert.ok(completeness({ ...ok, description: '', table_security: '' }) < 100)
-  assert.equal(normalizeStatus('pending'), 'uploaded')
+  assert.equal(normalizeStatus('pending'), 'online'); assert.equal(normalizeStatus('uploaded'), 'online'); assert.equal(normalizeStatus('grading'), 'draft')
+})
+test('existing tag_id: own asset is an update, someone else\'s asset is a conflict', () => {
+  const mine = validateAsset(ok, { existing: [ok.tag_id], ownerOf: { [ok.tag_id]: ok.owner } })
+  assert.equal(mine.action, 'update'); assert.equal(mine.errors.length, 0)
+  const theirs = validateAsset(ok, { existing: [ok.tag_id], ownerOf: { [ok.tag_id]: '@someone' } })
+  assert.ok(theirs.errors.some((e) => /属于他人资产/.test(e)))
 })
 test('template carries 必填 / 条件必填 / 选填 rows that the importer skips', async () => {
   const { needOf } = await import('../web/src/flows/asset-model.mjs')
