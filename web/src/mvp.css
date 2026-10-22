@@ -3116,3 +3116,4 @@ margin-top: 3px
 @media (max-width:900px){.asset-impact{grid-template-columns:1fr}}
 .asset-table td.asset-src{min-width:210px}
 .asset-table td.asset-src small{word-break:normal;overflow-wrap:anywhere}
+.asset-comp-skip{margin:12px 0;padding:10px 14px;border:1px dashed var(--au-border);border-radius:10px;background:var(--au-success-light);color:var(--au-text-2);font-size:13px;line-height:1.6}
