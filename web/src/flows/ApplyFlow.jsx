@@ -19,7 +19,7 @@ export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, b
     if(error){setDraft(d=>({...d,error,step:'edit'}));return}
     lock.current=true;setBusy(true)
     try {
-      const batchId='DEMO-'+crypto.randomUUID().slice(0,8), at=nowStamp().slice(0,16)
+      const batchId='APP-'+crypto.randomUUID().slice(0,8), at=nowStamp().slice(0,16)
       const results=submissionPlan(draft).map((r,i)=>({...r,ticket:r.success?`${batchId}-${i+1}`:null}))
       for(const r of results)if(r.success){addApply({ticket:r.ticket,tagId:r.tag.id,at,...submittedPurpose(r.purpose),evidence:draft.evidence,submissionStatus:'submitted',demo:true});pushAudit(`提交申请：${r.tag.name}`,applicationRow(V,r.tag).effectiveLevel)}
       setDone({results,batchId});setOpen(false)
@@ -43,10 +43,9 @@ export function useApplyFlow({ V, myapply = [], addApply, pushAudit, goMyPerm, b
           {draft.step==='review'?<div className="apply-purpose-preview"><b>{purpose.scene}</b><details className="apply-scene-note"><summary>场景使用说明（随申请提交）</summary><p>{sceneNote(purpose.scene)}</p></details>{purpose.description?.trim()&&<p>补充说明：{purpose.description}</p>}</div>:<details><summary>{override.custom?'已单独设置用途 · 可继续编辑':'单独设置此标签的用途（选填）'}</summary><label className="apply-check"><input type="checkbox" checked={!!override.custom} onChange={e=>setDraft(d=>({...d,overrides:{...d.overrides,[tag.id]:{scene:d.scene,description:d.description,...d.overrides[tag.id],custom:e.target.checked}}}))}/>此标签使用独立用途</label>{override.custom&&<PurposeFields prefix={`tag-${tag.id}`} scene={override.scene||''} description={override.description||''} onChange={patch=>setDraft(d=>({...d,overrides:{...d.overrides,[tag.id]:{...d.overrides[tag.id],...patch}},error:''}))}/>}</details>}
         </article>})}
       </section>
-      <details className="apply-demo-control"><summary>评审演示设置</summary><label htmlFor="apply-outcome">模拟提交结果</label><select id="apply-outcome" value={draft.outcome} onChange={e=>setDraft(d=>({...d,outcome:e.target.value}))}><option value="success">全部成功</option><option value="partial">最后一项提交失败</option></select><p>失败项不会生成申请记录；重试仅处理失败项。</p></details>
     </Modal>}
     {done&&<Modal open width={760} title={failures.length?'提交完成 · 部分失败':'申请已提交'} onCancel={()=>setDone(null)} footer={<Space><Button onClick={()=>setDone(null)}>完成</Button>{failures.length>0&&<Button type="primary" onClick={retry}>仅重试失败项（{failures.length}）</Button>}{goMyPerm&&successes.length>0&&<Button type={failures.length||backToAgent?'default':'primary'} onClick={()=>{setDone(null);goMyPerm()}}>查看我的申请</Button>}{backToAgent&&successes.length>0&&<Button type={failures.length?'default':'primary'} onClick={()=>{setDone(null);backToAgent()}}>返回圈人 Agent 继续</Button>}</Space>}>
-      <Alert type={failures.length?'warning':'success'} message={`${successes.length} 项提交成功，${failures.length} 项失败。成功项已记录，不会在重试时重复提交。`}/><div className="apply-results">{done.results.map(r=><div key={r.tag.id}><strong>{r.tag.name}</strong><Tag color={r.success?'primary':'danger'}>{r.success?'已提交 · 待同步':'提交失败'}</Tag><p>{r.success?'已提交，尚未获得权限':'来源系统暂不可用，请重试该项'}</p></div>)}</div><p className="apply-muted">真实接入后，仅在收到来源系统成功回执后记录“已申请”。已有有效权限时，列表优先显示“可使用”。</p>
+      <Alert type={failures.length?'warning':'success'} message={failures.length?`${successes.length} 项提交成功，${failures.length} 项失败。成功项已记录，重试只处理失败项。`:`${successes.length} 项已提交，等待审批`}/><div className="apply-results">{done.results.map(r=><div key={r.tag.id}><strong>{r.tag.name}</strong><Tag color={r.success?'primary':'danger'}>{r.success?'已提交 · 待同步':'提交失败'}</Tag><p>{r.success?'已提交，尚未获得权限':'来源系统暂不可用，请重试该项'}</p></div>)}</div><p className="apply-muted">各标签由来源系统独立审批，结果以来源系统为准；通过后可在「我的申请 / 权限」查看生效状态与有效期。</p>
     </Modal>}
   </>
   return {start,modal}

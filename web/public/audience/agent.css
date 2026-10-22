@@ -372,3 +372,11 @@
 .qa-grp{border:1px solid var(--qa-line);border-radius:6px;background:#fff;color:var(--qa-sub);font-size:11px;padding:2px 4px;margin-left:6px;flex:none}
 .qa-grp:focus{outline:none;border-color:#c9b8ff}
 .qa-cond-tip{margin:8px 2px 0;color:var(--qa-mute);font-size:12px;line-height:1.7}
+
+/* 人群包元信息 */
+.qa-deliver-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;margin:8px 0 10px}
+.qa-deliver-meta>div{display:flex;gap:6px;font-size:12px;min-width:0}
+.qa-deliver-meta dt{color:var(--qa-mute);flex:none}
+.qa-deliver-meta dd{margin:0;color:var(--qa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qa-pill-ok{color:var(--qa-ok);background:#eaf7ee}
+@media (max-width:900px){.qa-deliver-meta{grid-template-columns:1fr}}

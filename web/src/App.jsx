@@ -173,20 +173,6 @@ export default function App() {
           <Breadcrumb items={[{ title: '统一交易画像门户' }, { title: NAV_LABELS[nav] || nav }]} />
         </div>
         <div className="topbar-right">
-          {/* 演示态开关：便于评审时查看空数据与接口异常的兜底页面 */}
-          <div className="demo-switch" role="group" aria-label="演示态" style={{ display: ['audience', 'audiences'].includes(nav) ? 'none' : undefined }}>
-            {[['normal', '正常'], ['empty', '空数据'], ['fail', '接口异常']].map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                className={demo === k ? 'on' : ''}
-                aria-pressed={demo === k}
-                onClick={() => setDemo(k)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <Tag color="primary">{view.name}</Tag>
           <div className="user-info">
             <div className="avatar">U</div>

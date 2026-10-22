@@ -218,6 +218,8 @@ const KEY = 'utup.audience.agent.v2';
 const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Number(n).toLocaleString('zh-CN');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/* 人群包默认 90 天有效，到期需重新执行 */
+const expireAt = () => new Date(Date.now() + 90 * 864e5).toLocaleDateString('zh-CN');
 const ICON = {
   spark: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.5l2 5.6 5.6 2-5.6 2L10 16.7l-2-5.6-5.6-2 5.6-2z"/></svg>',
   plus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4v12M4 10h12"/></svg>',
@@ -320,7 +322,7 @@ async function runPathA(task) {
   await runSteps(task, run, 'steps');
   run.open = false;
   const conds = buildConditions(task);
-  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds, sql: buildSql(task, conds), seed: { ...task.seed } };
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), expire: expireAt(), conds, sql: buildSql(task, conds), seed: { ...task.seed } };
   task.timing = { agent: agentMs, run: Date.now() - t1 };
   task.reportReady = true;
   push(task, { type: 'result', version: task.version });
@@ -373,7 +375,7 @@ async function execute(task) {
       { title: '报告生成', detail: '生成人群画像报告', tab: 'report', status: 'wait' },
     ] });
   await runSteps(task, msg, 'steps');
-  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: null };
+  task.result = { size: estimate(task), version: task.version, at: new Date().toLocaleString('zh-CN', { hour12: false }), taskCode: String(6958700000 + hash(task.id + task.version)).slice(0, 10), packId: 'PKG-' + (hash(task.id) + task.version * 7), expire: expireAt(), conds: buildConditions(task), sql: buildSql(task, buildConditions(task)), seed: null };
   task.timing = { sql: Date.now() - t0, cross: mode.cross };
   task.reportReady = false;
   await runSteps(task, msg, 'analysis');
@@ -824,9 +826,14 @@ function resultPanel(task) {
     <header class="qa-panel-head"><div><h2>${esc(task.title)} · 人群结果</h2></div>
       <div><button type="button" class="qa-mini" data-act="full">${panel.full ? '退出全屏' : '全屏'}</button><button type="button" class="qa-icon-btn" data-act="close-panel" aria-label="关闭结果面板">×</button></div></header>
     <div class="qa-panel-bar qa-deliver">
-      <div class="qa-deliver-head"><b>人群包 ${esc(r.packId)}</b><span class="qa-muted">${fmt(r.size)} 人 · V${r.version}</span></div>
-      ${task.path === 'B' ? `<p class="qa-muted">执行方式：${esc(execMode(task).label)} · ${esc(execMode(task).note)}</p>` : ''}
-      <p class="qa-muted">本期以 Hive 表交付生服 LDMP 建包，复用 LDMP 已打通的下游（实验、投放等）。在门户查看结果，到 LDMP 使用。</p>
+      <div class="qa-deliver-head"><b>人群包 ${esc(r.packId)}</b><span class="qa-pill qa-pill-ok">可用</span><span class="qa-muted">${fmt(r.size)} 人 · V${r.version}</span></div>
+      <dl class="qa-deliver-meta">
+        <div><dt>生成时间</dt><dd>${esc(r.at)}</dd></div>
+        <div><dt>数据分区</dt><dd>${esc(String(r.at).slice(0, 10))}</dd></div>
+        <div><dt>有效期</dt><dd>${esc(r.expire)}（到期后需重新执行）</dd></div>
+        <div><dt>执行方式</dt><dd>${esc(task.path === 'A' ? '大盘执行 Agent 产出的 SQL' : `${execMode(task).label}，${execMode(task).cross ? '大盘执行 SQL' : '生服 DMP 按条件生包'}`)}</dd></div>
+      </dl>
+      <p class="qa-muted">人群包以 Hive 表交付生服 LDMP 建包，可直接接入实验、投放等下游。</p>
       <button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 查看 / 使用</button>
     </div>
     <nav class="qa-tabs">${tabsOf(task).map(([k, n]) => `<button type="button" class="${panel.tab === k ? 'on' : ''}" data-act="panel" data-tab="${k}">${n}</button>`).join('')}</nav>
@@ -855,7 +862,7 @@ function panelBody(task) {
       <table class="qa-table"><thead><tr><th class="qa-nowrap">用户 ID（脱敏）</th><th class="qa-nowrap">命中条件</th><th class="qa-nowrap">匹配分</th><th>命中标签</th><th class="qa-nowrap">来源域</th><th class="qa-nowrap">数据日期</th></tr></thead>
       <tbody>${rows.map((x) => `<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td><b>${x[2]}</b></td><td class="qa-ell" title="${esc(x[3])}">${esc(x[3])}</td><td>${x[4]}</td><td class="qa-nowrap">${esc(x[5])}</td></tr>`).join('')}</tbody></table>
       <p class="qa-muted">匹配分用于按目标规模截断，分值越高越贴近目标人群；明细只说明命中了哪些标签，不展示标签取值。</p>
-      <div class="qa-pager"><span class="qa-muted">共 ${fmt(r.size)} 人 · 人群编辑在 LDMP 侧完成</span>${[1, 2, 3, 4, 5].map((p) => `<button type="button" class="${p === page ? 'on' : ''}" data-act="page" data-p="${p}">${p}</button>`).join('')}</div>`;
+      <div class="qa-pager"><span class="qa-muted">共 ${fmt(r.size)} 人 · 每页 10 条 · 第 ${page} / ${fmt(Math.ceil(r.size / 10))} 页</span>${[1, 2, 3, 4, 5].map((p) => `<button type="button" class="${p === page ? 'on' : ''}" data-act="page" data-p="${p}">${p}</button>`).join('')}</div>`;
   }
   if (panel.tab === 'conditions') {
     /* 三个条件组分块展示，组内关系写在小标题上，不再挤在同一张表的「条件组」列里 */
