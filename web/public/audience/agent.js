@@ -100,13 +100,18 @@ const SEED_MIN = 10, SEED_MAX = 100; // 评审结论：一期种子数量限制�
 /* 两条链路（PRD 第六节）
  * A：业务目标 ＋ 种子 UID → 吴极侧 Agent 产出 SQL 与报告 → 圈人侧在大盘执行 → 人群包
  * B：自然语言 → 必要追问 → 可视化筛选条件 → 用户确认 → 执行条件与 SQL → 大盘执行 → 人群包 */
-/* 路径 A 的过程透出：skill 在本侧 agent 内运行，可按「层」动态展示进度。
- * 分层与文案需与吴极侧对齐后在 PRD 固化，这里先按两层占位。 */
+/* 路径 A 的过程透出：按 user-cohort-auto-research 的 Step 0–9 划分状态，
+ * 不按 skill 名平铺（6 个 skill 里只有 1 个是主链路的生成能力）。
+ * 映射关系见 docs/圈人Agent_skill状态映射.md；stage 为与吴极侧约定的事件枚举。 */
+const MAX_ROUND = 3; // 硬上限：最多 3 轮 SQL 迭代，样本证据查询不计轮次
 const AGENT_LAYERS = [
-  { layer: '生成层', title: '理解目标与种子', detail: '读取业务目标与种子用户，生成候选圈选思路' },
-  { layer: '生成层', title: '学习种子特征', detail: '从种子用户学习共性特征，形成扩散依据' },
-  { layer: '数据对齐与执行层', title: '对齐数据口径', detail: '把特征映射到可用的底表字段与口径' },
-  { layer: '数据对齐与执行层', title: '产出可执行 SQL 与报告', detail: '生成 SQL 并说明圈选逻辑' },
+  { stage: 'prepare', layer: '生成层', title: '校验输入', detail: '固化业务目标与正负样本，准备执行队列', skill: '' },
+  { stage: 'load_refs', layer: '数据对齐与执行层', title: '读取口径与字段指南', detail: '读取标签表与画像表的字段含义与取值口径', skill: 'user-cohort-sql-prompt-generator' },
+  { stage: 'sample_evidence', layer: '生成层', title: '学习种子特征', detail: '执行样本证据查询，归纳共性、差异与噪声信号', skill: 'bytedance-aeolus' },
+  { stage: 'sql_candidate', layer: '生成层', title: '生成候选 SQL', detail: '按字段语义产出候选圈选 SQL，只生成不执行', skill: 'user-cohort-sql-prompt-generator', round: true },
+  { stage: 'backtest', layer: '数据对齐与执行层', title: '样本回测与校正', detail: '只对样本回测，产出召回 / 误召指标与 badcase，决定是否再迭代', skill: 'bytedance-aeolus', round: true },
+  { stage: 'select_best', layer: '数据对齐与执行层', title: '选定最终 SQL 与报告', detail: '按召回优先选出最佳一轮，产出圈选报告', skill: 'user-cohort-sql-prompt-generator' },
+  { stage: 'memory', layer: '数据对齐与执行层', title: '沉淀运行记忆', detail: '写入本次运行现场，供后续复盘与复用', skill: 'mem0-cli' },
 ];
 const PATHS = {
   A: { key: 'A', name: '业务目标 ＋ 种子用户', brief: '交给吴极侧 Agent 生成 SQL 与报告，不再逐条确认筛选条件' },
@@ -279,8 +284,11 @@ async function runPathA(task) {
   const t0 = Date.now();
   const gen = push(task, { type: 'ack', open: true, longRun: true,
     title: '已收到业务目标与种子用户，开始调用吴极侧 Agent', steps: [
-      { title: '校验输入', detail: `业务目标与 ${fmt(task.seed.count)} 个种子用户齐备`, status: 'wait' },
-      ...AGENT_LAYERS.map((x) => ({ title: x.title, detail: `${x.layer} · ${x.detail}`, status: 'wait' })),
+      ...AGENT_LAYERS.map((x) => ({
+        title: x.round ? `${x.title}（第 1/${MAX_ROUND} 轮）` : x.title,
+        detail: `${x.layer} · ${x.stage === 'prepare' ? `业务目标与 ${fmt(task.seed.count)} 个种子用户齐备，` : ''}${x.detail}`,
+        skill: x.skill, status: 'wait',
+      })),
     ] });
   await runSteps(task, gen, 'steps');
   gen.open = false;
@@ -517,7 +525,7 @@ function steps(msg, key, label, openKey) {
   const total = list.reduce((n, s) => n + (s.ms || 0), 0);
   const ms = (n) => (n / 1000).toFixed(1) + 's';
   return `<details class="qa-proc" data-msg="${msg.id}" data-open="${openKey}" ${msg[openKey] ? 'open' : ''}><summary>${done === list.length ? ICON.check : ICON.info}<span>${label} ${done}/${list.length}</span>${total ? `<em class="qa-ms">${ms(total)}</em>` : ''}</summary>
-    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}</span>${s.status === 'done' && s.ms ? `<em class="qa-ms">${ms(s.ms)}</em>` : s.status === 'running' ? '<em class="qa-ms qa-ms-run">执行中</em>' : ''}${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
+    <ol>${list.map((s) => `<li>${s.tab && s.status === 'done' ? `<button type="button" data-act="panel" data-tab="${s.tab}">` : '<div>'}${stepIcon(s.status)}<span><b>${esc(s.title)}</b>${s.detail ? '：' + esc(s.detail) : ''}${s.tables ? s.tables.map((id) => `<small class="qa-table-ref">选表：<code>${TAGS[id].table}</code><em class="${shownState(current(), id).code === 'active' ? 'ok' : ''}">${esc(shownState(current(), id).label)}</em></small>`).join('') : ''}${s.skill ? `<small class="qa-skill">skill <code>${esc(s.skill)}</code></small>` : ''}</span>${s.status === 'done' && s.ms ? `<em class="qa-ms">${ms(s.ms)}</em>` : s.status === 'running' ? '<em class="qa-ms qa-ms-run">执行中</em>' : ''}${s.tab && s.status === 'done' ? ICON.chev + '</button>' : '</div>'}</li>`).join('')}</ol></details>`;
 }
 
 function message(task, m, i) {

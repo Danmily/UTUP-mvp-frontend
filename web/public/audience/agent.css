@@ -359,3 +359,7 @@
 
 .qa-nowrap{white-space:nowrap}
 .qa-ell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 步骤条里的 skill 来源 */
+.qa-skill{display:block;margin-top:3px;color:var(--qa-mute);font-size:11px}
+.qa-skill code{background:var(--qa-card);border-radius:4px;padding:0 4px;font-size:11px}
