@@ -553,14 +553,16 @@ function clarifyCard(task, m) {
 
 /* 路径 A：吴极侧 Agent 返回的 SQL 与报告；圈选逻辑由报告说明，用户不逐条确认条件 */
 function agentOutCard(task, m) {
-  const conds = buildConditions(task);
+  /* 只展示 Agent 报告里真实存在的信息：run_id、样本、轮次与产物。
+   * 不展示「圈选逻辑＝某几个标签」——那是路径 B 的条件卡，Agent 报告不透传这种结构。 */
+  const h2 = hash(task.id + 'rep'), rounds = 2 + (h2 % 2);
   return `<p>吴极侧 Agent 已根据业务目标与 ${fmt(task.seed.count)} 个种子用户产出可执行 SQL 与圈选报告。</p>
   <div class="qa-card">
     <div class="qa-card-title">${ICON.check}Agent 产出<small>路径 A</small></div>
-    <div class="qa-cond"><span class="k">圈选逻辑</span><span class="v">${esc(conds.slice(0, 3).map((c) => tagName(c)).join('、'))}${conds.length > 3 ? ` 等 ${conds.length} 项` : ''}（详见报告）</span></div>
-    <div class="qa-cond"><span class="k">种子用户</span><span class="v">${fmt(task.seed.count)} 个 · ${esc(task.seed.source)}</span></div>
-    <div class="qa-cond"><span class="k">产出物</span><span class="v">可执行 SQL ＋ 圈选报告</span></div>
-    <div class="qa-cond"><span class="k">圈选报告</span><span class="v">由吴极侧 Agent 随 SQL 一并产出，可在结果面板查看</span></div>
+    <div class="qa-cond"><span class="k">run_id</span><span class="v"><code>${esc(runIdOf(task))}</code></span></div>
+    <div class="qa-cond"><span class="k">样本</span><span class="v">正样本 ${fmt(task.seed.count)} 个 · ${esc(task.seed.source)}；样本在首轮冻结，不随结果调整</span></div>
+    <div class="qa-cond"><span class="k">迭代轮次</span><span class="v">${rounds} / 3 轮，已选出最佳一轮</span></div>
+    <div class="qa-cond"><span class="k">产出物</span><span class="v">可执行 SQL ＋ 圈选报告（含迭代指标、错误分析与泛化检查）</span></div>
     <div class="qa-card-foot"><span class="qa-muted">SQL 与报告已生成，尚未在大盘执行；人群包以执行结果为准</span></div>
   </div>`;
 }
@@ -652,63 +654,107 @@ function renderMd(src) {
 
 /* 吴极侧 Agent 报告（演示样例，字段以接口方最终返回为准）。
  * 注意：报告中的准确率 / 召回率是「标签提取相对参考集」的评估指标，不是最终圈人准确率。 */
+/* run_id 与 Agent 报告里的一致：cohort_auto_research_<日期>T<序号> */
+function runIdOf(task) {
+  const r = task.result, h2 = hash(task.id + 'rep');
+  const partition = String(r && r.at ? r.at.slice(0, 10) : '').replace(/\//g, '');
+  return `cohort_auto_research_${partition}T${String(1000 + (h2 % 8999))}`;
+}
 function agentReportMd(task) {
-  const r = task.result, conds = (r && r.conds) || buildConditions(task);
-  const tags = conds.filter((c) => c.tag).map((c) => TAGS[c.tag]);
+  const r = task.result, seed = task.seed || { count: 0, source: '—' };
   const h2 = hash(task.id + 'rep');
-  const p1 = (72 + (h2 % 12)) / 100, r1 = (61 + ((h2 >> 2) % 15)) / 100;
-  const p2 = (p1 + 0.07).toFixed(2), r2 = (r1 + 0.05).toFixed(2);
+  const rounds = 2 + (h2 % 2); // 实际执行轮次 ≤ 3
+  const best = rounds;
+  const gtPos = seed.count, gtNeg = Math.max(0, Math.round(seed.count * 0.8));
+  const pred = [], recall = [], fp = [], acc = [];
+  for (let i = 1; i <= rounds; i++) {
+    recall.push(Math.min(0.99, (0.74 + ((h2 >> i) % 9) / 100 + (i - 1) * 0.08)));
+    fp.push(Math.max(0, Math.round(gtNeg * (0.34 - (i - 1) * 0.09))));
+    pred.push(Math.round(gtPos * recall[i - 1]) + fp[i - 1]);
+    acc.push((Math.round(gtPos * recall[i - 1]) + (gtNeg - fp[i - 1])) / Math.max(1, gtPos + gtNeg));
+  }
+  const pct = (x) => (x * 100).toFixed(2) + '%';
+  const partition = String(r && r.at ? r.at.slice(0, 10) : '').replace(/\//g, '');
   return [
-    '# 圈人任务报告',
+    '# 人群圈选 Auto Research 最终报告',
     '',
-    '## 1. 原始需求',
+    '## Task',
     '',
-    `> ${task.query}`,
+    `- run_id：${runIdOf(task)}`,
+    `- 原始需求：${task.query}`,
+    '- iteration limit：3 rounds hard max',
+    `- 实际执行轮次：${rounds} 轮`,
+    `- 数据分区：${partition}`,
+    `- 正样本：${fmt(gtPos)} 个（${seed.source}）｜ 负样本：${fmt(gtNeg)} 个`,
+    '- 候选全集：life_kg_user_profile_base_daily 最新分区 distinct 用户',
     '',
-    `种子用户：${fmt(task.seed ? task.seed.count : 0)} 个（${task.seed ? task.seed.source : '—'}），仅用于本次特征学习，不入库。`,
+    '## Sample Summary',
     '',
-    '## 2. 数据覆盖',
+    '正负样本在 Step 0 冻结，后续各轮评估均使用同一份样本，不因 SQL 结果调整 label。',
     '',
-    '| 项目 | 情况 |',
-    '| --- | --- |',
-    `| 种子可关联用户 | ${fmt(task.seed ? Math.round(task.seed.count * 0.92) : 0)} / ${fmt(task.seed ? task.seed.count : 0)} |`,
-    '| 覆盖底表 | ' + tags.length + ' 张 |',
-    '| 观察窗口 | 近 90 天 |',
-    '| 缺失说明 | 部分种子在生服域无行为记录，未参与跨域特征学习 |',
-    '',
-    '## 3. 参考标签',
-    '',
-    '从种子用户共性中提取，并对齐到可用的标签与底表：',
-    '',
-    '| 标签 | 底表 | 用途 |',
-    '| --- | --- | --- |',
-    ...tags.map((t) => `| ${t.name} | \`${t.table}\` | 兴趣 / 筛选依据 |`),
-    '',
-    '## 4. SQL 迭代指标',
-    '',
-    '以下为**标签提取相对参考集**的评估指标，用于判断本次标签抽取是否合理，**不代表最终圈人的准确率**：',
-    '',
-    '| 迭代 | 准确率 | 召回率 | 说明 |',
+    '| 样本类型 | 数量 | profile 缺失 | tag 缺失 |',
     '| --- | --- | --- | --- |',
-    `| 第 1 轮 | ${p1.toFixed(2)} | ${r1.toFixed(2)} | 初版标签集合，召回偏低 |`,
-    `| 第 2 轮 | ${p2} | ${r2} | 补充兴趣类标签，放宽时间窗口 |`,
+    `| 正样本 | ${fmt(gtPos)} | ${Math.round(gtPos * 0.04)} | ${Math.round(gtPos * 0.07)} |`,
+    `| 负样本 | ${fmt(gtNeg)} | ${Math.round(gtNeg * 0.05)} | ${Math.round(gtNeg * 0.06)} |`,
     '',
-    '## 5. 最终 SQL',
+    '## Iteration Summary',
+    '',
+    '每轮只执行样本限制版回测 SQL，全量 target_user_sql 只生成不执行。',
+    '',
+    '| round | status | pred_count | true_positive | false_negative | false_positive | positive_recall | sample_accuracy | decision |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...Array.from({ length: rounds }, (_, i) => {
+      const tp = Math.round(gtPos * recall[i]);
+      return `| ${i + 1} | 执行成功 | ${fmt(pred[i])} | ${tp} | ${gtPos - tp} | ${fp[i]} | ${pct(recall[i])} | ${pct(acc[i])} | ${i + 1 === best ? '选为最佳轮次' : '保留高召回，继续降低误召'} |`;
+    }),
+    '',
+    `## Round ${best} 相对 Round ${best - 1}`,
+    '',
+    `- false_positive 减少 ${fp[best - 2] - fp[best - 1]} 个，positive_recall 提升 ${((recall[best - 1] - recall[best - 2]) * 100).toFixed(2)} 个百分点。`,
+    '- 修改来自字段语义调整（放宽 profile 预过滤、收紧属性阈值），未针对单个样本做特判。',
+    '',
+    '## Selected Result',
+    '',
+    `- Selected round：Round ${best}`,
+    '- 选择理由：positive_recall 更高，且误召数量同时下降；SQL 规则可用字段语义解释。',
+    '- Precision / Recall tradeoff：当前偏向召回，适合作为候选召回层；若业务要高精度，需在人群包上再做一层语义精排。',
+    '- 最终 target_user_sql 已生成，**未执行**；人群规模以圈人侧大盘执行结果为准。',
+    '',
+    '## Best SQL',
     '',
     '```sql',
-    (r && r.sql) || buildSql(task, conds),
+    (r && r.sql) || buildSql(task, buildConditions(task)),
     '```',
     '',
-    '## 6. 错误分析',
+    '## Error Analysis',
     '',
-    '- 少量种子的行为集中在单一类目，容易把类目偏好放大为人群共性，已在第 2 轮降权。',
-    '- 跨域标签存在口径差异（统计窗口不同），以电商侧口径为准。',
+    '### False negative（正样本未被召回）',
     '',
-    '## 7. 泛化限制',
+    '| user_id | 原因 |',
+    '| --- | --- |',
+    `| U****${String(1000 + (h2 % 8999)).slice(-4)} | 画像预过滤阶段被排除，profile 关键字段缺失 |`,
+    `| U****${String(2000 + (h2 % 7999)).slice(-4)} | 行为集中在单一类目，聚合特征未达阈值 |`,
     '',
-    '- 结论基于本次种子，换一批种子结果可能不同，不能当作长期人群定义。',
-    '- 报告与 SQL 生成完成**不等于人群包已生成**，最终人群数以圈人侧在大盘执行的结果为准。',
-    '- 指标为相对参考集的评估值，不能对外当作业务效果。',
+    '### False positive（负样本被误召）',
+    '',
+    '| user_id | 疑似原因 |',
+    '| --- | --- |',
+    `| U****${String(3000 + (h2 % 6999)).slice(-4)} | 与目标人群共享同一类目前缀，但消费场景不同 |`,
+    `| U****${String(4000 + (h2 % 5999)).slice(-4)} | 兴趣簇相邻，属于相关但非目标的需求 |`,
+    '',
+    '误召的结构特征：集中在相邻类目与证据等级偏弱的样本上，结构化字段难以单独区分。',
+    '',
+    '## Generalization Check',
+    '',
+    '- 是否避免硬编码样本 user_id？是。样本仅用于回测，不进入生产 SQL。',
+    '- 规则是否能用字段语义解释？是。使用画像字段与标签聚合特征，未依赖样本偶然特征。',
+    '- 是否避免为边界样本过拟合？是。未为单个 badcase 增加特判条件。',
+    '- 可能失败的相邻人群：与目标共享类目或兴趣簇、但消费场景不同的人群，结构化字段难以单独区分。',
+    '',
+    '## Final Conclusion',
+    '',
+    '结构化字段适合构建高召回候选集；要进一步提高精度，需要在候选人群上增加语义精排，并用固定样本持续评估。',
+    `本轮 SQL 可作为「${task.title}」的候选召回层基线。`,
   ].join('\n');
 }
 
@@ -730,7 +776,6 @@ function resultPanel(task) {
     <div class="qa-panel-bar qa-deliver">
       <div class="qa-deliver-head"><b>人群包 ${esc(r.packId)}</b><span class="qa-muted">${fmt(r.size)} 人 · V${r.version}</span></div>
       <p class="qa-muted">本期以 Hive 表交付生服 LDMP 建包，复用 LDMP 已打通的下游（实验、投放等）。在门户查看结果，到 LDMP 使用。</p>
-      ${task.path === 'A' ? '<p class="qa-muted">演示环境耗时已加速，实际 Agent 运行约 2–3 小时，完成后以飞书消息通知。</p>' : ''}
       <button type="button" class="qa-outline sm" data-act="to-ldmp">去 LDMP 查看 / 使用</button>
     </div>
     <nav class="qa-tabs">${tabsOf(task).map(([k, n]) => `<button type="button" class="${panel.tab === k ? 'on' : ''}" data-act="panel" data-tab="${k}">${n}</button>`).join('')}</nav>
@@ -788,20 +833,20 @@ function panelBody(task) {
 /* 路径 A 的报告由吴极侧 Agent 以 Markdown 返回：
  * 先给业务四段摘要（目标 / 依据 / 验证 / 局限），完整原文与 SQL 按需展开。 */
 function agentReportView(task) {
-  const r = task.result, conds = (r && r.conds) || buildConditions(task);
-  const tags = conds.filter((c) => c.tag).map((c) => TAGS[c.tag].name);
+  /* 摘要四块对齐 Agent 报告的真实章节：Task / Iteration Summary / Selected Result / Generalization Check。
+   * 不自己编「圈选逻辑＝某几个标签」，报告里没有这种结构。 */
   const src = agentReportMd(task);
-  const pick = (title) => { const m = src.match(new RegExp('## [0-9]+\\. ' + title + '\\n([\\s\\S]*?)(?=\\n## |$)')); return m ? m[1].trim() : ''; };
+  const pick = (title) => { const m = src.match(new RegExp('## ' + title + '\\n([\\s\\S]*?)(?=\\n## |$)')); return m ? m[1].trim() : ''; };
   const card = (t, body) => `<div class="qa-rep-card"><h5>${t}</h5>${body}</div>`;
   return `<section class="qa-report">
-    <div class="qa-tip">本报告由吴极侧 Agent 原样返回（Markdown），门户不二次加工。报告中的<b>准确率 / 召回率是标签提取相对参考集的评估指标</b>，不代表最终圈人准确率；<b>报告生成不等于人群包已生成</b>，最终人群数以大盘执行结果为准。</div>
+    <div class="qa-tip">本报告由吴极侧 Agent 原样返回（Markdown），门户不二次加工。其中的<b>召回率 / 误召数是对你给的样本做回测得到的</b>，不代表最终圈人准确率；<b>报告生成不等于人群包已生成</b>，最终人群数以大盘执行结果为准。</div>
     <div class="qa-rep-grid">
-      ${card('目标摘要', `<p>${esc(task.query)}</p><p class="qa-muted">种子 ${fmt(task.seed ? task.seed.count : 0)} 个 · ${esc(task.seed ? task.seed.source : '—')} · 仅用于本次特征学习</p>`)}
-      ${card('兴趣与筛选依据', `<p>${esc(tags.slice(0, 4).join('、'))}${tags.length > 4 ? ` 等 ${tags.length} 项` : ''}</p><p class="qa-muted">由 Agent 从种子共性中提取并对齐到可用底表</p>`)}
-      ${card('验证结果', renderMd(pick('SQL 迭代指标')))}
-      ${card('已知局限', renderMd(pick('泛化限制')))}
+      ${card('目标与样本', renderMd(pick('Task')))}
+      ${card('迭代结果', renderMd(pick('Iteration Summary')))}
+      ${card('选轮结论', renderMd(pick('Selected Result')))}
+      ${card('已知局限', renderMd(pick('Generalization Check')))}
     </div>
-    <div class="qa-rep-acts"><button type="button" class="qa-outline sm" data-act="panel" data-tab="sql">查看相关 SQL</button><span class="qa-muted">报告取回方式与可用字段以接口方确认为准</span></div>
+    <div class="qa-rep-acts"><span class="qa-muted">报告由 Agent 原样返回，取回方式与可用字段以接口方确认为准</span></div>
     <details class="qa-proc qa-rep-full"><summary>${ICON.info}<span>展开完整报告（Markdown 原文）</span></summary><div class="qa-md">${renderMd(src)}</div></details>
   </section>`;
 }
