@@ -52,7 +52,7 @@ export const NAV = {
       items: [
         { key: 'workbench', label: '供给方工作台' },
         { key: 'cfg', label: '配置中心' },
-        { key: 'assetin', label: '资产接入' },
+        { key: 'assetin', label: '资产管理' },
       ],
     },
     {
@@ -75,7 +75,7 @@ export const NAV = {
       items: [
         { key: 'workbench', label: '供给方工作台' },
         { key: 'cfg', label: '配置中心' },
-        { key: 'assetin', label: '资产接入' },
+        { key: 'assetin', label: '资产管理' },
       ],
     },
     {
@@ -100,7 +100,7 @@ export const NAV_LABELS = {
   income: '消费与收益录入',
   workbench: '供给方工作台',
   cfg: '配置中心',
-  assetin: '资产接入',
+  assetin: '资产管理',
   audit: '审计日志',
 }
 

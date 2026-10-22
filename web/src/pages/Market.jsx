@@ -7,7 +7,8 @@ import {
   TAGS, CATALOG, LEVEL_ORDER, SOON_DAYS, levelLabel, visibility,
   complianceOf, livePerm, isActive, isExpired,
 } from '../data.js'
-import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText } from '../mvp-ui.jsx'
+import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText, OfflineAlert } from '../mvp-ui.jsx'
+import { ASSET_KEY } from '../flows/asset-model.mjs'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
 import { assetState, displayStatus, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX, PENDING_PAGE_SIZE } from '../flows/application-model.mjs'
@@ -47,7 +48,10 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   useEffect(()=>setPage(1),[filters,demo])
 
   const applyStatus = tag => displayStatus(assetState(V,tag,myapply)).code
+  /* 资产管理中已下线的标签从门户下架，消费方不再可检索 */
+  const offlineIds = useMemo(() => { try { return new Set((JSON.parse(localStorage.getItem(ASSET_KEY)) || []).filter((a) => a.status === 'off').map((a) => a.tag_id)) } catch { return new Set() } }, [])
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
+    if (offlineIds.has('tag_' + c.id)) return false
     const vis = visibility(V, c)
     if (!vis.visible) return false
     if (filters.q && !(c.name.includes(filters.q) || c.desc.includes(filters.q))) return false
@@ -56,7 +60,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
     if (filters.st && applyStatus(c) !== filters.st) return false
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [V, filters, myapply, demo])
+  }), [V, filters, myapply, demo, offlineIds])
 
   function openTag(id) {
     const tag = TAGS.find((t) => t.id === id)
@@ -107,8 +111,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   }, [myapply])
 
   function basketPage() {
-    /* 下架标签来自资产接入（status = off）；其余能进清单的默认可申请 */
-    const offline=(()=>{try{return new Set((JSON.parse(localStorage.getItem('utup.assets.v1'))||[]).filter(a=>a.status==='off').map(a=>a.tag_id))}catch{return new Set()}})()
+    /* 下架标签来自资产管理（status = off）；其余能进清单的默认可申请 */
+    const offline=(()=>{try{return new Set((JSON.parse(localStorage.getItem(ASSET_KEY))||[]).filter(a=>a.status==='off').map(a=>a.tag_id))}catch{return new Set()}})()
     const canApply=t=>!offline.has('tag_'+t.id)&&selectable(t)
     const pageIds=pendingSlice.map(t=>t.id), live=basketSel.filter(id=>pending.includes(id))
     const allOn=pageIds.length>0&&pageIds.every(id=>live.includes(id))
@@ -160,6 +164,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
       {view==='ai'&&aiVariant==='A' ? (
         <AiSearchPage ai={ai} renderRec={rec=><AiRecommendation V={V} myapply={myapply} rec={rec} pending={pending} onAdd={addQuiet} onOpen={openTag} onBasket={()=>setView('basket')}/>}/>
       ) : view==='basket' ? basketPage() : <>
+      <OfflineAlert myapply={myapply} />
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
