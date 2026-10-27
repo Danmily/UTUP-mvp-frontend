@@ -163,6 +163,8 @@ export function validateAsset(input, { existing = [], dupIds = [], taken = [], o
   if (a.unified_level && !SECURITY.includes(a.unified_level)) errors.push('统一级别需为：开放 / 通用 / 受控 / 高敏')
   else if (SECURITY_LEVELS.includes(a.security_level) && a.unified_level && !levelMatches(a.security_level, a.unified_level)) errors.push(`统一级别「${a.unified_level}」与密级 ${a.security_level} 不对应（L2→开放，L3→通用 / 受控，L4→高敏）`)
   if (a.official_mark && !OFFICIAL.includes(a.official_mark)) errors.push('是否官方需为：官方 / 非官方')
+  /* 1026 会议：豆包相关兴趣字段不可上架 */
+  if (/豆包/.test(`${a.tag_name} ${a.description}`) && /兴趣/.test(`${a.tag_name} ${a.description}`)) errors.push('豆包相关兴趣字段不可上架')
   const action = existing.includes(a.tag_id) ? 'update' : 'create'
   if (action === 'update' && ownerOf[a.tag_id] && a.owner && ownerOf[a.tag_id] !== a.owner) errors.push(`标签 ID 属于他人资产（Owner ${ownerOf[a.tag_id]}），不能覆盖；如需新建，请换一个标签 ID`)
   return { asset: a, errors, notes, action }

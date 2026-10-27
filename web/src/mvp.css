@@ -3188,3 +3188,25 @@ margin-top: 3px
 @media (max-width:760px){.af-grid{grid-template-columns:1fr;margin-left:0}.af-tip,.af-drop,.af-file,.af-table-wrap,.af-sec>.au-alert{margin-left:0}.af-stepper span{display:none}}
 .asset-table td.asset-src{max-width:280px}
 .asset-table td.asset-src small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 1026：批量申请指引 */
+.batch-guide{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;border:1px solid var(--au-primary-border, #A4C6FF);background:var(--au-primary-light);border-radius:8px;font-size:13px}
+.batch-guide b{color:var(--au-text-1);font-weight:600}
+.batch-guide span{flex:1;min-width:240px;color:var(--au-text-2)}
+/* 1026：标签详情 · 资产指标与枚举示例、接入方式 */
+.tag-asset-panel{border:1px solid var(--au-border);border-radius:8px;padding:12px 14px}
+.tag-asset-panel h4{margin:0 0 10px;font-size:14px;font-weight:600}
+.tag-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.tag-metrics div{background:var(--au-fill-1, #f7f8fa);border-radius:8px;padding:8px 10px}
+.tag-metrics b{display:block;font-size:18px;color:var(--au-text-1)}
+.tag-metrics span{font-size:12px;color:var(--au-text-3)}
+.tag-enum-json{margin:0;padding:10px 12px;border-radius:8px;background:#1f2329;color:#e6edf3;font-size:12px;line-height:1.6;max-height:220px;overflow:auto;white-space:pre-wrap}
+.tag-enum-hidden{margin:0;padding:10px 12px;border-radius:8px;background:var(--warn-light);color:var(--au-text-2);font-size:12px}
+.tag-asset-note{margin:6px 0 0;font-size:11px;color:var(--au-text-3)}
+.tag-access{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tag-access>div{background:var(--au-fill-1, #f7f8fa);border-radius:8px;padding:10px 12px}
+.tag-access b{font-size:13px}
+.tag-access p{margin:4px 0 8px;font-size:12px;color:var(--au-text-2);line-height:1.6}
+.tag-qr{text-align:center}
+.tag-qr-box{width:150px;height:150px;margin:0 auto 10px;border:6px solid #1f2329;border-radius:8px;display:grid;place-items:center;font-size:28px;font-weight:700;letter-spacing:4px;background:repeating-linear-gradient(45deg,#fff 0 6px,#eef1f5 6px 12px)}
+.tag-qr p{margin:4px 0;font-size:12px;color:var(--au-text-2)}
+@media (max-width:640px){.tag-access{grid-template-columns:1fr}}

@@ -9,6 +9,7 @@ import {
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText, OfflineAlert } from '../mvp-ui.jsx'
 import { ASSET_KEY } from '../flows/asset-model.mjs'
+import { BIZ_DOMAINS, isDelisted, assetMetrics, enumJson, noEnumReason } from '../flows/asset-display.mjs'
 import { useApplyFlow } from '../flows/ApplyFlow.jsx'
 export { useApplyFlow } from '../flows/ApplyFlow.jsx'
 import { assetState, displayStatus, togglePageSelection, mergePending, parsePending, pendingKey as pendingKeyOf, PENDING_MAX, PENDING_PAGE_SIZE } from '../flows/application-model.mjs'
@@ -20,7 +21,10 @@ const AI_VARIANT_KEY = 'utup.ai-search-variant'
 export const BASKET = '待选择清单'
 
 export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo = 'normal', setDemo, fromAgent = false, backToAgent }) {
-  const [filters, setFilters] = useState({ q: '', srcs: [], lvls: [], st: '' })
+  const [filters, setFilters] = useState({ q: '', biz: '', srcs: [], lvls: [], st: '' })
+  /* 批量申请指引：引导一次申请所需资产，可关闭（记在本机） */
+  const [guideOpen, setGuideOpen] = useState(() => { try { return localStorage.getItem('utup.batch-guide.closed') !== '1' } catch { return true } })
+  const closeGuide = () => { setGuideOpen(false); try { localStorage.setItem('utup.batch-guide.closed', '1') } catch { /* 仅本次关闭 */ } }
   const [detailId, setDetailId] = useState(null)
   /* 顶部标签页：标签广场 / AI 智能搜索（方案 A）/ 待选择清单，切换整个内容区 */
   const [view,setView]=useState(fromAgent?'basket':'market'), [page,setPage]=useState(1)
@@ -51,10 +55,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
   /* 资产管理中已下线的标签从门户下架，消费方不再可检索 */
   const offlineIds = useMemo(() => { try { return new Set((JSON.parse(localStorage.getItem(ASSET_KEY)) || []).filter((a) => a.status === 'off').map((a) => a.tag_id)) } catch { return new Set() } }, [])
   const list = useMemo(() => (demo === 'empty' ? [] : TAGS).filter((c) => {
-    if (offlineIds.has('tag_' + c.id)) return false
+    if (offlineIds.has('tag_' + c.id) || isDelisted(c)) return false
     const vis = visibility(V, c)
     if (!vis.visible) return false
     if (filters.q && !(c.name.includes(filters.q) || c.desc.includes(filters.q))) return false
+    if (filters.biz && c.domain !== filters.biz) return false
     if (filters.srcs.length && !filters.srcs.includes(c.src)) return false
     if (filters.lvls.length && !filters.lvls.includes(c.level)) return false
     if (filters.st && applyStatus(c) !== filters.st) return false
@@ -96,8 +101,8 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
 
 
   const detailTag = detailId ? TAGS.find((t) => t.id === detailId) : null
-  const hasFilter = !!filters.q || filters.srcs.length > 0 || filters.lvls.length > 0 || !!filters.st
-  const clearFilters = () => setFilters({ q: '', srcs: [], lvls: [], st: '' })
+  const hasFilter = !!filters.q || !!filters.biz || filters.srcs.length > 0 || filters.lvls.length > 0 || !!filters.st
+  const clearFilters = () => setFilters({ q: '', biz: '', srcs: [], lvls: [], st: '' })
 
   /* A-08：到期与过期在标签广场做全局提醒，详情与「我的申请」再给具体状态 */
   const expiring = useMemo(() => {
@@ -165,6 +170,12 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
         <AiSearchPage ai={ai} renderRec={rec=><AiRecommendation V={V} myapply={myapply} rec={rec} pending={pending} onAdd={addQuiet} onOpen={openTag} onBasket={()=>setView('basket')}/>}/>
       ) : view==='basket' ? basketPage() : <>
       <OfflineAlert myapply={myapply} />
+      {guideOpen && <div className="batch-guide" role="note">
+        <b>💡 一次需求通常要 3–10 个标签，建议一次申请所需资产</b>
+        <span>① 在列表视图勾选或在卡片点「加入{BASKET}」，把需要的标签都挑齐 → ② 在{BASKET}中勾选后「一键批量申请」，统一填写一次申请信息</span>
+        <Button size="small" type="link" onClick={()=>setView('basket')}>去{BASKET}（{pendingTags.length}）→</Button>
+        <button type="button" className="offline-alert-close" aria-label="关闭指引" onClick={closeGuide}>×</button>
+      </div>}
       {(expiring.soon.length > 0 || expiring.gone.length > 0) && (
         <>
           <Alert
@@ -220,6 +231,11 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
           )}
           {/* 来源域与分级支持多选：跨域场景常常要同时看多个域 */}
           {searchMode!=='ai'&&<>
+          <Select
+            value={filters.biz}
+            onChange={(v) => setFilters((d) => ({ ...d, biz: v || '' }))}
+            options={[{ label: '全部业务域', value: '' }, ...BIZ_DOMAINS.map((x) => ({ label: x, value: x }))]}
+          />
           <Select
             mode="multiple"
             value={filters.srcs}
@@ -430,6 +446,7 @@ export default function Market({ V, myapply, addApply, pushAudit, goMyPerm, demo
 }
 
 function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, onViewPending }) {
+  const [docQr, setDocQr] = useState(false)
   const vis = visibility(V, tag)
   const comp = complianceOf(tag)
   // 进详情时实时查「本人 × 标签」权限；申请状态取门户自记录
@@ -501,6 +518,24 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
         ]}
       />
       <div style={{ height: 14 }} />
+      {(() => {
+        const m = assetMetrics(tag), hidden = noEnumReason(tag)
+        return (
+          <section className="tag-asset-panel">
+            <h4>📊 资产指标与枚举示例</h4>
+            <div className="tag-metrics">
+              <div><b>{m.coverage}</b><span>覆盖度</span></div>
+              <div><b>{m.recall}</b><span>召回率</span></div>
+              <div><b>{m.tagCount || '—'}</b><span>tag 数量</span></div>
+            </div>
+            {hidden
+              ? <p className="tag-enum-hidden">🔒 敏感字段（{hidden}）：不展示具体枚举值及示例，如需了解请在申请后通过 Triton 查看</p>
+              : <pre className="tag-enum-json" aria-label="枚举示例 JSON">{JSON.stringify(enumJson(tag), null, 2)}</pre>}
+            <p className="tag-asset-note">召回率与 tag 数量为演示数据；枚举示例仅展示可公开字段</p>
+          </section>
+        )
+      })()}
+      <div style={{ height: 14 }} />
       <Descriptions
         title="🔑 我的权限（实时查询）"
         bordered
@@ -541,6 +576,17 @@ function TagDetailModal({ V, tag, applies, onClose, onApply, onAdd, inPending, o
           },
         ]}
       />
+      <div style={{ height: 14 }} />
+      <section className="tag-asset-panel">
+        <h4>🔌 接入方式</h4>
+        <div className="tag-access">
+          <div><b>在线接口</b><p>接口调用方式及接入流程，请联系 @尚迪 确认</p></div>
+          <div><b>离线数据</b><p>须先通过 Triton 申请并取得权限，再查看和使用资产数据</p><Button size="small" onClick={() => setDocQr(true)}>查看离线操作文档</Button></div>
+        </div>
+      </section>
+      {docQr && <Modal open width={360} title="离线数据操作文档" onCancel={() => setDocQr(false)} footer={<Button onClick={() => setDocQr(false)}>关闭</Button>}>
+        <div className="tag-qr"><div className="tag-qr-box" aria-label="操作文档二维码">QR</div><p>使用飞书扫码查看离线数据（Triton 申请 → 查看 → 使用）操作文档</p><p className="tag-asset-note">演示环境：二维码待补充正式文档链接</p></div>
+      </Modal>}
       {(tag.level === '高敏' || vis.cross) && (
         <Alert
           style={{ marginTop: 12 }}
