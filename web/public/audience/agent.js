@@ -328,6 +328,33 @@ const LEADS = [
   { title: '开学季 · 学生换新', why: '活动 7 月 20 日结束后紧接开学季，学生人群可延续触达', q: '找近 90 天购买过文具、数码配件的学生人群，用于 8 月开学季换新' },
   { title: '高温天气 · 防晒清凉品类', why: '近期热点：多地持续高温，防晒、清凉品类搜索量上涨', q: '圈出近 30 天浏览过防晒、清凉用品但未下单的用户，用于高温专场' },
 ];
+/* 热度榜：资产按近 7 天被方案采纳 / 生包使用次数排序，场景按发起次数，线索按热度环比。
+ * 演示基数为模拟值，本地任务中真实采纳的资产会叠加进热度。 */
+const RANK_TABS = [['asset', '热门资产'], ['scene', '热门场景'], ['topic', '热点线索']];
+const RANK_BASE = {
+  asset: [[14520, 1286, 12], [14610, 1104, 38], [14572, 962, 5], [14560, 911, -3], [14618, 774, 21], [14612, 652, 9], [14501, 598, -8], [14533, 540, 2]],
+  scene: [
+    ['暑期大促 · 老客召回', 842, 26, '召回买过服饰或户外、近 90 天没有下单的老客，用于暑期大促'],
+    ['门店到店获客', 615, 11, '为上海一家火锅门店找有火锅偏好、可能到店的潜在新客'],
+    ['新品推广', 588, -4, '给波司登找对羽绒服感兴趣、近 90 天有服饰消费、中高消费能力的用户，用于新品推广'],
+    ['跨域高价值用户', 432, 17, '圈出电商消费较低、但生服消费较高的潜在高价值用户'],
+    ['美妆沉默老客召回', 397, -6, '召回买过美妆、但最近一段时间没有下单的老用户，排除高退货人群'],
+  ],
+  topic: [
+    ['高温天气 · 防晒清凉', 9620, 142, '圈出近 30 天浏览过防晒、清凉用品但未下单的用户，用于高温专场'],
+    ['暑期出游 · 景区到店', 8410, 87, '为暑期出游人群推荐景区周边到店团购，排除近 30 天已核销用户'],
+    ['开学季 · 学生换新', 6930, 64, '找近 90 天购买过文具、数码配件的学生人群，用于 8 月开学季换新'],
+    ['露营装备', 5120, 33, '找近 30 天收藏或加购露营装备、中高消费能力的用户'],
+    ['奥运观赛 · 运动服饰', 4380, 21, '找关注体育赛事内容、近 90 天购买过运动服饰的用户'],
+  ],
+};
+function rankList(kind, list) {
+  if (kind !== 'asset') return RANK_BASE[kind].map(([name, heat, trend, q]) => ({ name, heat, trend, q }));
+  const used = {};
+  list.forEach((t) => (t.planConds || []).forEach((c) => { if (c.tag) used[c.tag] = (used[c.tag] || 0) + 1; }));
+  return RANK_BASE.asset.map(([id, heat, trend]) => ({ id, name: TAGS[id].name, level: TAGS[id].level, heat: heat + (used[id] || 0) * 10, trend, mine: used[id] || 0 }))
+    .sort((a, b) => b.heat - a.heat);
+}
 function newTask(query) {
   const scene = detect(query);
   const id = 'AUD-' + Date.now().toString(36).toUpperCase();
@@ -338,7 +365,7 @@ function newTask(query) {
     effects: [], saved: false, messages: [],
   };
 }
-const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask, parseSeeds, seedWarning, SEED_MAX, DOC_SAMPLE, parseBrief, briefQuestions, buildPlans, docMetrics };
+const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask, parseSeeds, seedWarning, SEED_MAX, DOC_SAMPLE, parseBrief, briefQuestions, buildPlans, docMetrics, rankList };
 if (typeof module !== 'undefined' && module.exports) { module.exports = Model; return; }
 
 /* ---------------- 界面 ---------------- */
@@ -371,6 +398,7 @@ let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: 
 let page = 1, reportTimer = null, lastCount = 0, ticker = null;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
 let histQ = '', centerQ = ''; // 历史对话 / 任务中心关键词
+let rankTab = 'topic';
 let homeMode = 'talk', docDraft = { name: '', text: '' }; // 首页入口：描述需求 / 解析业务文档
 /* 资产缺口转成的生产需求：与门户「资产管理」共用，供给方在那里承接 */
 const REQ_KEY = 'utup.asset.requests';
@@ -696,6 +724,16 @@ function sidebar() {
 
 /* 只有一个入口：说诉求 ＋（可选）带一批种子用户。
  * 带了种子就走种子扩散，没带就走追问确认，用户不需要先选形态。 */
+function rankBoard() {
+  const rows = rankList(rankTab, tasks);
+  const tr = (n) => `<em class="qa-trend ${n >= 0 ? 'up' : 'down'}">${n >= 0 ? '↑' : '↓'}${Math.abs(n)}%</em>`;
+  const unit = rankTab === 'topic' ? '搜索热度' : rankTab === 'asset' ? '近 7 天使用' : '近 7 天发起';
+  return `<section class="qa-rank">
+    <header><b>🔥 热度榜</b><nav>${RANK_TABS.map(([k, l]) => `<button type="button" class="${rankTab === k ? 'on' : ''}" data-act="rank-tab" data-v="${k}">${l}</button>`).join('')}</nav><small class="qa-muted">${unit} · 每日更新</small></header>
+    <ol>${rows.map((r, i) => `<li><button type="button" ${r.q ? `data-act="example" data-q="${esc(r.q)}"` : 'data-act="market"'}><i class="n${i < 3 ? ' top' : ''}">${i + 1}</i><span class="nm">${esc(r.name)}${r.level ? `<span class="qa-pill">${esc(r.level)}</span>` : ''}${r.mine ? `<small class="qa-muted"> 你采纳过 ${r.mine} 次</small>` : ''}</span><span class="ht">${fmt(r.heat)}</span>${tr(r.trend)}</button></li>`).join('')}</ol>
+    <p class="qa-muted">${rankTab === 'asset' ? '点击查看标签详情' : '点击直接带入需求'}；热度为演示数据</p>
+  </section>`;
+}
 function modeTabs() {
   return `<div class="qa-mode" role="tablist">${[['talk', '描述需求圈人'], ['doc', '解析业务文档']].map(([k, l]) => `<button type="button" role="tab" class="${homeMode === k ? 'on' : ''}" data-act="home-mode" data-v="${k}">${l}${k === 'doc' ? '<em>新</em>' : ''}</button>`).join('')}</div>`;
 }
@@ -709,6 +747,7 @@ function docHome() {
       <div class="qa-composer-foot"><span class="qa-doc-acts"><label class="qa-outline sm">上传文档<input type="file" id="qa-doc-file" accept=".txt,.md" hidden></label><button type="button" class="qa-link" data-act="doc-sample">使用示例：暑期大促活动方案</button></span><button type="button" class="qa-send" data-act="doc-start" ${busy || !docDraft.text.trim() ? 'disabled' : ''}>${ICON.spark}开始解析</button></div>
     </div>
     <p class="qa-muted qa-center">演示版支持 TXT / Markdown 与粘贴文本，解析结果为规则抽取的演示数据</p>
+    ${rankBoard()}
   </div>`;
 }
 function home() {
@@ -723,6 +762,7 @@ function home() {
     ${composer(hasSeed ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
     <div class="qa-seed-bar">${hasSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>选填</em></button><span class="qa-muted">手上已有一批确认过的目标用户，就加上来让我照着找相似的人；没有也可以直接描述诉求</span>`}</div>
     <div class="qa-examples">${(hasSeed ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
+    ${rankBoard()}
   </div>`;
 }
 
@@ -1225,6 +1265,7 @@ async function onClick(e) {
     case 'new': view = 'home'; homeMode = 'talk'; activeId = null; panel.open = false; break;
     case 'doc-home': view = 'home'; homeMode = 'doc'; activeId = null; panel.open = false; break;
     case 'home-mode': homeMode = el.dataset.v; break;
+    case 'rank-tab': rankTab = el.dataset.v; break;
     case 'doc-sample': docDraft = { name: DOC_SAMPLE.name, text: DOC_SAMPLE.text }; break;
     case 'doc-clear': docDraft = { name: '', text: '' }; break;
     case 'doc-start': return startDoc();
@@ -1240,7 +1281,7 @@ async function onClick(e) {
     case 'market': if (options.onMarket) options.onMarket(); else location.href = 'https://utup-mvp-frontend.vercel.app/#market'; return;
     case 'kb': notify('策略知识库规划中：沉淀分析思路与历史策略，支持共建'); return;
     case 'open': activeId = el.dataset.id; view = 'task'; panel.open = !!current()?.result; break;
-    case 'example': draft = el.dataset.q; render(); host.querySelector('#qa-input')?.focus(); return;
+    case 'example': draft = el.dataset.q; homeMode = 'talk'; render(); host.querySelector('#qa-input')?.focus(); return;
     case 'send': return send();
     case 'answer': task.answers[el.dataset.q] = el.dataset.v; save(); break;
     case 'clarify-ok': return confirmClarify(task, msg);
