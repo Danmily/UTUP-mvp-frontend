@@ -14,6 +14,7 @@ import Audit from './pages/Audit.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import AssetIn from './pages/AssetIn.jsx'
 import Audience from './pages/Audience.jsx'
+import Rank from './pages/Rank.jsx'
 
 /* 占位入口：灰色不可用态 + 「V1 规划中」弹窗（本期不真实开发） */
 const SOON_MAP = {
@@ -146,6 +147,8 @@ export default function App() {
       case 'audience':
       case 'audiences':
         return <Audience mode={nav} seed={audienceSeed} onPermission={() => { setAudienceSeed(null); setNav('myperm') }} onMarket={() => setNav('market')} portal={agentBridge} />
+      case 'rank':
+        return <Rank onMarket={() => setNav('market')} onAgent={(q) => { setAudienceSeed({ draft: q }); setNav('audience') }} />
       case 'market':
         return <Market V={view} myapply={demo === 'empty' ? [] : myapply} addApply={addApply} pushAudit={pushAudit} demo={demo} setDemo={setDemo} goMyPerm={() => { setNewApply(false); setFromAgent(false); setNav('myperm') }} fromAgent={fromAgent} backToAgent={() => { setFromAgent(false); setNav('audience') }} />
       case 'myperm':

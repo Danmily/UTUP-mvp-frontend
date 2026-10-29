@@ -23,7 +23,8 @@ export default function Audience({ mode, seed, onPermission, onMarket, portal })
         applyTags: (ids) => bridge.current?.applyTags(ids),
       },
     })
-    if (mode === 'audience' && seed) workspace.openAsset(seed.newTask ? null : seed)
+    if (mode === 'audience' && seed?.draft) workspace.prefill(seed.draft)
+    else if (mode === 'audience' && seed) workspace.openAsset(seed.newTask ? null : seed)
     return () => workspace.unmount()
   }, [mode, seed])
   return <div ref={host} />

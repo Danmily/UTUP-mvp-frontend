@@ -3211,3 +3211,49 @@ margin-top: 3px
 .tag-qr p{margin:4px 0;font-size:12px;color:var(--au-text-2)}
 @media (max-width:640px){.tag-access{grid-template-columns:1fr}}
 .asset-req-card{margin-bottom:16px}
+
+/* 热度榜 */
+.rank-page{display:flex;flex-direction:column;gap:16px}
+.rank-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:20px 22px;border-radius:14px;background:linear-gradient(120deg,#fff3e8,#fde7ef 55%,#efe9ff)}
+.rank-hero h2{margin:0 0 4px;font-size:22px}
+.rank-hero p{margin:0;color:#646a73;font-size:13px;max-width:620px}
+.rank-filters{display:flex;gap:10px;align-items:center}
+.rank-seg{display:flex;background:#fff;border-radius:8px;padding:3px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.rank-seg button{border:0;background:none;border-radius:6px;padding:4px 12px;cursor:pointer;color:#646a73;font-size:13px}
+.rank-seg button.on{background:#ff7a45;color:#fff}
+.rank-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.rank-tabs button{border:1px solid #e8e9ed;background:#fff;border-radius:20px;padding:6px 16px;cursor:pointer;font-size:13px}
+.rank-tabs button.on{border-color:#ff7a45;color:#ea580c;background:#fff4ec;font-weight:500}
+.rank-podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.rank-pod{position:relative;text-align:left;border:1px solid #f1e3d6;border-radius:12px;padding:16px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0;transition:transform .15s,box-shadow .15s}
+.rank-pod:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(234,88,12,.12)}
+.rank-pod.pod1{background:linear-gradient(160deg,#fff7e0,#fff)}
+.rank-pod.pod2{background:linear-gradient(160deg,#f3f4f7,#fff)}
+.rank-pod.pod3{background:linear-gradient(160deg,#fbeee4,#fff)}
+.rank-pod b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-pod small{color:#8f959e;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-medal{font-size:24px}
+.rank-pod-heat{font-size:20px;font-weight:600;color:#ea580c;display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+.rank-table{width:100%;border-collapse:collapse;font-size:13px}
+.rank-table th{text-align:left;color:#8f959e;font-weight:400;padding:8px 10px;border-bottom:1px solid #eef0f3;white-space:nowrap}
+.rank-table td{padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.rank-table tbody tr:hover{background:#fffaf6}
+.rank-no{font-style:normal;display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:#eef0f4;color:#646a73;font-size:12px;font-weight:600}
+.rank-no.top1{background:linear-gradient(135deg,#fbbf24,#f97316);color:#fff}
+.rank-no.top2{background:linear-gradient(135deg,#cbd5e1,#94a3b8);color:#fff}
+.rank-no.top3{background:linear-gradient(135deg,#fdba74,#c2410c);color:#fff}
+.rank-trend{font-size:12px;font-weight:500}
+.rank-trend.up{color:#dc2626}
+.rank-trend.down{color:#16a34a}
+.rank-bar{display:flex;align-items:center;gap:8px;min-width:140px}
+.rank-bar i{display:block;height:6px;border-radius:3px;background:linear-gradient(90deg,#a78bfa,#7c5cfa);flex:none;max-width:90px}
+.rank-bar.hot i{background:linear-gradient(90deg,#fdba74,#ef4444)}
+.rank-bar span{font-variant-numeric:tabular-nums}
+.rank-note{margin:10px 0 0}
+@media (max-width:760px){.rank-podium{grid-template-columns:1fr}}
+.rank-seg button,.rank-tabs button{white-space:nowrap}
+.rank-wrap{overflow-x:auto}
+.rank-table td:last-child,.rank-table td:nth-child(3){white-space:nowrap}
+.rank-table td b{display:block;max-width:260px}
+.rank-bar{min-width:120px}
+.rank-bar i{max-width:70px}

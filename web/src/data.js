@@ -30,6 +30,7 @@ export const NAV = {
       items: [
         { key: 'market', label: '标签广场' },
         { key: 'audience', label: '交易画像 Agent' },
+        { key: 'rank', label: '热度榜' },
         { key: 'myperm', label: '我的申请 / 权限' },
         { key: 'income', label: '消费与收益录入' },
       ],
@@ -66,6 +67,7 @@ export const NAV = {
       items: [
         { key: 'market', label: '标签广场' },
         { key: 'audience', label: '交易画像 Agent' },
+        { key: 'rank', label: '热度榜' },
         { key: 'myperm', label: '我的申请 / 权限' },
         { key: 'income', label: '消费与收益录入' },
       ],
@@ -95,6 +97,7 @@ export const NAV = {
 export const NAV_LABELS = {
   market: '标签广场',
   audience: '交易画像 Agent',
+  rank: '热度榜',
   audiences: '已保存模板',
   myperm: '我的申请 / 权限',
   income: '消费与收益录入',

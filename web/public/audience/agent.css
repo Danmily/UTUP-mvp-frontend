@@ -429,22 +429,3 @@
 .qa-metric span{display:block;color:var(--qa-sub);font-size:12px}
 .qa-metric b{display:block;font-size:20px;margin:2px 0}
 .qa-metric small{color:var(--qa-mute);font-size:11px}
-
-/* 热度榜 */
-.qa-rank{width:100%;max-width:760px;margin:22px auto 0;border:1px solid var(--qa-line);border-radius:12px;padding:12px 14px;background:linear-gradient(180deg,#fff7f0,#fff 60px)}
-.qa-rank header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-.qa-rank header b{font-size:14px}
-.qa-rank header small{margin-left:auto}
-.qa-rank nav{display:flex;gap:2px;background:var(--qa-card);border-radius:8px;padding:2px}
-.qa-rank nav button{border:0;background:none;border-radius:6px;padding:3px 10px;font-size:12px;color:var(--qa-sub)}
-.qa-rank nav button.on{background:#fff;color:#ea580c;font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.qa-rank ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:20px}
-.qa-rank li button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:7px 4px;border-bottom:1px solid #f3f4f6;text-align:left;border-radius:6px}
-.qa-rank li button:hover{background:#fff4ec}
-.qa-rank .n{font-style:normal;width:20px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:12px;background:#eef0f4;color:var(--qa-sub);flex:none}
-.qa-rank .n.top{background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-weight:600}
-.qa-rank .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qa-rank .ht{color:var(--qa-sub);font-variant-numeric:tabular-nums;font-size:12px}
-.qa-trend{font-style:normal;font-size:11px;width:44px;text-align:right}
-.qa-trend.up{color:#dc2626}.qa-trend.down{color:var(--qa-ok)}
-.qa-rank>p{margin:6px 0 0}
