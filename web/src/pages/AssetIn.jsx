@@ -60,6 +60,7 @@ const seed = () => TAGS.map((t) => ({
   { source_domain: '其他标签资产', tag_id: 'draft_ai_summary', autoDraftId: true, tag_name: 'AI 深层消费心理 Summary', description: '', timeliness: '离线', update_freq: '周更', coverage: '', owner: DEMO_ME, source_db: 'ai_profile', source_table: 'dwd_llm_cate_interest_di', source_field: 'cate_interest', security_level: '', unified_level: '', status: 'draft', updated: '2026-10-09 16:02', by: DEMO_ME },
   { source_domain: 'DMP', tag_id: 'old_active_v1', tag_name: '旧版活跃序列 V1', description: '旧版活跃天数序列，已由活跃天数分层替代', timeliness: '离线', update_freq: 'T+1', coverage: '90', owner: DEMO_ME, source_db: 'ecom_dmp', source_table: 'dwd_user_order_di', source_field: 'order_cnt_30d', security_level: 'L3', unified_level: '受控', status: 'off', offReason: '已由新版标签替代', offAt: '2026-09-30', updated: '2026-09-30 18:00', by: DEMO_ME },
 ])
+const REQ_KEY = 'utup.asset.requests'
 function load() { try { const v = JSON.parse(localStorage.getItem(ASSET_KEY)); if (Array.isArray(v) && v.length) return v.map((a) => ({ ...a, status: normalizeStatus(a.status) })) } catch { /* 使用种子数据 */ } return seed() }
 function download(name, text) {
   const a = document.createElement('a'), url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }))
@@ -105,6 +106,9 @@ export default function AssetIn({ V, pushAudit }) {
   /* 合规确认信息（PRD）：合规确认人（员工选择器）、确认结论（通过 / 不通过，仅通过可提交）、确认依据 */
   const [comp, setComp] = useState({ officer: '', result: '', evidence: '', files: [] })
   const [compErr, setCompErr] = useState('')
+  /* 交易画像 Agent 的资产缺口转成的生产需求（localStorage 共享），供给方在这里承接 */
+  const [reqs, setReqsRaw] = useState(() => { try { return JSON.parse(localStorage.getItem(REQ_KEY) || '[]') } catch { return [] } })
+  const setReqStatus = (id, status) => setReqsRaw((old) => { const v = old.map((r) => (r.id === id ? { ...r, status } : r)); try { localStorage.setItem(REQ_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v })
   const setC = (k, v) => { setComp((c) => ({ ...c, [k]: v })); setCompErr('') }
 
   function setAssets(next) { setAssetsRaw((old) => { const v = typeof next === 'function' ? next(old) : next; try { localStorage.setItem(ASSET_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v }) }
@@ -330,8 +334,16 @@ export default function AssetIn({ V, pushAudit }) {
   const statusTag = (st) => <Tag color={st === 'online' ? 'success' : st === 'draft' ? 'warning' : undefined}>{STATUS_LABEL[st]}</Tag>
   const selAssets = assets.filter((a) => sel.includes(a.tag_id) && a.status === 'online')
 
+  const REQ_NEXT = { 待承接: ['承接', '生产中'], 生产中: ['标记已上线', '已上线'] }
+  const reqCard = reqs.length > 0 && (
+    <Card title={<span>资产生产需求 <Tag color="processing">来自交易画像 Agent</Tag></span>} className="asset-req-card">
+      <table className="asset-table"><thead><tr><th>需求标签</th><th>业务背景</th><th>来源方案</th><th>提出人 / 时间</th><th>状态</th><th>操作</th></tr></thead><tbody>
+        {reqs.map((r) => <tr key={r.id}><td><b>{r.name}</b><div className="asset-muted">{r.desc}</div></td><td>{r.context}</td><td>{r.plan}<div className="asset-muted">{r.from}</div></td><td>{r.by}<div className="asset-muted">{new Date(r.at).toLocaleString('zh-CN', { hour12: false }).slice(5, 16)}</div></td><td><Tag color={r.status === '已上线' ? 'success' : r.status === '生产中' ? 'processing' : 'warning'}>{r.status}</Tag></td><td>{REQ_NEXT[r.status] ? <Button size="small" type="link" onClick={() => setReqStatus(r.id, REQ_NEXT[r.status][1])}>{REQ_NEXT[r.status][0]}</Button> : '—'}</td></tr>)}
+      </tbody></table>
+    </Card>
+  )
   const list = (
-    <Card title="我的标签资产" extra={<Space><Button onClick={exportMine}>导出我的资产</Button><Button onClick={() => setTab('import')}>批量导入</Button><Button type="primary" onClick={newAsset}>+ 单个录入</Button></Space>}>
+    <>{reqCard}<Card title="我的标签资产" extra={<Space><Button onClick={exportMine}>导出我的资产</Button><Button onClick={() => setTab('import')}>批量导入</Button><Button type="primary" onClick={newAsset}>+ 单个录入</Button></Space>}>
       <div className="asset-status-tabs" role="tablist">{STATUS_TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={statusTab === k} className={statusTab === k ? 'on' : ''} onClick={() => { setStatusTab(k); setPage(1) }}>{l}<b>{counts[k]}</b></button>)}</div>
       <div className="asset-filters">
         <input className="au-input" placeholder="搜索标签名称 / 资产 ID / 源表" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} aria-label="搜索资产" />
@@ -366,7 +378,7 @@ export default function AssetIn({ V, pushAudit }) {
       {!shown.length && <p className="asset-muted asset-empty">没有符合条件的资产</p>}
       {shown.length > 0 && <div className="pending-pager"><span>共 {shown.length} 条 · 第 {pageNow} / {pages} 页</span><Space><Button size="small" disabled={pageNow === 1} onClick={() => setPage(pageNow - 1)}>上一页</Button><Button size="small" disabled={pageNow === pages} onClick={() => setPage(pageNow + 1)}>下一页</Button></Space></div>}
       <div className="asset-rules">🔒 规则：提交后由平台机审（固定规则校验字段与格式），通过即上线并同步至标签广场；更新已有资产时先左右对比确认差异；草稿不校验、不上线，仅资产 Owner 可见；下线需填写原因并确认影响范围；已上线资产不可直接删除，需先下线。</div>
-    </Card>
+    </Card></>
   )
 
   /* ---- 单个录入表单 ---- */

@@ -82,6 +82,8 @@ const SCENES = {
       { group: 'any', tag: 14606, value: a.level },
     ],
   },
+  /* 第三个入口「解析业务文档」使用：条件来自采纳的资产方案，不靠关键词识别 */
+  promo: { match: /^$x/, title: '暑期大促人群', base: 520000, questions: [], conditions: () => [] },
   brand: {
     match: /./, title: '羽绒服新品推广人群', base: 268000,
     questions: [
@@ -160,7 +162,7 @@ function defaultAnswers(scene) {
   return Object.fromEntries(SCENES[scene].questions.map((q) => [q.id, q.options[q.pick || 0]]));
 }
 function buildConditions(task) {
-  const list = SCENES[task.scene].conditions(task.answers).map((c) => ({ ...c }));
+  const list = (task.planConds || SCENES[task.scene].conditions(task.answers)).map((c) => ({ ...c }));
   return list
     .filter((c) => !task.removed.includes(c.tag))
     .map((c) => {
@@ -174,7 +176,7 @@ function buildConditions(task) {
 }
 function hash(s) { let h = 7; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 100003; return h; }
 function estimate(task) {
-  let n = SCENES[task.scene].base * (1 + (hash(task.id) % 13) / 100);
+  let n = task.planSize || SCENES[task.scene].base * (1 + (hash(task.id) % 13) / 100);
   if (Object.values(task.answers).some((v) => /30 天|3 公里|L4|180 天/.test(v))) n *= 0.6;
   n *= Math.pow(0.9, Object.keys(task.swapped).length);
   n *= Math.pow(0.93, Object.keys(task.moved || {}).length); // 组合关系被调整过，规模随之变化
@@ -200,6 +202,132 @@ function buildSql(task, conds) {
   lines.push(`LIMIT  ${estimate(task)};`);
   return lines.join('\n');
 }
+
+/* ---------------- 第三个入口：解析业务文档 ----------------
+ * 业务文档 → 结构化需求（原文 / 推断 / 缺失）→ 追问关键约束 → 业务确认
+ * → ≥3 套资产配对方案（场景、覆盖、限制、规模、成本）→ 采纳 → 复用圈选执行链路
+ * → 授权交付下游、资产缺口转生产需求、新线索推荐；采纳率 / 修改次数 / 交付与使用回填用于验证。
+ * 演示用规则抽取，不调用真实模型；收益以后续实验为准，不在方案里承诺。 */
+const DOC_SAMPLE = {
+  name: '2027 暑期大促活动方案.docx',
+  text: `活动名称：抖音电商暑期大促
+活动时间：7月1日–7月20日
+活动目标：拉动服饰、户外、美妆三个品类 GMV，重点召回近 90 天未下单的老客，同时拓展暑期出游相关的新人群
+候选人群：沉默老客、户外运动兴趣用户、学生与亲子家庭
+预算：发券预算 120 万元
+可用触点：Push、站内信、发券
+备注：活动结束后需要复盘各人群的转化效果`,
+};
+const POOL = 1800000; // 演示：暑期活动可触达的目标人群池
+function briefField(key, label, value, src, quote) { return { key, label, value, src, quote: quote || '' }; }
+function parseBrief(text) {
+  const t = String(text || '');
+  const line = (re) => { const m = t.match(re); return m ? { v: m[2].trim(), q: m[0].trim() } : null; };
+  const split = (v) => v.split(/[、，,／/]|和|与/).map((x) => x.trim()).filter(Boolean);
+  const name = line(/(活动名称|项目名称)[:：]\s*([^\n]+)/);
+  const period = line(/(活动时间|活动周期)[:：]\s*([^\n]+)/);
+  const goal = line(/(活动目标|业务目标|目标)[:：]\s*([^\n]+)/);
+  const aud = line(/(候选人群|目标人群|人群)[:：]\s*([^\n]+)/);
+  const bm = t.match(/预算[^\d\n]*(\d+(?:\.\d+)?)\s*(万)?\s*元?/);
+  const win = line(/(观察窗口|观察期|效果评估)[:：]\s*([^\n]+)/);
+  const touch = line(/(可用触点|触点|渠道)[:：]\s*([^\n]+)/);
+  const fields = [
+    briefField('goal', '活动目标', goal ? goal.v : '', goal ? '原文' : '缺失', goal?.q),
+    briefField('audience', '候选人群', aud ? split(aud.v).join('、') : '', aud ? '原文' : goal ? '推断' : '缺失', aud?.q),
+    briefField('budget', '预算', bm ? `${bm[1]}${bm[2] || ''} 元` : '', bm ? '原文' : '缺失', bm ? bm[0] : ''),
+    briefField('window', '观察窗口', win ? win.v : period ? '活动结束后 7 天' : '', win ? '原文' : period ? '推断' : '缺失', win ? win.q : period ? `由「${period.q}」推断，文档只写了需要复盘` : ''),
+    briefField('touch', '可用触点', touch ? split(touch.v).join('、') : '', touch ? '原文' : '缺失', touch?.q),
+  ];
+  if (!fields[1].value && goal) fields[1].value = /召回|老客/.test(goal.v) ? '沉默老客' : '活跃用户';
+  return {
+    title: name ? name.v : '业务文档需求',
+    period: period ? period.v : '',
+    budget: bm ? Math.round(parseFloat(bm[1]) * (bm[2] ? 10000 : 1)) : 0,
+    fields,
+    answers: {},
+    edits: 0,
+  };
+}
+/* 只追问会改变方案和成本的约束；其余按文档原文处理 */
+function briefQuestions(brief) {
+  const f = Object.fromEntries(brief.fields.map((x) => [x.key, x]));
+  const qs = [];
+  if (f.window.src !== '原文') qs.push({ id: 'window', title: '转化效果按多长的观察窗口看？', why: '文档只写了「需要复盘」，窗口决定实验怎么读数', options: ['活动结束后 7 天', '活动结束后 14 天'] });
+  if (/券/.test(f.touch.value)) qs.push({ id: 'face', title: '单张券面额按多少测算？', why: '文档只给了总预算，面额决定每套方案的成本和是否超支', options: ['10 元', '20 元'] });
+  qs.push({ id: 'exclude', title: '是否排除高退货 / 疑似薅券人群？', why: '排除后规模约减少 6%，但券成本更可控', options: ['排除', '不排除'] });
+  if (!f.budget.value) qs.push({ id: 'budget', title: '预算上限是多少？', why: '没有预算无法判断方案是否超支', options: ['50 万元', '100 万元'] });
+  return qs;
+}
+const answerOf = (brief, q) => brief.answers[q.id] || q.options[0];
+const PLAN_DEFS = [
+  { key: 'safe', name: '保守 · 老客精准召回', scene: '预算紧、要先保证 ROI 时；适合活动预热期第一波触达', ratio: 0.42, redeem: 0.18,
+    limits: ['规模较小，难以覆盖「拓展新人群」目标', '依赖受控标签「大促敏感度分层」，需申请权限'],
+    conds: [
+      { group: 'must', tag: 14520, value: '近 365 天购买：服饰 / 户外 / 美妆' },
+      { group: 'must', tag: 14533, value: '近 90 天未下单' },
+      { group: 'any', tag: 14578, value: '大促敏感度 高' },
+      { group: 'exclude', tag: 14560, value: '退货退款率 高' },
+    ], gaps: [] },
+  { key: 'balance', name: '平衡 · 老客 ＋ 暑期兴趣', scene: '兼顾召回与拉新，适合作为活动主力人群', ratio: 0.78, redeem: 0.12,
+    limits: ['兴趣标签为 LLM 侧写，口径需在实验中验证', '老客与兴趣人群会部分重叠，已在规模中去重'],
+    conds: [
+      { group: 'must', tag: 14520, value: '近 365 天购买：服饰 / 户外 / 美妆' },
+      { group: 'any', tag: 14572, value: '近 30 天加购或收藏：防晒 / 户外 / 夏装' },
+      { group: 'any', tag: 14610, value: '户外 / 防晒兴趣 ≥ 中' },
+      { group: 'exclude', tag: 14560, value: '退货退款率 高' },
+    ], gaps: [] },
+  { key: 'explore', name: '探索 · 暑期出游扩量', scene: '要拓展新人群、愿意为探索付出更高成本时', ratio: 1.36, redeem: 0.07,
+    limits: ['跨电商 × 生服，需要生成 SQL 后到大盘执行', '缺少「暑期出游意向」标签，暂用到店偏好近似，精度有限'],
+    conds: [
+      { group: 'must', tag: 14610, value: '户外 / 出游兴趣 ≥ 中' },
+      { group: 'any', tag: 14618, value: '近 90 天到店偏好：景区 / 酒店 / 亲子' },
+      { group: 'any', tag: 14612, value: '团购券核销率 ≥ 中' },
+      { group: 'exclude', tag: 14560, value: '退货退款率 高' },
+    ],
+    gaps: [{ name: '暑期出游意向', desc: '近 30 天搜索 / 浏览出游、机酒、景区内容的意向分层；现有资产没有对应标签，方案中只能用到店偏好近似' }] },
+];
+function buildPlans(brief) {
+  const qs = briefQuestions(brief);
+  const ans = (id, d) => { const q = qs.find((x) => x.id === id); return q ? answerOf(brief, q) : d; };
+  const face = parseFloat(ans('face', '10 元')) || 10;
+  const keepExclude = ans('exclude', '排除') === '排除';
+  const budget = brief.budget || (parseFloat(ans('budget', '')) * 10000) || 0;
+  return PLAN_DEFS.map((d) => {
+    const conds = d.conds.filter((c) => keepExclude || c.group !== 'exclude').map((c) => ({ ...c }));
+    const size = Math.round((SCENES.promo.base * d.ratio * (keepExclude ? 1 : 1.06)) / 10) * 10;
+    const cost = Math.round(size * d.redeem * face);
+    return {
+      key: d.key, name: d.name, scene: d.scene, limits: d.limits, gaps: d.gaps, conds, size, cost,
+      coverage: Math.round((size / POOL) * 1000) / 10, redeem: d.redeem, face,
+      over: budget > 0 && cost > budget, budget,
+      tags: [...new Set(conds.map((c) => c.tag))],
+      cross: conds.some((c) => /life/.test(TAGS[c.tag].table)) && conds.some((c) => !/life/.test(TAGS[c.tag].table)),
+    };
+  });
+}
+/* 推荐效果验证：只统计从业务文档进入的任务 */
+function docMetrics(list, requests = []) {
+  const docs = list.filter((t) => t.path === 'D');
+  const shown = docs.filter((t) => t.metrics?.plansAt);
+  const adopted = shown.filter((t) => t.metrics?.adopted);
+  const delivered = docs.filter((t) => t.delivery?.at);
+  const lead = delivered.map((t) => (new Date(t.delivery.at) - new Date(t.created)) / 60000);
+  return {
+    docs: docs.length,
+    adoptRate: shown.length ? Math.round((adopted.length / shown.length) * 100) : null,
+    avgEdits: adopted.length ? Math.round((adopted.reduce((n, t) => n + (t.metrics.edits || 0), 0) / adopted.length) * 10) / 10 : null,
+    delivered: delivered.length,
+    leadMin: lead.length ? Math.round(lead.reduce((a, b) => a + b, 0) / lead.length) : null,
+    used: delivered.filter((t) => t.delivery.used).length,
+    requests: requests.length,
+    accepted: requests.filter((r) => r.status !== '待承接').length,
+  };
+}
+const LEADS = [
+  { title: '暑期出游 × 生服到店', why: '历史相似任务：2026 暑期大促复盘中，出游人群的到店核销表现突出', q: '为暑期出游人群推荐景区周边到店团购，排除近 30 天已核销用户' },
+  { title: '开学季 · 学生换新', why: '活动 7 月 20 日结束后紧接开学季，学生人群可延续触达', q: '找近 90 天购买过文具、数码配件的学生人群，用于 8 月开学季换新' },
+  { title: '高温天气 · 防晒清凉品类', why: '近期热点：多地持续高温，防晒、清凉品类搜索量上涨', q: '圈出近 30 天浏览过防晒、清凉用品但未下单的用户，用于高温专场' },
+];
 function newTask(query) {
   const scene = detect(query);
   const id = 'AUD-' + Date.now().toString(36).toUpperCase();
@@ -210,7 +338,7 @@ function newTask(query) {
     effects: [], saved: false, messages: [],
   };
 }
-const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask, parseSeeds, seedWarning, SEED_MAX };
+const Model = { TAGS, ALT, SCENES, detect, defaultAnswers, buildConditions, estimate, buildSql, newTask, parseSeeds, seedWarning, SEED_MAX, DOC_SAMPLE, parseBrief, briefQuestions, buildPlans, docMetrics };
 if (typeof module !== 'undefined' && module.exports) { module.exports = Model; return; }
 
 /* ---------------- 界面 ---------------- */
@@ -243,6 +371,15 @@ let draft = '', sidebarOpen = true, panel = { open: false, tab: 'detail', full: 
 let page = 1, reportTimer = null, lastCount = 0, ticker = null;
 let draftSeed = null, seedModal = null; // 首页待提交的种子；种子添加弹窗状态
 let histQ = '', centerQ = ''; // 历史对话 / 任务中心关键词
+let homeMode = 'talk', docDraft = { name: '', text: '' }; // 首页入口：描述需求 / 解析业务文档
+/* 资产缺口转成的生产需求：与门户「资产管理」共用，供给方在那里承接 */
+const REQ_KEY = 'utup.asset.requests';
+function loadReqs() { try { return JSON.parse(localStorage.getItem(REQ_KEY) || '[]'); } catch { return []; } }
+function saveReqs(v) { try { localStorage.setItem(REQ_KEY, JSON.stringify(v)); } catch { /* 存储不可用 */ } }
+/* 采纳方案后的每次改动都计入修改次数，用于评估方案推荐质量 */
+function bumpEdit(task) { if (task && task.path === 'D' && task.metrics?.adopted) { task.metrics.edits = (task.metrics.edits || 0) + 1; save(); } }
+const touchOf = (task) => task.brief.fields.find((f) => f.key === 'touch').value;
+const defaultChannels = (task) => task.handoffCh || CHANNELS.filter((c) => touchOf(task).includes(c.replace('平台', '')));
 
 function load() { try { tasks = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { tasks = []; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch { /* 存储不可用时只保留在本次页面 */ } }
@@ -381,11 +518,77 @@ async function execute(task) {
   await runSteps(task, msg, 'analysis');
   msg.open = false; msg.openAnalysis = false;
   push(task, { type: 'result', version: task.version });
+  if (task.path === 'D' && !task.messages.some((x) => x.type === 'handoff')) push(task, { type: 'handoff' });
   busy = false;
   panel = { open: true, tab: 'detail', full: false }; page = 1;
   render();
   clearTimeout(reportTimer);
   reportTimer = setTimeout(() => { const t = tasks.find((x) => x.id === task.id); if (t && t.result?.version === task.version) { t.reportReady = true; save(); render(); } }, 8000);
+}
+
+/* ---- 第三个入口：解析业务文档 ---- */
+async function startDoc() {
+  const text = docDraft.text.trim();
+  if (!text || busy) return;
+  const brief = parseBrief(text);
+  const task = newTask(brief.title);
+  const name = docDraft.name || '粘贴的业务文档';
+  Object.assign(task, { scene: 'promo', path: 'D', title: brief.title, query: `业务文档《${name}》`, doc: { name, text }, brief, answers: {}, metrics: { edits: 0 } });
+  tasks.unshift(task); activeId = task.id; view = 'task'; docDraft = { name: '', text: '' }; panel = { open: false, tab: 'detail', full: false };
+  busy = true;
+  push(task, { type: 'user', text: `解析业务文档《${name}》\n${text.split('\n').filter(Boolean).slice(0, 2).join(' / ')}…` });
+  const qs = briefQuestions(brief);
+  const ack = push(task, { type: 'ack', title: '已收到业务文档，开始解析', open: true, steps: [
+    { title: '读取文档', detail: `共 ${text.split('\n').filter(Boolean).length} 段文本`, status: 'wait' },
+    { title: '抽取需求要素', detail: '活动目标、候选人群、预算、观察窗口、可用触点', status: 'wait' },
+    { title: '检查关键约束', detail: `${qs.length} 项会改变方案或成本，需要你确认`, status: 'wait' },
+  ] });
+  await runSteps(task, ack, 'steps');
+  ack.open = false;
+  push(task, { type: 'brief', confirmed: false });
+  busy = false; render();
+}
+async function confirmBrief(task, msg) {
+  if (busy) return;
+  msg.confirmed = true;
+  busy = true;
+  push(task, { type: 'user', text: '需求理解无误，按此生成资产方案' });
+  const face = buildPlans(task.brief)[0].face;
+  const ack = push(task, { type: 'ack', title: '开始匹配资产', open: true, steps: [
+    { title: '匹配可用资产', detail: `检索 ${Object.keys(TAGS).length} 个已上线标签与你的权限状态`, status: 'wait' },
+    { title: '生成候选组合', detail: '按保守 / 平衡 / 探索生成 3 套资产组合', status: 'wait' },
+    { title: '测算规模与成本', detail: `按单张券 ${face} 元与历史核销率测算券成本，对照预算`, status: 'wait' },
+  ] });
+  await runSteps(task, ack, 'steps');
+  ack.open = false;
+  task.metrics.plansAt = Date.now();
+  push(task, { type: 'plans' });
+  busy = false; render();
+}
+function adoptPlan(task, key) {
+  if (busy || task.metrics.adopted) return;
+  const p = buildPlans(task.brief).find((x) => x.key === key);
+  Object.assign(task.metrics, { adopted: key, adoptedAt: Date.now() });
+  task.planConds = p.conds; task.planSize = p.size;
+  task.plan = { key, name: p.name, gaps: p.gaps, cost: p.cost };
+  task.version += 1;
+  push(task, { type: 'user', text: `采纳「${p.name}」方案` });
+  push(task, { type: 'conditions', version: task.version, confirmed: false, note: `已按「${p.name}」生成圈选条件。可以删除条件、调整组合关系或用自然语言修改，确认后执行生包。` });
+}
+function gapList(task) {
+  const own = (task.plan?.gaps || []).map((g) => ({ ...g, from: '本方案' }));
+  const degraded = Object.keys(task.swapped || {}).map((id) => ({ name: TAGS[id].name, desc: '暂无权限，已用替代口径或去掉该条件，精度下降', from: '无权限降级' }));
+  const other = own.length || degraded.length ? [] : buildPlans(task.brief).filter((p) => p.key !== task.plan?.key).flatMap((p) => p.gaps.map((g) => ({ ...g, from: `未采纳的「${p.name}」` })));
+  return [...own, ...degraded, ...other];
+}
+function raiseRequest(task, name) {
+  const g = gapList(task).find((x) => x.name === name); if (!g) return;
+  const reqs = loadReqs();
+  if (reqs.some((r) => r.task === task.id && r.name === name)) return;
+  const goal = task.brief.fields.find((f) => f.key === 'goal').value;
+  reqs.unshift({ id: 'REQ-' + Date.now().toString(36).toUpperCase(), name, desc: g.desc, context: `${task.brief.title}${task.brief.period ? `（${task.brief.period}）` : ''}：${goal}`, plan: task.plan?.name || '', from: g.from, task: task.id, by: '@消费方', at: new Date().toISOString(), status: '待承接' });
+  saveReqs(reqs);
+  notify(`已生成资产生产需求「${name}」，供给方会在资产管理中承接`);
 }
 
 async function applyPermission(task, msg) {
@@ -412,6 +615,7 @@ async function grantAndRun(task, msg) {
 
 function modify(task, text) {
   if (busy) return;
+  bumpEdit(task);
   task.version += 1;
   let note = '已保留上一版条件，调整后请确认执行。';
   if (text) {
@@ -475,11 +679,12 @@ function sidebar() {
   /* 历史对话会一直累积：带关键词搜索并在列表内滚动，匹配标题与原始诉求 */
   const q = histQ.trim().toLowerCase();
   const hit = q ? tasks.filter((t) => `${t.title} ${t.query}`.toLowerCase().includes(q)) : tasks;
-  const list = hit.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span>${t.seed ? `<em>种子 ${fmt(t.seed.count)}</em>` : ''}</button>`).join('');
+  const list = hit.map((t) => `<button type="button" class="qa-hist ${t.id === activeId && view === 'task' ? 'on' : ''}" data-act="open" data-id="${t.id}" title="${esc(t.query)}"><span>${esc(t.title)}</span>${t.seed ? `<em>种子 ${fmt(t.seed.count)}</em>` : t.path === 'D' ? '<em>文档</em>' : ''}</button>`).join('');
   return `<aside class="qa-side">
-    <div class="qa-side-head"><span class="qa-brand"><i>${ICON.spark}</i>圈人助手</span><button type="button" class="qa-icon-btn" data-act="toggle-side" aria-label="${sidebarOpen ? '收起' : '展开'}侧栏">${ICON.side}</button></div>
+    <div class="qa-side-head"><span class="qa-brand"><i>${ICON.spark}</i>交易画像 Agent</span><button type="button" class="qa-icon-btn" data-act="toggle-side" aria-label="${sidebarOpen ? '收起' : '展开'}侧栏">${ICON.side}</button></div>
     <nav class="qa-side-nav">
-      <button type="button" data-act="new" class="${view === 'home' ? 'on' : ''}">${ICON.plus}<span>新建对话</span></button>
+      <button type="button" data-act="new" class="${view === 'home' && homeMode === 'talk' ? 'on' : ''}">${ICON.plus}<span>新建对话</span></button>
+      <button type="button" data-act="doc-home" class="${view === 'home' && homeMode === 'doc' ? 'on' : ''}">${ICON.book}<span>解析业务文档</span><em class="is-new">新</em></button>
       <button type="button" data-act="center" class="${view === 'center' ? 'on' : ''}">${ICON.task}<span>圈人任务中心</span></button>
       <button type="button" data-act="kb" class="is-soon">${ICON.book}<span>策略知识库</span><em>规划中</em></button>
     </nav>
@@ -491,13 +696,30 @@ function sidebar() {
 
 /* 只有一个入口：说诉求 ＋（可选）带一批种子用户。
  * 带了种子就走种子扩散，没带就走追问确认，用户不需要先选形态。 */
+function modeTabs() {
+  return `<div class="qa-mode" role="tablist">${[['talk', '描述需求圈人'], ['doc', '解析业务文档']].map(([k, l]) => `<button type="button" role="tab" class="${homeMode === k ? 'on' : ''}" data-act="home-mode" data-v="${k}">${l}${k === 'doc' ? '<em>新</em>' : ''}</button>`).join('')}</div>`;
+}
+function docHome() {
+  return `<div class="qa-home">
+    <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.book}</span><h2>把业务文档交给我</h2><p>上传或粘贴活动方案，我会抽出活动目标、候选人群、预算、观察窗口和可用触点，追问会影响结果的约束，再给出至少 3 套资产组合供你对比、采纳。</p></div>
+    ${modeTabs()}
+    <div class="qa-composer qa-doc-box">
+      ${docDraft.name ? `<div class="qa-doc-file">${ICON.book}<b>${esc(docDraft.name)}</b><button type="button" class="qa-link" data-act="doc-clear">移除</button></div>` : ''}
+      <textarea id="qa-doc-text" rows="9" placeholder="粘贴业务文档正文，例如活动方案、需求说明；飞书文档可以直接复制正文">${esc(docDraft.text)}</textarea>
+      <div class="qa-composer-foot"><span class="qa-doc-acts"><label class="qa-outline sm">上传文档<input type="file" id="qa-doc-file" accept=".txt,.md" hidden></label><button type="button" class="qa-link" data-act="doc-sample">使用示例：暑期大促活动方案</button></span><button type="button" class="qa-send" data-act="doc-start" ${busy || !docDraft.text.trim() ? 'disabled' : ''}>${ICON.spark}开始解析</button></div>
+    </div>
+    <p class="qa-muted qa-center">演示版支持 TXT / Markdown 与粘贴文本，解析结果为规则抽取的演示数据</p>
+  </div>`;
+}
 function home() {
+  if (homeMode === 'doc') return docHome();
   const hasSeed = !!draftSeed;
   const hint = hasSeed
     ? '已带上种子用户，我会先学习他们的共性，再向外扩散出相似人群；完成后以飞书消息通知你。'
     : '说清你想圈的人就行。缺关键口径时我会追问，再把筛选条件可视化给你确认，确认后才执行生包。';
   return `<div class="qa-home">
     <div class="qa-home-hero"><span class="qa-logo-lg">${ICON.spark}</span><h2>今天想圈哪些人？</h2><p>${esc(hint)}</p></div>
+    ${modeTabs()}
     ${composer(hasSeed ? '描述业务目标，例如：给这批种子用户找相似的高价值人群，用于双十一新品推广' : '描述你的圈人需求，建议包含：业务目标、目标人群特征、时间范围、消费口径、排除人群、目标规模', '开始圈人')}
     <div class="qa-seed-bar">${hasSeed ? seedChip(draftSeed, 'draft') : `<button type="button" class="qa-seed-add" data-act="seed-open" data-target="draft">${ICON.plus}种子用户<em>选填</em></button><span class="qa-muted">手上已有一批确认过的目标用户，就加上来让我照着找相似的人；没有也可以直接描述诉求</span>`}</div>
     <div class="qa-examples">${(hasSeed ? EXAMPLES_A : EXAMPLES_B).map(([k, v, tag]) => `<button type="button" data-act="example" data-q="${esc(v)}"><b>${k}${tag ? `<em class="qa-ex-tag${tag === '跨域' ? ' is-cross' : ''}">${esc(tag)}</em>` : ''}</b><span>${esc(v)}</span></button>`).join('')}</div>
@@ -518,7 +740,9 @@ function chat(task) {
       ${task.messages.map((m, i) => message(task, m, i)).join('')}
       ${busy ? '<div class="qa-typing"><i></i><i></i><i></i></div>' : ''}
     </div>
-    <div class="qa-bottom">${chips}${composer(task.path === 'A'
+    <div class="qa-bottom">${chips}${composer(task.path === 'D' && !task.metrics?.adopted
+      ? '先确认需求理解单并采纳一套方案，之后可以用自然语言调整条件'
+      : task.path === 'A'
       ? '圈选逻辑由 Agent 从种子用户学习，不逐条改条件；可以补充业务目标，例如：这一版只要华东地区'
       : '您也可以用自然语言调整，例如：目标规模 5 万人、观察窗口改成近 30 天', '发送')}</div>`;
 }
@@ -563,7 +787,7 @@ function tickClocks() {
 function startTicker() { if (!ticker) ticker = setInterval(tickClocks, 200); }
 function stopTicker() { clearInterval(ticker); ticker = null; }
 function bot(inner, o = {}) {
-  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>圈人助手${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}${o.ms || o.live ? `<em class="qa-round-ms"${o.live ? ` data-live="round" data-i="${o.index}"` : ''}>本轮 ${secs(o.ms)}${o.totalMs && o.totalMs !== o.ms ? ` · 累计 ${secs(o.totalMs)}` : ''}</em>` : ''}</div>`;
+  const head = o.first === false ? '' : `<div class="qa-bot-name"><span class="qa-logo">${ICON.spark}</span>交易画像 Agent${o.at ? `<time>${hhmmss(o.at)}</time>` : ''}${o.ms || o.live ? `<em class="qa-round-ms"${o.live ? ` data-live="round" data-i="${o.index}"` : ''}>本轮 ${secs(o.ms)}${o.totalMs && o.totalMs !== o.ms ? ` · 累计 ${secs(o.totalMs)}` : ''}</em>` : ''}</div>`;
   return `<div class="qa-bot${o.first === false ? ' qa-bot-cont' : ''}${o.live ? ' is-live' : ''}">${head}${inner}</div>`;
 }
 function stepIcon(s) { return s === 'done' ? `<i class="qa-si done">${ICON.check}</i>` : s === 'running' ? '<i class="qa-si run"></i>' : `<i class="qa-si wait">${ICON.clock}</i>`; }
@@ -587,6 +811,9 @@ function message(task, m, i) {
   if (m.type === 'exec') return bot(`<p>已提交确认，开始圈选</p>${steps(m, 'steps', '执行完成', 'open')}${steps(m, 'analysis', '查看分析过程', 'openAnalysis')}`, o);
   if (m.type === 'agent-out') return bot(agentOutCard(task, m), o);
   if (m.type === 'result') return bot(resultCard(task, m), o);
+  if (m.type === 'brief') return bot(briefCard(task, m), o);
+  if (m.type === 'plans') return bot(plansCard(task, m), o);
+  if (m.type === 'handoff') return bot(handoffCard(task, m), o);
   return '';
 }
 
@@ -656,6 +883,63 @@ function resultCard(task, m) {
   ${stale ? '' : `<p class="qa-muted qa-deliver-line">人群包以 Hive 表交付生服 LDMP 建包，${esc(task.result.packId)} · 到 LDMP 使用。<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP →</button></p>`}`;
 }
 
+
+const SRC_CLS = { 原文: 'ok', 推断: 'infer', 缺失: 'miss', 已修改: 'edit' };
+function briefCard(task, m) {
+  const live = !m.confirmed, b = task.brief, qs = briefQuestions(b);
+  const row = (f) => `<div class="qa-brief-row"><span class="k">${esc(f.label)}</span><div class="v">${live ? `<input id="qa-brief-${f.key}" value="${esc(f.value)}" placeholder="文档未提及，请补充">` : `<span>${esc(f.value || '—')}</span>`}${f.quote ? `<small class="qa-quote">依据：${esc(f.quote)}</small>` : ''}</div><em class="qa-src ${SRC_CLS[f.src] || ''}">${esc(f.src)}</em></div>`;
+  return `<p>我从文档里整理出以下需求。标「推断」「缺失」的项请重点核对，可以直接修改：</p>
+  <div class="qa-card qa-brief ${live ? '' : 'is-frozen'}">
+    <div class="qa-card-title">${ICON.task}需求理解单<small>${esc(task.doc.name)}</small></div>
+    ${b.fields.map(row).join('')}
+    ${qs.length ? `<div class="qa-card-title qa-sub-title">${ICON.info}关键约束追问<small>只问会改变方案或成本的项</small></div>
+    ${qs.map((q) => `<div class="qa-q"><b>${esc(q.title)}</b><small>${esc(q.why)}</small><div class="qa-opts">${q.options.map((o) => `<button type="button" class="${answerOf(b, q) === o ? 'on' : ''}" data-act="brief-answer" data-q="${q.id}" data-v="${esc(o)}" ${live ? '' : 'disabled'}>${esc(o)}</button>`).join('')}</div></div>`).join('')}` : ''}
+    <div class="qa-card-foot">${live ? `<span class="qa-muted">已修改 ${b.edits} 处</span><button type="button" class="qa-primary" data-act="brief-ok" data-msg="${m.id}" ${busy ? 'disabled' : ''}>确认理解无误，生成方案</button>` : `<span class="qa-done">${ICON.check}业务已确认${b.edits ? ` · 修改 ${b.edits} 处` : ''}</span>`}</div>
+  </div>`;
+}
+function plansCard(task) {
+  const plans = buildPlans(task.brief), chosen = task.metrics.adopted;
+  const tagRow = (id) => { const st = shownState(task, id); return `<li><span>${esc(TAGS[id].name)}</span><span class="qa-pill">${esc(TAGS[id].level)}</span>${st.code === 'active' ? '' : `<span class="qa-lock" title="${esc(st.label)}">${ICON.lock}</span>`}</li>`; };
+  const cell = (p, html) => `<td class="${chosen === p.key ? 'on' : ''}">${html}</td>`;
+  const rows = [
+    ['适用场景', (p) => esc(p.scene)],
+    ['预估规模', (p) => `<b>${fmt(p.size)}</b> 人`],
+    ['覆盖率', (p) => `${p.coverage}%<small class="qa-muted qa-block">占目标人群池</small>`],
+    ['测算券成本', (p) => `<b>¥${fmt(p.cost)}</b>${p.over ? '<em class="qa-over">超预算</em>' : p.budget ? `<small class="qa-muted"> 占预算 ${Math.round((p.cost / p.budget) * 100)}%</small>` : ''}<small class="qa-muted qa-block">核销率 ${Math.round(p.redeem * 100)}% × ${p.face} 元</small>`],
+    ['执行方式', (p) => (p.cross ? '跨域 · 生成 SQL 后大盘执行' : '单域 · DMP 直接生包')],
+    ['主要限制', (p) => `<ul class="qa-ul">${p.limits.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`],
+    ['资产清单', (p) => `<ul class="qa-asset-ul">${p.tags.map(tagRow).join('')}</ul>`],
+    ['资产缺口', (p) => (p.gaps.length ? p.gaps.map((g) => `<span class="qa-gap">${esc(g.name)}</span>`).join('') : '<span class="qa-muted">无</span>')],
+  ];
+  return `<p>按文档目标给出 ${plans.length} 套资产组合。规模与成本为测算值，<b>收益以后续实验结果为准</b>：</p>
+  <div class="qa-card qa-plans-card">
+    <div class="qa-card-title">${ICON.filter}方案对比<small>${chosen ? '已采纳' : '选一套采纳，采纳后仍可修改'}</small></div>
+    <div class="qa-cmp-wrap"><table class="qa-cmp"><thead><tr><th></th>${plans.map((p) => `<th class="${chosen === p.key ? 'on' : ''}">${esc(p.name)}</th>`).join('')}</tr></thead><tbody>
+      ${rows.map(([label, f]) => `<tr><th>${label}</th>${plans.map((p) => cell(p, f(p))).join('')}</tr>`).join('')}
+      <tr><th></th>${plans.map((p) => cell(p, chosen ? (chosen === p.key ? `<span class="qa-done">${ICON.check}已采纳</span>` : '') : `<button type="button" class="${p.key === 'balance' ? 'qa-primary' : 'qa-outline'} sm" data-act="plan-adopt" data-plan="${p.key}" ${busy ? 'disabled' : ''}>采纳此方案</button>`)).join('')}</tr>
+    </tbody></table></div>
+    <p class="qa-cond-tip">采纳后生成圈选条件，可以继续删改；每次修改都会计入「修改次数」，和采纳率一起用于评估方案推荐的质量。</p>
+  </div>`;
+}
+const CHANNELS = ['Push', '站内信', '发券平台', '短信'];
+function handoffCard(task) {
+  const d = task.delivery, reqs = loadReqs();
+  const chs = defaultChannels(task);
+  const gaps = gapList(task);
+  const deliver = d
+    ? `<div class="qa-done">${ICON.check}已交付 ${esc(d.channels.join('、'))} · ${esc(new Date(d.at).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))} · 需求到交付 ${Math.max(1, Math.round((new Date(d.at) - new Date(task.created)) / 60000))} 分钟</div>
+      <div class="qa-hand-line">${d.used ? `<span class="qa-done">${ICON.check}业务已回填：已在活动中使用</span>` : `<span class="qa-muted">活动开始后请回填人群包是否被实际使用，用于验证推荐效果</span><button type="button" class="qa-outline sm" data-act="mark-used">回填：已实际使用</button>`}</div>`
+    : `<div class="qa-opts">${CHANNELS.map((c) => `<button type="button" class="${chs.includes(c) ? 'on' : ''}" data-act="ch-toggle" data-v="${c}">${c}</button>`).join('')}</div>
+      <div class="qa-hand-line"><span class="qa-muted">交付即授权下游触点系统使用该人群包，平台记录交付时间与用途</span><button type="button" class="qa-primary" data-act="deliver" ${chs.length ? '' : 'disabled'}>授权并交付</button></div>`;
+  const gapRows = gaps.length ? gaps.map((g) => { const r = reqs.find((x) => x.task === task.id && x.name === g.name); return `<div class="qa-gap-row"><div><b>${esc(g.name)}</b><em class="qa-pill">${esc(g.from)}</em><small>${esc(g.desc)}</small></div>${r ? `<span class="qa-req-st">${esc(r.status)}</span>` : `<button type="button" class="qa-outline sm" data-act="gap-req" data-name="${esc(g.name)}">生成生产需求</button>`}</div>`; }).join('') : '<p class="qa-muted">当前方案没有资产缺口</p>';
+  return `<p>人群包已就绪，接下来可以交付下游，并把资产缺口反馈给供给方：</p>
+  <div class="qa-card qa-handoff">
+    <div class="qa-card-title">${ICON.send}交付下游<small>${esc(task.plan?.name || '')}</small></div>${deliver}
+    <div class="qa-card-title qa-sub-title">${ICON.tag}资产缺口 → 生产需求<small>自动带上业务背景，供给方在「资产管理」承接</small></div>${gapRows}
+    <div class="qa-card-title qa-sub-title">${ICON.spark}你可能还需要<small>来自历史相似任务与近期热点</small></div>
+    ${LEADS.map((l) => `<button type="button" class="qa-lead" data-act="lead" data-q="${esc(l.q)}"><span><b>${esc(l.title)}</b><small>${esc(l.why)}</small></span>${ICON.chev}</button>`).join('')}
+  </div>`;
+}
 /* ---- Markdown 渲染 ----
  * 吴极侧 Agent 的报告以 Markdown 原文返回，门户不二次加工，只做渲染。
  * 这里是一个够用的子集：标题、列表、表格、代码块、引用、加粗与行内代码。 */
@@ -912,9 +1196,19 @@ function agentReportView(task) {
 function taskCenter() {
   const q = centerQ.trim().toLowerCase();
   const rows = q ? tasks.filter((t) => `${t.title} ${t.query} ${t.result ? t.result.packId : ''}`.toLowerCase().includes(q)) : tasks;
-  return `<header class="qa-chat-head"><h1>圈人任务中心</h1><input id="qa-center-q" class="qa-search" placeholder="搜索任务名、诉求或人群包 ID" value="${esc(centerQ)}"></header><div class="qa-center-body">
+  const dm = docMetrics(tasks, loadReqs());
+  const tile = (k, v, sub) => `<div class="qa-metric"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  const metrics = `<div class="qa-metrics-title">推荐效果追踪<small>只统计从「解析业务文档」进入的任务；收益以后续实验结果为准</small></div><div class="qa-metrics">
+    ${tile('业务文档任务', fmt(dm.docs))}
+    ${tile('方案采纳率', dm.adoptRate == null ? '—' : dm.adoptRate + '%', '采纳数 / 出方案数')}
+    ${tile('平均修改次数', dm.avgEdits == null ? '—' : dm.avgEdits, '采纳后对条件的改动')}
+    ${tile('需求→交付耗时', dm.leadMin == null ? '—' : dm.leadMin + ' 分钟', `已交付 ${dm.delivered} 个`)}
+    ${tile('交付后实际使用', dm.delivered ? `${dm.used} / ${dm.delivered}` : '—', '业务回填')}
+    ${tile('缺口需求承接', dm.requests ? `${dm.accepted} / ${dm.requests}` : '—', '已承接 / 已提出')}
+  </div>`;
+  return `<header class="qa-chat-head"><h1>圈人任务中心</h1><input id="qa-center-q" class="qa-search" placeholder="搜索任务名、诉求或人群包 ID" value="${esc(centerQ)}"></header><div class="qa-center-body">${metrics}
     <table class="qa-table"><thead><tr><th>任务</th><th>输入方式</th><th>状态</th><th>人群包</th><th>人群规模</th><th>更新时间</th><th></th></tr></thead><tbody>
-    ${rows.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>${t.seed ? `种子 ${fmt(t.seed.count)} 个` : '自然语言'}</td><td>${t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="7" class="qa-muted">${q ? '没有匹配的任务' : '还没有任务'}</td></tr>`}
+    ${rows.map((t) => `<tr><td><b>${esc(t.title)}</b><br><small class="qa-muted">${esc(t.query.slice(0, 36))}</small></td><td>${t.seed ? `种子 ${fmt(t.seed.count)} 个` : t.path === 'D' ? '业务文档' : '自然语言'}</td><td>${t.path === 'D' && !t.result ? (!t.metrics?.plansAt ? '待确认需求' : !t.metrics.adopted ? '待选方案' : '进行中') : t.delivery ? (t.delivery.used ? '已交付 · 已使用' : '已交付') : t.result ? '已完成' : t.messages.some((m) => m.type === 'permission' && m.status !== 'granted' && m.status !== 'fallback') ? '权限待申请' : (t.path === 'A' ? 'Agent 运行中' : '进行中')}</td><td>${t.result ? `<code>${esc(t.result.packId)}</code>` : '—'}</td><td>${t.result ? fmt(t.result.size) : '—'}</td><td>${esc(new Date(t.updated).toLocaleString('zh-CN', { hour12: false }).slice(5, 16))}</td><td><button type="button" class="qa-link" data-act="open" data-id="${t.id}">继续</button>${t.result ? `<button type="button" class="qa-link" data-act="to-ldmp">去 LDMP</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="7" class="qa-muted">${q ? '没有匹配的任务' : '还没有任务'}</td></tr>`}
     </tbody></table>
     <p class="qa-muted">带种子用户的任务需要 Agent 运行约 2–3 小时，完成后会以飞书消息通知；人群包统一以 Hive 表交付生服 LDMP 建包。</p></div>`;
 }
@@ -928,7 +1222,20 @@ async function onClick(e) {
   switch (act) {
     case 'toggle-side': sidebarOpen = !sidebarOpen; break;
     case 'hist-clear': histQ = ''; break;
-    case 'new': view = 'home'; activeId = null; panel.open = false; break;
+    case 'new': view = 'home'; homeMode = 'talk'; activeId = null; panel.open = false; break;
+    case 'doc-home': view = 'home'; homeMode = 'doc'; activeId = null; panel.open = false; break;
+    case 'home-mode': homeMode = el.dataset.v; break;
+    case 'doc-sample': docDraft = { name: DOC_SAMPLE.name, text: DOC_SAMPLE.text }; break;
+    case 'doc-clear': docDraft = { name: '', text: '' }; break;
+    case 'doc-start': return startDoc();
+    case 'brief-answer': task.brief.answers[el.dataset.q] = el.dataset.v; save(); break;
+    case 'brief-ok': return confirmBrief(task, msg);
+    case 'plan-adopt': return adoptPlan(task, el.dataset.plan);
+    case 'ch-toggle': { const cur = defaultChannels(task); task.handoffCh = cur.includes(el.dataset.v) ? cur.filter((c) => c !== el.dataset.v) : [...cur, el.dataset.v]; save(); break; }
+    case 'deliver': { const chs = defaultChannels(task); task.delivery = { channels: chs, at: new Date().toISOString(), used: false }; save(); notify(`已授权交付 ${chs.join('、')}`); return; }
+    case 'mark-used': task.delivery.used = true; save(); break;
+    case 'gap-req': raiseRequest(task, el.dataset.name); return;
+    case 'lead': view = 'home'; homeMode = 'talk'; activeId = null; panel.open = false; draft = el.dataset.q; render(); host.querySelector('#qa-input')?.focus(); return;
     case 'center': view = 'center'; panel.open = false; break;
     case 'market': if (options.onMarket) options.onMarket(); else location.href = 'https://utup-mvp-frontend.vercel.app/#market'; return;
     case 'kb': notify('策略知识库规划中：沉淀分析思路与历史策略，支持共建'); return;
@@ -937,7 +1244,7 @@ async function onClick(e) {
     case 'send': return send();
     case 'answer': task.answers[el.dataset.q] = el.dataset.v; save(); break;
     case 'clarify-ok': return confirmClarify(task, msg);
-    case 'remove': task.removed.push(+el.dataset.tag); save(); break;
+    case 'remove': task.removed.push(+el.dataset.tag); bumpEdit(task); save(); break;
     case 'seed-open': seedModal = { target: el.dataset.target, tab: 'file', text: '', fileName: '', parsed: null }; break;
     case 'seed-tab': seedModal.tab = el.dataset.tab; seedModal.parsed = null; seedModal.text = ''; seedModal.fileName = ''; break;
     case 'to-ldmp': notify('正在打开生服 LDMP 的人群包'); return;
@@ -973,10 +1280,18 @@ function send() {
   const task = current();
   const isNew = !(view === 'task' && task);
   draft = '';
-  if (isNew) start(text); else modify(task, text);
+  if (isNew) start(text);
+  else if (task.path === 'D' && !task.metrics?.adopted) { draft = text; notify('请先确认需求理解单并采纳一套方案'); }
+  else modify(task, text);
 }
 function onInput(e) {
   if (e.target.id === 'qa-input') { draft = e.target.value; const b = host.querySelector('[data-act="send"]'); if (b) b.disabled = busy || !draft.trim(); }
+  if (e.target.id === 'qa-doc-text') { docDraft.text = e.target.value; const b = host.querySelector('[data-act="doc-start"]'); if (b) b.disabled = busy || !docDraft.text.trim(); return; }
+  if (e.target.id && e.target.id.startsWith('qa-brief-')) {
+    const t = current(); const f = t?.brief.fields.find((x) => x.key === e.target.id.slice(9)); if (!f) return;
+    if (f.src !== '已修改') { f.src = '已修改'; t.brief.edits += 1; }
+    f.value = e.target.value; save(); return;
+  }
   if (e.target.id === 'qa-hist-q') { histQ = e.target.value; render(); return; }
   if (e.target.id === 'qa-center-q') { centerQ = e.target.value; render(); return; }
   if (e.target.id === 'qa-seed-text') { seedModal.text = e.target.value; seedModal.parsed = e.target.value.trim() ? parseSeeds(e.target.value) : null; render(); return; }
@@ -987,7 +1302,12 @@ async function onChange(e) {
   if (e.target.classList && e.target.classList.contains('qa-grp')) {
     const t = current(); if (!t) return;
     t.moved = { ...(t.moved || {}), [e.target.dataset.tag]: e.target.value };
-    save(); render(); return;
+    bumpEdit(t); save(); render(); return;
+  }
+  if (e.target.id === 'qa-doc-file') {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (!/\.(txt|md)$/i.test(f.name)) { notify('演示版支持 TXT / Markdown，飞书文档可复制正文粘贴'); return; }
+    docDraft = { name: f.name, text: await f.text() }; render(); return;
   }
   if (e.target.id !== 'qa-seed-file' || !seedModal) return;
   const f = e.target.files?.[0]; if (!f) return;
