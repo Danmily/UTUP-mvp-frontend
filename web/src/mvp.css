@@ -3326,3 +3326,6 @@ margin-top: 3px
 .usage-table td small{display:block;color:#8f959e}
 .usage-note{margin:10px 0 0}
 @media (max-width:900px){.usage-board{grid-template-columns:1fr}.usage-list{position:static}}
+.bulk-form{display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px;margin-bottom:6px}
+.bulk-form .af-field{display:flex;flex-direction:column;gap:4px}
+.asset-table tr.is-changed td{background:#f6faff}

@@ -20,9 +20,14 @@ const STATUS_TABS = [['all', '资产总数'], ['online', '已上线'], ['draft',
 /* 操作记录：导入、版本变更、上下线都按批次记录在浏览器里，可展开看涉及的资产，也可把一批资产带回列表继续批量管理 */
 const LOG_KEY = 'utup.asset.logs.v1'
 const MODE_LABEL = { 单个: '单个录入', 批量: '批量导入' }
-const LOG_TYPES = [['all', '全部'], ['import', '导入'], ['version', '版本变更'], ['status', '上下线']]
-const logTypeOf = (mode) => (['单个', '批量'].includes(mode) ? 'import' : /版本|撤回/.test(mode) ? 'version' : 'status')
+const LOG_TYPES = [['all', '全部'], ['import', '导入 / 修改'], ['version', '版本变更'], ['status', '上下线']]
+const logTypeOf = (mode) => (['单个', '批量', '批量修改'].includes(mode) ? 'import' : /版本|撤回/.test(mode) ? 'version' : 'status')
 const PAGE = 10
+/* 批量修改：只开放不影响合规确认的字段；改密级或数据源需导出后走批量导入并重新合规确认 */
+const BULK_FIELDS = [
+  { key: 'update_freq', options: FREQS }, { key: 'coverage', allowEmpty: true }, { key: 'owner', options: DEMO_OWNERS },
+  { key: 'official_mark', options: OFFICIAL, allowEmpty: true }, { key: 'usage_limit', allowEmpty: true }, { key: 'remark', allowEmpty: true },
+].map((f) => ({ ...f, label: FIELDS.find((x) => x.key === f.key).label }))
 /* 确认依据附件：图片（可直接粘贴截图）、PDF、Office 文档、邮件；单个 ≤ 10MB，最多 5 个 */
 const MAX_FILES = 5, MAX_FILE_MB = 10
 const FILE_ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.eml,.msg'
@@ -131,6 +136,7 @@ export default function AssetIn({ V, pushAudit }) {
   const [compErr, setCompErr] = useState('')
   /* 版本变更：chg 为发起表单，chgId 为查看详情的资产 */
   const [chg, setChg] = useState(null), [chgId, setChgId] = useState(null)
+  const [bulk, setBulk] = useState(null) // 批量修改：{ list, key, value, from }
   /* 交易画像 Agent 的资产缺口转成的生产需求（localStorage 共享），供给方在这里承接 */
   const [reqs, setReqsRaw] = useState(() => { try { return JSON.parse(localStorage.getItem(REQ_KEY) || '[]') } catch { return [] } })
   const setReqStatus = (id, status) => setReqsRaw((old) => { const v = old.map((r) => (r.id === id ? { ...r, status } : r)); try { localStorage.setItem(REQ_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v })
@@ -317,7 +323,8 @@ export default function AssetIn({ V, pushAudit }) {
     if (batchNeedsComp && !checkCompliance()) return
     upsert(okRows.map((r) => (rowNeedsComp(r) ? Object.assign(r.asset, compFields()) : r.asset)), V.name)
     const created = okRows.filter((r) => r.action === 'create').length, updated = okRows.filter((r) => r.action === 'update').length
-    addLog({ mode: '批量', file: fileName, created, updated, failed: 0, items: okRows.map((r) => itemOf(r.asset, r.action === 'create' ? '新增' : '更新')), ...(batchNeedsComp ? {} : NO_COMP) })
+    const fromBatch = fileName.match(/批次(B\d+)/)?.[1]
+    addLog({ mode: '批量', file: fileName, created, updated, failed: 0, ...(fromBatch ? { note: `来源批次 ${fromBatch}` } : {}), items: okRows.map((r) => itemOf(r.asset, r.action === 'create' ? '新增' : '更新')), ...(batchNeedsComp ? {} : NO_COMP) })
     pushAudit?.(`批量导入资产：${fileName}，新增 ${created}、更新 ${updated}；${batchNeedsComp ? `合规确认人 ${comp.officer}` : '均未改密级与数据源，沿用原合规确认'}`)
     message.success(`机审通过，已整批导入并上线 ${okRows.length} 个资产（新增 ${created}、更新 ${updated}）`)
     setRows(null)
@@ -331,6 +338,32 @@ export default function AssetIn({ V, pushAudit }) {
     const mine = assets.filter((a) => a.owner === DEMO_ME && a.status !== 'draft')
     download('我的资产-导出.csv', toCsv(mine, FIELDS.map((f) => f.key)))
     message.success(`已导出 ${mine.length} 个资产；修改后在「批量导入」上传，按资产 ID 识别为更新`)
+  }
+
+  /* 导出某一批资产：修改后在「批量导入」上传，按资产 ID 识别为更新；文件名带批次号，导入记录会关联来源批次 */
+  function exportBatch(batchIds, no) {
+    const list = assets.filter((a) => batchIds.includes(a.tag_id) && a.status !== 'draft')
+    if (!list.length) { message.info('这批资产已不在列表中'); return }
+    download(`批次${no}-资产导出.csv`, toCsv(list, FIELDS.map((f) => f.key)))
+    message.success(`已导出批次 ${no} 的 ${list.length} 个资产；修改后在「批量导入」上传即为批量更新`)
+  }
+  /* ---- 批量修改：选中资产统一改一个字段，逐条预览并机审，整批通过才提交 ---- */
+  const openBulk = (list) => setBulk({ list, key: BULK_FIELDS[0].key, value: '', from: scope?.no || '' })
+  const bulkField = bulk && BULK_FIELDS.find((f) => f.key === bulk.key)
+  const bulkRows = bulk ? bulk.list.map((a) => {
+    const r = validateAsset({ ...a, [bulk.key]: bulk.value }, { existing: ids, ...(bulk.key === 'owner' ? {} : { ownerOf: Object.fromEntries(assets.map((x) => [x.tag_id, x.owner])) }) })
+    const before = String(a[bulk.key] ?? '').trim(), after = String(r.asset[bulk.key] ?? '').trim()
+    return { a, asset: r.asset, before, after, same: before === after, errors: r.errors }
+  }) : []
+  const bulkReady = bulk && (String(bulk.value).trim() || bulkField.allowEmpty) && !bulkRows.some((r) => r.errors.length) && bulkRows.some((r) => !r.same)
+  function confirmBulk() {
+    if (!bulkReady) return
+    const changed = bulkRows.filter((r) => !r.same), label = bulkField.label, value = String(bulk.value).trim() || '（清空）'
+    upsert(changed.map((r) => r.asset), V.name) // 未改密级与数据源，沿用各资产原有的合规确认记录
+    addLog({ mode: '批量修改', file: `${changed.length} 个资产`, created: 0, updated: changed.length, failed: 0, note: `${label}改为「${value}」${bulk.from ? `；来源批次 ${bulk.from}` : ''}`, items: changed.map((r) => itemOf(r.a, '更新', `${label}：${r.before || '—'} → ${r.after || '—'}`)), ...NO_COMP })
+    pushAudit?.(`批量修改资产：${changed.length} 个资产的${label}改为「${value}」${bulk.from ? `（来源批次 ${bulk.from}）` : ''}，机审通过`)
+    message.success(`机审通过，已更新 ${changed.length} 个资产的${label}`)
+    setBulk(null)
   }
 
   /* ---- 上下线 ---- */
@@ -424,8 +457,8 @@ export default function AssetIn({ V, pushAudit }) {
         <input className="au-input" placeholder="搜索标签名称 / 资产 ID / 源表" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} aria-label="搜索资产" />
         <select className="au-input" value={dom} onChange={(e) => { setDom(e.target.value); setPage(1) }} aria-label="来源域"><option value="">全部来源域</option>{DOMAINS.map((x) => <option key={x}>{x}</option>)}</select>
       </div>
-      {scope && <div className="asset-scope"><span>只看批次 <code>{scope.no}</code>（{scope.mode}）涉及的 <b>{scope.ids.length}</b> 个资产，可勾选后批量变更或下线</span><Button size="small" type="link" onClick={() => { setScope(null); setPage(1) }}>查看全部资产</Button></div>}
-      {selAssets.length > 0 && <div className="asset-batch-bar"><span>已选 <b>{selAssets.length}</b> 个已上线资产{selChangeable.length < selAssets.length && <small>，其中 {selAssets.length - selChangeable.length} 个正在测试新版本，不参与批量版本变更</small>}</span><Space><Button size="small" onClick={() => setSel([])}>取消选择</Button><Button size="small" disabled={!selChangeable.length} onClick={() => openChange(selChangeable)}>批量版本变更</Button><Button size="small" type="primary" onClick={() => openOff(selAssets)}>批量下线</Button></Space></div>}
+      {scope && <div className="asset-scope"><span>只看批次 <code>{scope.no}</code>（{scope.mode}）涉及的 <b>{scope.ids.length}</b> 个资产，可勾选后批量修改、版本变更或下线</span><Space><Button size="small" onClick={() => exportBatch(scope.ids, scope.no)}>导出这批资产</Button><Button size="small" type="link" onClick={() => { setScope(null); setPage(1) }}>查看全部资产</Button></Space></div>}
+      {selAssets.length > 0 && <div className="asset-batch-bar"><span>已选 <b>{selAssets.length}</b> 个已上线资产{selChangeable.length < selAssets.length && <small>，其中 {selAssets.length - selChangeable.length} 个正在测试新版本，不参与批量版本变更</small>}</span><Space><Button size="small" onClick={() => setSel([])}>取消选择</Button><Button size="small" onClick={() => openBulk(selAssets)}>批量修改</Button><Button size="small" disabled={!selChangeable.length} onClick={() => openChange(selChangeable)}>批量版本变更</Button><Button size="small" type="primary" onClick={() => openOff(selAssets)}>批量下线</Button></Space></div>}
       <table className="asset-table">
         <thead><tr>
           <th className="asset-check"><input type="checkbox" aria-label="勾选本页已上线资产" checked={pageAllOn} disabled={!pageOnline.length} onChange={togglePage} /></th>
@@ -619,11 +652,12 @@ export default function AssetIn({ V, pushAudit }) {
         return [
           <tr key={key} className={isOpen ? 'is-open' : undefined}>
             <td><code>{l.no}</code>{l.demo && <small>演示</small>}</td><td>{l.at}</td><td>{l.by}</td><td>{MODE_LABEL[l.mode] || l.mode}</td>
-            <td>{l.file}{items.length > 1 && !String(l.file).endsWith('个资产') && <small>共 {items.length} 个资产</small>}{isVer && l.note && <small>说明：{l.note}</small>}</td>
+            <td>{l.file}{items.length > 1 && !String(l.file).endsWith('个资产') && <small>共 {items.length} 个资产</small>}{(isVer || l.mode === '批量修改' || (l.note && l.mode === '批量')) && l.note && <small>{isVer ? '说明：' : ''}{l.note}</small>}</td>
             <td>{l.officer} · {l.result}</td><td>{logResult(l)}</td>
             <td><div className="asset-ops">
               {items.length > 0 && <Button size="small" type="link" onClick={() => setOpenLog(isOpen ? null : key)}>{isOpen ? '收起' : '明细'}</Button>}
               {items.some((x) => x.tag_id && !x.action.includes('校验失败')) && <Button size="small" type="link" onClick={() => manageBatch(l)}>管理这批资产</Button>}
+              {logTypeOf(l.mode) === 'import' && !l.failed && items.some((x) => assets.some((a) => a.tag_id === x.tag_id)) && <Button size="small" type="link" onClick={() => exportBatch(items.map((x) => x.tag_id), l.no)}>导出这批资产</Button>}
             </div></td>
           </tr>,
           isOpen && <tr key={key + '-d'} className="asset-log-detail"><td colSpan={8}>
@@ -677,6 +711,21 @@ export default function AssetIn({ V, pushAudit }) {
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="下线原因（至少 4 个字），如：上游表下线，口径停止维护" aria-label="下线原因" />
         <label className="asset-radio asset-off-ack"><input type="checkbox" checked={offAck} onChange={() => setOffAck((v) => !v)} />我已知晓以上影响范围，确认下线</label>
       </Modal>}
+      {bulk && (() => { const bad = bulkRows.filter((r) => r.errors.length), n = bulkRows.filter((r) => !r.same && !r.errors.length).length; return <Modal open width={780} title={`批量修改 · ${bulk.list.length} 个资产`} onCancel={() => setBulk(null)} footer={<Space><Button onClick={() => setBulk(null)}>取消</Button><Button type="primary" disabled={!bulkReady} onClick={confirmBulk}>机审并提交{n ? `（${n} 个）` : ''}</Button></Space>}>
+        {bulk.from && <p className="asset-muted">来源批次 <code>{bulk.from}</code>，提交后会在操作记录里生成一条「批量修改」并关联这个批次。</p>}
+        <div className="bulk-form">
+          <label className="af-field"><span>修改字段</span><select className="au-input" value={bulk.key} onChange={(e) => setBulk({ ...bulk, key: e.target.value, value: '' })} aria-label="修改字段">{BULK_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
+          <label className="af-field"><span>改为</span>{bulkField.options
+            ? <select className="au-input" value={bulk.value} onChange={(e) => setBulk({ ...bulk, value: e.target.value })} aria-label="新值"><option value="">{bulkField.allowEmpty ? '（清空）' : '请选择'}</option>{bulkField.options.map((o) => <option key={o}>{o}</option>)}</select>
+            : <input className="au-input" value={bulk.value} onChange={(e) => setBulk({ ...bulk, value: e.target.value })} placeholder={FIELDS.find((f) => f.key === bulk.key).hint + (bulkField.allowEmpty ? '；留空即清空' : '')} aria-label="新值" />}</label>
+        </div>
+        <p className="asset-muted">只开放不影响合规确认的字段，沿用各资产原有的合规确认记录。改密级或数据源，请用「导出这批资产」修改后在批量导入上传，并重新做合规确认。</p>
+        {bad.length > 0 && <Alert type="error" message={`${bad.length} 个资产机审未通过，整批不提交：${bad[0].a.tag_name}，${bad[0].errors[0]}`} />}
+        <table className="asset-table"><thead><tr><th>资产</th><th>修改前</th><th>修改后</th><th>机审</th></tr></thead><tbody>{bulkRows.map((r) => (
+          <tr key={r.a.tag_id} className={r.errors.length ? 'is-bad' : !r.same ? 'is-changed' : undefined}><td><b>{r.a.tag_name}</b><small>{r.a.tag_id}</small></td><td>{r.before || '—'}</td><td>{r.after || '—'}</td>
+            <td>{r.errors.length ? <Tag color="danger">{r.errors[0]}</Tag> : r.same ? <span className="asset-muted">无变化</span> : <Tag color="success">通过</Tag>}</td></tr>
+        ))}</tbody></table>
+      </Modal> })()}
       {chg && (() => { const list = chg.list, a = list[0], one = list.length === 1, to = one ? chg.to.trim() || '—' : nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5), allCons = consumerNames(list).size; return <Modal open width={one ? 660 : 760} title={one ? `发起版本变更 · ${a.tag_name}` : `批量版本变更 · ${list.length} 个资产`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4 || !!chgError} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
         {one ? <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new"><input value={chg.to} onChange={(e) => setChg({ ...chg, to: e.target.value })} aria-label="新版本号" /><small>新版本 · 可修改，如 v1.1</small></span>{chgError && <span className="err">{chgError}</span>}</div>
           : <table className="asset-table chg-batch"><thead><tr><th>资产</th><th>版本</th><th>下游消费方</th></tr></thead><tbody>{list.map((x) => <tr key={x.tag_id}><td><b>{x.tag_name}</b><small>{x.tag_id}</small></td><td>{x.version || 'v1'} → <b>{nextVersion(x)}</b></td><td>{consumersOf(tagIdOf(x.tag_id), MY_IDS).length} 个</td></tr>)}</tbody></table>}
