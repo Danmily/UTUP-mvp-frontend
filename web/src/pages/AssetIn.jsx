@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Modal, Space, Tabs, Tag, message } from '@ecom/aurora'
 import { TAGS, nowStamp, levelLabel, INITIAL_MYAPPLY } from '../data.js'
 import { LevelChip } from '../mvp-ui.jsx'
-import { CHANGE_WINDOWS, startChange, changeState, finishChange, applyDue, consumersOf, tagIdOf, nextVersion, ymd } from '../flows/lifecycle-model.mjs'
+import { CHANGE_WINDOWS, startChange, changeState, finishChange, applyDue, consumersOf, tagIdOf, nextVersion, versionError, ymd } from '../flows/lifecycle-model.mjs'
 import {
   FIELDS, FORM_GROUPS, SECURITY, SECURITY_LEVELS, DOMAINS, TIMELINESS, FREQS, OFFICIAL, STATUS_LABEL, MAX_ROWS, ASSET_KEY,
   DEMO_ME, DEMO_OWNERS, DEMO_OFFICERS, DEMO_TABLES, TAG_ID_DOMAINS,
@@ -347,13 +347,15 @@ export default function AssetIn({ V, pushAudit }) {
   /* ---- 版本变更：IM Bot 通知下游 → 测试窗口并行收集反馈 → 到期保留新版本、下线旧版本 ---- */
   /* 下游消费方去重：批量变更时同一消费方只收一张卡片 */
   const consumerNames = (list) => new Set(list.flatMap((a) => consumersOf(tagIdOf(a.tag_id), MY_IDS).map((c) => c.name)))
-  const openChange = (list) => setChg({ list, note: '', days: 7 })
+  const openChange = (list) => setChg({ list, note: '', days: 7, to: nextVersion(list[0]) }) // 单个变更可改新版本号，批量按各自版本 +1
+  const toOf = (a) => (chg?.list.length === 1 ? chg.to.trim() : nextVersion(a))
+  const chgError = chg ? (chg.list.length === 1 ? versionError(chg.list[0], chg.to) : '') : ''
   function confirmChange() {
-    if (chg.note.trim().length < 4) return
+    if (chg.note.trim().length < 4 || chgError) return
     const list = chg.list, picked = new Set(list.map((a) => a.tag_id)), many = list.length > 1, n = consumerNames(list).size
-    setAssets((old) => old.map((x) => (picked.has(x.tag_id) ? startChange(x, { note: chg.note, windowDays: chg.days }) : x)))
-    addLog({ mode: many ? '批量版本变更' : '版本变更', file: many ? `${list.length} 个资产` : list[0].tag_name, note: chg.note.trim(), days: chg.days, endAt: ymd(Date.now() + chg.days * 864e5), items: list.map((a) => itemOf(a, '版本变更', `${a.version || 'v1'} → ${nextVersion(a)}`)), ...NO_COMP_OP })
-    pushAudit?.(`${many ? '批量' : ''}发起版本变更：${list.map((a) => `${a.tag_name} ${a.version || 'v1'} → ${nextVersion(a)}`).join('、')}，测试窗口 ${chg.days} 天`)
+    setAssets((old) => old.map((x) => (picked.has(x.tag_id) ? startChange(x, { note: chg.note, windowDays: chg.days, to: toOf(x) }) : x)))
+    addLog({ mode: many ? '批量版本变更' : '版本变更', file: many ? `${list.length} 个资产` : list[0].tag_name, note: chg.note.trim(), days: chg.days, endAt: ymd(Date.now() + chg.days * 864e5), items: list.map((a) => itemOf(a, '版本变更', `${a.version || 'v1'} → ${toOf(a)}`)), ...NO_COMP_OP })
+    pushAudit?.(`${many ? '批量' : ''}发起版本变更：${list.map((a) => `${a.tag_name} ${a.version || 'v1'} → ${toOf(a)}`).join('、')}，测试窗口 ${chg.days} 天`)
     message.success(`已通过 IM Bot 通知 ${n} 个下游消费方，${list.length} 个资产进入 ${chg.days} 天测试窗口，到期自动切换到新版本`)
     if (many) setSel((s) => s.filter((id) => !picked.has(id)))
     setChg(null)
@@ -656,13 +658,13 @@ export default function AssetIn({ V, pushAudit }) {
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="下线原因（至少 4 个字），如：上游表下线，口径停止维护" aria-label="下线原因" />
         <label className="asset-radio asset-off-ack"><input type="checkbox" checked={offAck} onChange={() => setOffAck((v) => !v)} />我已知晓以上影响范围，确认下线</label>
       </Modal>}
-      {chg && (() => { const list = chg.list, a = list[0], one = list.length === 1, to = nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5), allCons = consumerNames(list).size; return <Modal open width={one ? 660 : 760} title={one ? `发起版本变更 · ${a.tag_name}` : `批量版本变更 · ${list.length} 个资产`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
-        {one ? <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new">{to}<small>新版本</small></span></div>
+      {chg && (() => { const list = chg.list, a = list[0], one = list.length === 1, to = one ? chg.to.trim() || '—' : nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5), allCons = consumerNames(list).size; return <Modal open width={one ? 660 : 760} title={one ? `发起版本变更 · ${a.tag_name}` : `批量版本变更 · ${list.length} 个资产`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4 || !!chgError} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
+        {one ? <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new"><input value={chg.to} onChange={(e) => setChg({ ...chg, to: e.target.value })} aria-label="新版本号" /><small>新版本 · 可修改，如 v1.1</small></span>{chgError && <span className="err">{chgError}</span>}</div>
           : <table className="asset-table chg-batch"><thead><tr><th>资产</th><th>版本</th><th>下游消费方</th></tr></thead><tbody>{list.map((x) => <tr key={x.tag_id}><td><b>{x.tag_name}</b><small>{x.tag_id}</small></td><td>{x.version || 'v1'} → <b>{nextVersion(x)}</b></td><td>{consumersOf(tagIdOf(x.tag_id), MY_IDS).length} 个</td></tr>)}</tbody></table>}
         <label className="chg-label">变更说明</label>
         <textarea className="au-textarea" rows={3} value={chg.note} onChange={(e) => setChg({ ...chg, note: e.target.value })} placeholder="至少 4 个字，如：上游口径调整，活跃天数改为按支付行为计算" aria-label="变更说明" />
         <label className="chg-label">测试窗口</label>
-        <div className="af-seg">{CHANGE_WINDOWS.map((d) => <button key={d} type="button" className={chg.days === d ? 'on' : ''} onClick={() => setChg({ ...chg, days: d })}>{d} 天</button>)}</div>
+        <div className="af-seg" role="radiogroup" aria-label="测试窗口">{CHANGE_WINDOWS.map((d) => <button key={d} type="button" role="radio" aria-checked={chg.days === d} className={chg.days === d ? 'on' : ''} onClick={() => setChg({ ...chg, days: d })}>{d} 天</button>)}</div>
         <p className="asset-muted">窗口期内新旧版本并行，消费方在 IM Bot 卡片里反馈「验证通过 / 有问题」；{end} 到期后自动保留新版本、下线旧版本{one ? ` ${a.version || 'v1'}` : ''}，期间可{one ? '' : '在每个资产的变更详情里'}提前切换或撤回。{!one && '本次提交会在「操作记录」里生成一个批次，可随时查看每个资产的测试进度。'}</p>
         {one ? <><label className="chg-label">将通知的下游消费方（{cons.length}）</label>
           <div className="chg-cons">{cons.map((c) => <span key={c.name}>{c.name}<small>{c.team} · {c.scene}</small></span>)}</div></>

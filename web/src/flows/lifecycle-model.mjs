@@ -15,8 +15,15 @@ export const tagIdOf = (assetId) => String(assetId).replace(/^tag_/, '')
 
 /* ---- 版本变更 ---- */
 export function nextVersion(a) { return 'v' + ((parseInt(String(a.version || 'v1').slice(1), 10) || 1) + 1) }
-export function startChange(a, { note, windowDays, now = Date.now() }) {
-  return { ...a, change: { from: a.version || 'v1', to: nextVersion(a), note: String(note || '').trim(), windowDays, startAt: iso(now), endAt: iso(now + windowDays * DAY), feedback: [], reminded: 0 } }
+export function startChange(a, { note, windowDays, to, now = Date.now() }) {
+  return { ...a, change: { from: a.version || 'v1', to: to || nextVersion(a), note: String(note || '').trim(), windowDays, startAt: iso(now), endAt: iso(now + windowDays * DAY), feedback: [], reminded: 0 } }
+}
+/* 自定义新版本号：v + 数字，可带小版本（v2、v1.1）；不能与当前版本或历史版本重复 */
+export function versionError(a, to) {
+  const v = String(to || '').trim()
+  if (!/^v\d+(\.\d+)*$/.test(v)) return '版本号格式为 v + 数字，如 v2、v1.1'
+  if (v === (a.version || 'v1') || (a.versions || []).some((x) => x.to === v || x.from === v)) return `${v} 已使用过，请换一个`
+  return ''
 }
 export function changeState(a, now = Date.now()) {
   if (!a.change) return null

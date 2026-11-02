@@ -3170,6 +3170,7 @@ margin-top: 3px
 .af-seg{display:inline-flex;border:1px solid var(--au-border);border-radius:8px;overflow:hidden;width:max-content}
 .af-seg button{border:0;background:#fff;padding:0 22px;height:34px;font-size:13px;color:var(--au-text-2);cursor:pointer}
 .af-seg button+button{border-left:1px solid var(--au-border)}
+.af-seg button.on{background:var(--au-primary-light);color:var(--au-primary);font-weight:600}
 .af-seg button.on.ok{background:var(--au-success-light);color:var(--au-success);font-weight:600}
 .af-seg button.on.bad{background:var(--au-danger-light);color:var(--au-danger);font-weight:600}
 .af-evidence{display:flex;gap:8px}
@@ -3276,6 +3277,9 @@ margin-top: 3px
 .chg-ver span.new{background:#eef4ff;color:#2f5fd0}
 .chg-ver small{font-weight:400;font-size:12px;color:#8f959e}
 .chg-ver b{color:#8f959e}
+.chg-ver input{width:96px;border:1px solid #bfd4ff;border-radius:6px;background:#fff;color:#2f5fd0;font-weight:600;font-size:16px;padding:2px 8px;margin:2px 0}
+.chg-ver input:focus{outline:2px solid #bfd4ff;outline-offset:1px}
+.chg-ver .err{color:var(--au-danger);font-size:12px;align-self:center}
 .chg-label{display:block;font-weight:500;margin:12px 0 6px}
 .chg-cons{display:flex;flex-wrap:wrap;gap:8px}
 .chg-cons span{border:1px solid #e8e9ed;border-radius:6px;padding:4px 10px;display:flex;flex-direction:column;font-size:13px}
