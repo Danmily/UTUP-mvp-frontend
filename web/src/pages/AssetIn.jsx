@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Modal, Space, Tabs, Tag, message } from '@ecom/aurora'
-import { TAGS, nowStamp, levelLabel } from '../data.js'
+import { TAGS, nowStamp, levelLabel, INITIAL_MYAPPLY } from '../data.js'
 import { LevelChip } from '../mvp-ui.jsx'
+import { CHANGE_WINDOWS, startChange, changeState, finishChange, applyDue, consumersOf, tagIdOf, nextVersion, ymd } from '../flows/lifecycle-model.mjs'
 import {
   FIELDS, FORM_GROUPS, SECURITY, SECURITY_LEVELS, DOMAINS, TIMELINESS, FREQS, OFFICIAL, STATUS_LABEL, MAX_ROWS, ASSET_KEY,
   DEMO_ME, DEMO_OWNERS, DEMO_OFFICERS, DEMO_TABLES, TAG_ID_DOMAINS,
@@ -61,7 +62,11 @@ const seed = () => TAGS.map((t) => ({
   { source_domain: 'DMP', tag_id: 'old_active_v1', tag_name: '旧版活跃序列 V1', description: '旧版活跃天数序列，已由活跃天数分层替代', timeliness: '离线', update_freq: 'T+1', coverage: '90', owner: DEMO_ME, source_db: 'ecom_dmp', source_table: 'dwd_user_order_di', source_field: 'order_cnt_30d', security_level: 'L3', unified_level: '受控', status: 'off', offReason: '已由新版标签替代', offAt: '2026-09-30', updated: '2026-09-30 18:00', by: DEMO_ME },
 ])
 const REQ_KEY = 'utup.asset.requests'
-function load() { try { const v = JSON.parse(localStorage.getItem(ASSET_KEY)); if (Array.isArray(v) && v.length) return v.map((a) => ({ ...a, status: normalizeStatus(a.status) })) } catch { /* 使用种子数据 */ } return seed() }
+function loadRaw() { try { const v = JSON.parse(localStorage.getItem(ASSET_KEY)); if (Array.isArray(v) && v.length) return v.map((a) => ({ ...a, status: normalizeStatus(a.status) })) } catch { /* 使用种子数据 */ } return seed() }
+/* 演示：当前消费方持有的字段也计入下游消费方，与收益看板口径一致 */
+const MY_IDS = INITIAL_MYAPPLY.filter((a) => a.approval !== 'rejected').map((a) => a.tagId)
+/* 打开页面时处理到期的版本变更：自动保留新版本、下线旧版本 */
+function load() { const r = applyDue(loadRaw()); if (r.changed.length) { try { localStorage.setItem(ASSET_KEY, JSON.stringify(r.assets)) } catch { /* 仅本页 */ } } return r.assets }
 function download(name, text) {
   const a = document.createElement('a'), url = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' }))
   a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -106,6 +111,8 @@ export default function AssetIn({ V, pushAudit }) {
   /* 合规确认信息（PRD）：合规确认人（员工选择器）、确认结论（通过 / 不通过，仅通过可提交）、确认依据 */
   const [comp, setComp] = useState({ officer: '', result: '', evidence: '', files: [] })
   const [compErr, setCompErr] = useState('')
+  /* 版本变更：chg 为发起表单，chgId 为查看详情的资产 */
+  const [chg, setChg] = useState(null), [chgId, setChgId] = useState(null)
   /* 交易画像 Agent 的资产缺口转成的生产需求（localStorage 共享），供给方在这里承接 */
   const [reqs, setReqsRaw] = useState(() => { try { return JSON.parse(localStorage.getItem(REQ_KEY) || '[]') } catch { return [] } })
   const setReqStatus = (id, status) => setReqsRaw((old) => { const v = old.map((r) => (r.id === id ? { ...r, status } : r)); try { localStorage.setItem(REQ_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v })
@@ -322,6 +329,18 @@ export default function AssetIn({ V, pushAudit }) {
     pushAudit?.(`重新上线资产：${a.tag_name}（重新机审通过）`, a.unified_level)
     message.success('重新机审通过，已上线')
   }
+  /* ---- 版本变更：IM Bot 通知下游 → 测试窗口并行收集反馈 → 到期保留新版本、下线旧版本 ---- */
+  function confirmChange() {
+    if (chg.note.trim().length < 4) return
+    const a = chg.a, to = nextVersion(a), n = consumersOf(tagIdOf(a.tag_id), MY_IDS).length
+    setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? startChange(x, { note: chg.note, windowDays: chg.days }) : x)))
+    pushAudit?.(`发起版本变更：${a.tag_name} ${a.version || 'v1'} → ${to}，测试窗口 ${chg.days} 天`)
+    message.success(`已通过 IM Bot 通知 ${n} 个下游消费方，测试窗口 ${chg.days} 天，到期自动切换到 ${to}`)
+    setChg(null)
+  }
+  function finishNow(a) { setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? finishChange(x, Date.now()) : x))); pushAudit?.(`版本切换：${a.tag_name} → ${a.change.to}，旧版本已下线`); message.success(`已切换到 ${a.change.to}，旧版本 ${a.change.from} 已下线`); setChgId(null) }
+  function withdrawChange(a) { patch(a.tag_id, { change: null }); pushAudit?.(`撤回版本变更：${a.tag_name}`); message.info('已撤回变更，IM Bot 已通知下游继续使用当前版本'); setChgId(null) }
+  function remindChange(a) { patch(a.tag_id, { change: { ...a.change, reminded: (a.change.reminded || 0) + 1 } }); message.success('已通过 IM Bot 再次提醒未反馈的消费方') }
   function confirmDelete() { setAssets((old) => old.filter((x) => x.tag_id !== delTarget.tag_id)); pushAudit?.(`删除资产：${delTarget.tag_name}（${delTarget.tag_id}）`); message.success('已删除'); setDelTarget(null) }
 
   const kw = q.trim().toLowerCase()
@@ -363,11 +382,16 @@ export default function AssetIn({ V, pushAudit }) {
             <td>{freqText(a)}</td>
             <td>{a.coverage ? `${a.coverage}%` : '—'}</td>
             <td>{a.unified_level ? <LevelChip level={a.unified_level} /> : '—'}</td>
-            <td>{statusTag(a.status)}{a.status === 'off' && <small>{a.offAt} 下线{a.offReason ? ` · ${a.offReason}` : ''}</small>}</td>
+            <td>{statusTag(a.status)}{a.status === 'off' && <small>{a.offAt} 下线{a.offReason ? ` · ${a.offReason}` : ''}</small>}
+              {a.status === 'online' && !a.change && a.version && <small>当前 {a.version}</small>}
+              {a.change && (() => { const cs = changeState(a); return <button type="button" className="asset-chg-tag" onClick={() => setChgId(a.tag_id)}>{a.change.to} 测试中 · 剩 {cs.daysLeft} 天<small>反馈 {a.change.feedback.length}{cs.issues ? ` · 问题 ${cs.issues}` : ''}</small></button> })()}</td>
             <td><div className="asset-ops">
               <Button size="small" type="link" onClick={() => setMetaTarget(a)}>元信息</Button>
               {a.status !== 'off' && <Button size="small" type="link" onClick={() => editAsset(a)}>编辑</Button>}
               {a.status === 'draft' && <Button size="small" type="link" onClick={() => { editAsset(a); message.info('补充必填信息与合规确认后点击「提交」，机审通过即上线') }}>提交</Button>}
+              {a.status === 'online' && (a.change
+                ? <Button size="small" type="link" onClick={() => setChgId(a.tag_id)}>变更详情</Button>
+                : <Button size="small" type="link" onClick={() => setChg({ a, note: '', days: 7 })}>版本变更</Button>)}
               {a.status === 'online' && <Button size="small" type="link" onClick={() => openOff([a])}>下线</Button>}
               {a.status === 'off' && <Button size="small" type="link" onClick={() => goOnline(a)}>重新上线</Button>}
               {a.status !== 'online' && <Button size="small" type="link" onClick={() => setDelTarget(a)}>删除</Button>}
@@ -541,6 +565,7 @@ export default function AssetIn({ V, pushAudit }) {
       {metaTarget && <Modal open width={680} title={`元信息 · ${metaTarget.tag_name}`} onCancel={() => setMetaTarget(null)} footer={<Space><Button onClick={() => setMetaTarget(null)}>关闭</Button>{metaTarget.status !== 'off' && <Button type="primary" onClick={() => { const a = metaTarget; setMetaTarget(null); editAsset(a) }}>编辑</Button>}</Space>}>
         <div className="asset-meta-head">{statusTag(metaTarget.status)}<span>元信息完整度 <b>{completeness(metaTarget)}%</b></span><span className="asset-muted">最近更新 {metaTarget.updated} · {metaTarget.by}</span></div>
         {FORM_GROUPS.map((g) => <section key={g} className="asset-meta-group"><h4>{g}</h4><dl>{FIELDS.filter((f) => f.group === g).map((f) => <div key={f.key}><dt>{f.label}</dt><dd className={String(metaTarget[f.key] ?? '').trim() || !f.required ? '' : 'missing'}>{f.key === 'unified_level' && metaTarget.unified_level ? <LevelChip level={metaTarget.unified_level} /> : String(metaTarget[f.key] ?? '').trim() || '未填写'}</dd></div>)}</dl></section>)}
+        {metaTarget.versions?.length > 0 && <section className="asset-meta-group"><h4>版本记录</h4><table className="asset-table"><thead><tr><th>版本</th><th>切换时间</th><th>变更说明</th><th>反馈</th></tr></thead><tbody>{metaTarget.versions.map((v) => <tr key={v.to}><td>{v.from} → {v.to}</td><td>{v.at}</td><td>{v.note}</td><td>{v.feedback} 条{v.issues ? `（问题 ${v.issues}）` : ''}</td></tr>)}</tbody></table></section>}
         {metaTarget.compliance_officer && <section className="asset-meta-group"><h4>合规确认</h4><dl><div><dt>合规确认人</dt><dd>{metaTarget.compliance_officer}</dd></div><div><dt>确认结论</dt><dd>{metaTarget.compliance_result}</dd></div><div><dt>确认依据</dt><dd>{metaTarget.compliance_evidence || (metaTarget.compliance_files?.length ? '见附件' : '未填写')}</dd></div><div><dt>确认时间</dt><dd>{metaTarget.compliance_at}</dd></div></dl>{metaTarget.compliance_files?.length > 0 && <FileChips files={metaTarget.compliance_files} />}</section>}
       </Modal>}
       {diff && (() => {
@@ -568,6 +593,27 @@ export default function AssetIn({ V, pushAudit }) {
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="下线原因（至少 4 个字），如：上游表下线，口径停止维护" aria-label="下线原因" />
         <label className="asset-radio asset-off-ack"><input type="checkbox" checked={offAck} onChange={() => setOffAck((v) => !v)} />我已知晓以上影响范围，确认下线</label>
       </Modal>}
+      {chg && (() => { const a = chg.a, to = nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5); return <Modal open width={660} title={`发起版本变更 · ${a.tag_name}`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
+        <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new">{to}<small>新版本</small></span></div>
+        <label className="chg-label">变更说明</label>
+        <textarea className="au-textarea" rows={3} value={chg.note} onChange={(e) => setChg({ ...chg, note: e.target.value })} placeholder="至少 4 个字，如：上游口径调整，活跃天数改为按支付行为计算" aria-label="变更说明" />
+        <label className="chg-label">测试窗口</label>
+        <div className="af-seg">{CHANGE_WINDOWS.map((d) => <button key={d} type="button" className={chg.days === d ? 'on' : ''} onClick={() => setChg({ ...chg, days: d })}>{d} 天</button>)}</div>
+        <p className="asset-muted">窗口期内新旧版本并行，消费方在 IM Bot 卡片里反馈「验证通过 / 有问题」；{end} 到期后自动保留新版本、下线旧版本 {a.version || 'v1'}，期间可提前切换或撤回。</p>
+        <label className="chg-label">将通知的下游消费方（{cons.length}）</label>
+        <div className="chg-cons">{cons.map((c) => <span key={c.name}>{c.name}<small>{c.team} · {c.scene}</small></span>)}</div>
+        <div className="imbot-card preview"><div className="imbot-head">🤖 交易画像门户 Bot<small>预览</small></div><b>【版本变更通知】『{a.tag_name}』将由 {a.version || 'v1'} 升级为 {to}</b><p>{chg.note || '（变更说明）'}</p><p className="asset-muted">测试窗口至 {end}，请在窗口期内验证并反馈；到期自动切换到新版本。</p><div className="imbot-acts"><span>验证通过</span><span>有问题</span></div></div>
+      </Modal> })()}
+      {chgId && (() => { const a = assets.find((x) => x.tag_id === chgId); if (!a?.change) return null; const c = a.change, cs = changeState(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS); const fbOf = (n) => c.feedback.find((f) => f.by === n); return <Modal open width={720} title={`版本变更 · ${a.tag_name}`} onCancel={() => setChgId(null)} footer={<Space><Button onClick={() => withdrawChange(a)}>撤回变更</Button><Button onClick={() => remindChange(a)}>IM Bot 再次提醒</Button><Button type="primary" onClick={() => finishNow(a)}>提前结束并切换</Button></Space>}>
+        <div className="chg-ver"><span>{c.from}<small>旧版本 · 窗口期内保留</small></span><b>→</b><span className="new">{c.to}<small>测试中 · 剩 {cs.daysLeft} 天</small></span></div>
+        <p>{c.note}</p>
+        <div className="asset-impact"><div><b>{cons.length}</b><span>已通知消费方</span></div><div><b>{cs.ok}</b><span>验证通过</span></div><div><b>{cs.issues}</b><span>反馈有问题</span></div><div><b>{ymd(c.endAt)}</b><span>到期自动切换</span></div></div>
+        <table className="asset-table"><thead><tr><th>消费方</th><th>使用场景</th><th>反馈</th><th>说明</th></tr></thead><tbody>
+          {cons.map((x) => { const f = fbOf(x.name); return <tr key={x.name}><td><b>{x.name}</b><small>{x.team}</small></td><td>{x.scene}</td><td>{f ? <Tag color={f.verdict === '验证通过' ? 'success' : 'error'}>{f.verdict}</Tag> : <Tag>未反馈</Tag>}</td><td>{f?.text || '—'}</td></tr> })}
+          {c.feedback.filter((f) => !cons.some((x) => x.name === f.by)).map((f) => <tr key={f.by}><td><b>{f.by}</b></td><td>—</td><td><Tag color={f.verdict === '验证通过' ? 'success' : 'error'}>{f.verdict}</Tag></td><td>{f.text || '—'}</td></tr>)}
+        </tbody></table>
+        <p className="asset-muted">发起于 {ymd(c.startAt)}{c.reminded ? ` · 已再次提醒 ${c.reminded} 次` : ''}。到期自动保留新版本、下线旧版本，旧版本下线复用下线影响处理（标签广场与「我的申请 / 权限」提醒 + IM Bot）。</p>
+      </Modal> })()}
     </>
   )
 }

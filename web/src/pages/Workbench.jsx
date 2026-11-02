@@ -7,6 +7,7 @@ import {
 } from '../data.js'
 import { LevelChip, CrossBadge, ApplyTag, DocCell } from '../mvp-ui.jsx'
 import { IncomeValue } from './Income.jsx'
+import UsageBoard from './UsageBoard.jsx'
 import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallback.jsx'
 
 /* 申请状态 Tab（0918 改版）：按申请单展示。
@@ -294,6 +295,7 @@ export default function Workbench({ V, income, demo = 'normal', setDemo }) {
         items={[
           { key: 'status', label: isPlatform ? '📋 申请状态' : '📋 本域申请状态', children: statusView },
           { key: 'harvest', label: '💰 效果回收', children: harvestView },
+          { key: 'usage', label: '📈 下游使用与收益', children: <UsageBoard ownSrc={V.ownSrc} /> },
         ]}
       />
     </>

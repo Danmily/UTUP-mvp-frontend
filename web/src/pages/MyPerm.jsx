@@ -4,6 +4,7 @@ import {
 } from '@ecom/aurora'
 import { LEVELS, SOON_DAYS, INACTIVE_TIP, TAGS, myPermRows, isActive, isExpired } from '../data.js'
 import { assetState } from '../flows/application-model.mjs'
+import ImBotInbox from './ImBotInbox.jsx'
 import { LevelChip, CrossBadge, ApplyTag, EffectTag, ValidText, OfflineAlert } from '../mvp-ui.jsx'
 import { useApplyFlow } from './Market.jsx'
 import { LoadFailed, EmptyState, SyncDelayTip, jumpExternal } from '../mvp-fallback.jsx'
@@ -95,6 +96,7 @@ export default function MyPerm({ V, myapply, addApply, pushAudit, demo = 'normal
     <>
       <div className="page-head"><div className="page-title">我的申请 / 权限</div></div>
       <OfflineAlert myapply={myapply} />
+      <ImBotInbox myapply={myapply} />
       <div className="kpi-row">
         {kpi('', '📝 申请单数', stats.tickets, '经门户提交的申请次数')}
         {kpi('active', '✅ 已生效', stats.active, '当前有权限的标签', 'var(--ok)')}

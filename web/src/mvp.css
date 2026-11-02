@@ -3257,3 +3257,46 @@ margin-top: 3px
 .rank-table td b{display:block;max-width:260px}
 .rank-bar{min-width:120px}
 .rank-bar i{max-width:70px}
+
+/* 版本变更 */
+.asset-chg-tag{display:block;margin-top:4px;border:1px solid #bfd4ff;background:#eef4ff;color:#2f5fd0;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;text-align:left}
+.asset-chg-tag small{display:block;color:#64748b}
+.chg-ver{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.chg-ver span{display:flex;flex-direction:column;padding:8px 16px;border-radius:8px;background:#f5f6f8;font-weight:600;font-size:16px}
+.chg-ver span.new{background:#eef4ff;color:#2f5fd0}
+.chg-ver small{font-weight:400;font-size:12px;color:#8f959e}
+.chg-ver b{color:#8f959e}
+.chg-label{display:block;font-weight:500;margin:12px 0 6px}
+.chg-cons{display:flex;flex-wrap:wrap;gap:8px}
+.chg-cons span{border:1px solid #e8e9ed;border-radius:6px;padding:4px 10px;display:flex;flex-direction:column;font-size:13px}
+.chg-cons small{color:#8f959e;font-size:11px}
+/* IM Bot 卡片 */
+.imbot-card{border:1px solid #e3e6ec;border-left:3px solid #3370ff;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.imbot-card.preview{margin-top:14px;background:#fafbfc}
+.imbot-card p{margin:0}
+.imbot-head{display:flex;align-items:center;gap:8px;font-size:12px;color:#3370ff;font-weight:500}
+.imbot-head small{color:#8f959e;font-weight:400}
+.imbot-acts{display:flex;align-items:center;gap:8px}
+.imbot-card.preview .imbot-acts span{border:1px solid #d0d3d9;border-radius:6px;padding:2px 10px;font-size:12px}
+.imbot-done{color:#16a34a}
+.imbot-inbox{border:1px solid #dbe5ff;border-radius:10px;background:#f6f9ff;margin-bottom:16px}
+.imbot-inbox-head{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px 14px;cursor:pointer;text-align:left;font-weight:500}
+.imbot-inbox-head em{font-style:normal;font-size:12px;background:#3370ff;color:#fff;border-radius:10px;padding:0 8px}
+.imbot-inbox-head small{color:#8f959e;font-weight:400}
+.imbot-inbox-head i{margin-left:auto;font-style:normal;color:#3370ff;font-size:12px}
+.imbot-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:0 14px 14px}
+/* 下游使用与收益看板 */
+.usage-board{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.usage-list{display:flex;flex-direction:column;gap:8px;position:sticky;top:12px}
+.usage-items{display:flex;flex-direction:column;gap:2px;max-height:560px;overflow:auto;border:1px solid #eef0f3;border-radius:8px;padding:4px;background:#fff}
+.usage-items button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column}
+.usage-items button:hover{background:#f5f6f8}
+.usage-items button.on{background:#eef4ff}
+.usage-items button.on b{color:#2f5fd0}
+.usage-items small{color:#8f959e;font-size:11px}
+.usage-items em{font-style:normal;color:#2f5fd0}
+.usage-kpi{margin-bottom:12px}
+.usage-chg{background:#eef4ff;border:1px solid #bfd4ff;border-radius:8px;padding:8px 12px;margin-bottom:12px;color:#2f5fd0}
+.usage-table td small{display:block;color:#8f959e}
+.usage-note{margin:10px 0 0}
+@media (max-width:900px){.usage-board{grid-template-columns:1fr}.usage-list{position:static}}
