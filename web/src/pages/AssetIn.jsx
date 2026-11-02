@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Modal, Space, Tabs, Tag, message } from '@ecom/aurora'
 import { TAGS, nowStamp, levelLabel, INITIAL_MYAPPLY } from '../data.js'
 import { LevelChip } from '../mvp-ui.jsx'
+import { demoHistory } from '../flows/demo-logs.mjs'
 import { CHANGE_WINDOWS, startChange, changeState, finishChange, applyDue, consumersOf, tagIdOf, nextVersion, versionError, ymd } from '../flows/lifecycle-model.mjs'
 import {
   FIELDS, FORM_GROUPS, SECURITY, SECURITY_LEVELS, DOMAINS, TIMELINESS, FREQS, OFFICIAL, STATUS_LABEL, MAX_ROWS, ASSET_KEY,
@@ -98,8 +99,17 @@ function diffRows(before, after) {
 }
 
 export default function AssetIn({ V, pushAudit }) {
-  const [assets, setAssetsRaw] = useState(load)
-  const [logs, setLogsRaw] = useState(() => { try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]') } catch { return [] } })
+  /* 首次打开（还没有任何操作记录）时载入演示记录，并同步相关资产的版本状态 */
+  const [init] = useState(() => {
+    const assets = load()
+    try { const saved = JSON.parse(localStorage.getItem(LOG_KEY)); if (Array.isArray(saved)) return { assets, logs: saved } } catch { /* 按首次打开处理 */ }
+    const d = demoHistory(assets, { myIds: MY_IDS })
+    const logs = d.logs.map((l) => ({ ...l, demo: true }))
+    try { localStorage.setItem(ASSET_KEY, JSON.stringify(d.assets)); localStorage.setItem(LOG_KEY, JSON.stringify(logs)) } catch { /* 仅本页 */ }
+    return { assets: d.assets, logs }
+  })
+  const [assets, setAssetsRaw] = useState(init.assets)
+  const [logs, setLogsRaw] = useState(init.logs)
   const setLogs = (fn) => setLogsRaw((old) => { const v = fn(old).slice(0, 200); try { localStorage.setItem(LOG_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v })
   const [logType, setLogType] = useState('all'), [openLog, setOpenLog] = useState(null)
   const [scope, setScope] = useState(null) // 从操作记录带回列表的一批资产：{ no, ids }
@@ -371,6 +381,14 @@ export default function AssetIn({ V, pushAudit }) {
     return '已撤回'
   }
   /* 把一条记录涉及的资产带回列表：只显示这一批，并勾选其中可批量操作的已上线资产 */
+  /* 重新载入演示记录：保留自己操作产生的记录，替换旧的演示记录，并把相关资产恢复到演示状态 */
+  function loadDemo() {
+    const d = demoHistory(assets, { myIds: MY_IDS })
+    setAssets(d.assets)
+    setLogs((old) => [...old.filter((l) => !l.demo), ...d.logs.map((l) => ({ ...l, demo: true }))])
+    setLogType('all'); setOpenLog(null)
+    message.success(`已载入 ${d.logs.length} 条演示记录，涉及资产的版本状态已同步`)
+  }
   function manageBatch(l) {
     const batch = [...new Set(l.items.map((i) => i.tag_id))].filter((id) => assets.some((a) => a.tag_id === id))
     if (!batch.length) { message.info('这批资产已不在列表中'); return }
@@ -590,16 +608,17 @@ export default function AssetIn({ V, pushAudit }) {
       const st = items.map(changeStatusOf), testing = st.filter((s) => s.startsWith('测试中')).length, done = st.filter((s) => s.startsWith('已切换')).length
       return <><Tag color={testing ? 'processing' : 'success'}>{testing ? `测试中 ${testing}` : '已结束'}</Tag><small>已切换 {done} · 已撤回 {st.length - testing - done}{l.days ? ` · 窗口 ${l.days} 天至 ${l.endAt}` : ''}</small></>
     }
+    if (type === 'version') return <><Tag color={l.mode === '撤回变更' ? 'warning' : 'success'}>{l.mode === '撤回变更' ? '已撤回' : '已切换'}</Tag>{items[0]?.detail && <small>{items[0].detail}</small>}</>
     return <><Tag color={l.mode.includes('下线') ? 'warning' : 'success'}>{l.mode}</Tag>{l.note && <small>原因：{l.note}</small>}</>
   }
   const logView = (
-    <Card title="操作记录" extra={<span className="asset-muted">导入、版本变更、上下线按批次记录；点「管理这批资产」可回到列表继续批量操作</span>}>
+    <Card title="操作记录" extra={<Space><span className="asset-muted">导入、版本变更、上下线按批次记录；点「管理这批资产」可回到列表继续批量操作</span><Button size="small" onClick={loadDemo}>载入演示记录</Button></Space>}>
       <div className="asset-status-tabs" role="tablist">{LOG_TYPES.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={logType === k} className={logType === k ? 'on' : ''} onClick={() => setLogType(k)}>{l}<b>{logCount[k]}</b></button>)}</div>
-      {logShown.length ? <table className="asset-table asset-log"><thead><tr><th>批次号</th><th>时间</th><th>操作人</th><th>操作类型</th><th>文件 / 资产</th><th>合规确认人 · 结论</th><th>结果</th><th>操作</th></tr></thead><tbody>{logShown.map((l, i) => {
+      {logShown.length ? <div className="asset-log-wrap"><table className="asset-table asset-log"><thead><tr><th>批次号</th><th>时间</th><th>操作人</th><th>操作类型</th><th>文件 / 资产</th><th>合规确认人 · 结论</th><th>结果</th><th>操作</th></tr></thead><tbody>{logShown.map((l, i) => {
         const key = `${l.no}-${i}`, items = l.items || [], isOpen = openLog === key, isVer = l.mode.includes('版本变更')
         return [
           <tr key={key} className={isOpen ? 'is-open' : undefined}>
-            <td><code>{l.no}</code></td><td>{l.at}</td><td>{l.by}</td><td>{MODE_LABEL[l.mode] || l.mode}</td>
+            <td><code>{l.no}</code>{l.demo && <small>演示</small>}</td><td>{l.at}</td><td>{l.by}</td><td>{MODE_LABEL[l.mode] || l.mode}</td>
             <td>{l.file}{items.length > 1 && !String(l.file).endsWith('个资产') && <small>共 {items.length} 个资产</small>}{isVer && l.note && <small>说明：{l.note}</small>}</td>
             <td>{l.officer} · {l.result}</td><td>{logResult(l)}</td>
             <td><div className="asset-ops">
@@ -613,7 +632,7 @@ export default function AssetIn({ V, pushAudit }) {
             ))}</tbody></table>
           </td></tr>,
         ]
-      })}</tbody></table> : <p className="asset-muted asset-empty">{logs.length ? '这一类还没有记录' : '还没有操作记录。单个录入、批量导入、版本变更与上下线的每次提交都会记录在这里'}</p>}
+      })}</tbody></table></div> : <p className="asset-muted asset-empty">{logs.length ? '这一类还没有记录' : '还没有操作记录。单个录入、批量导入、版本变更与上下线的每次提交都会记录在这里'}</p>}
     </Card>
   )
 

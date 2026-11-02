@@ -3109,6 +3109,8 @@ margin-top: 3px
 .asset-log tr.is-open td{background:#f7f9ff}
 .asset-log>tbody>tr>td:nth-child(-n+4){white-space:nowrap}
 .asset-log>tbody>tr>td:nth-child(5){min-width:180px}
+.asset-log .asset-ops{flex-direction:column;align-items:flex-start}
+.asset-log-wrap{overflow-x:auto}
 .asset-log tr.asset-log-detail>td{padding:0 10px 12px;background:#f7f9ff}
 .asset-log tr.asset-log-detail .asset-table{margin-top:0;background:#fff}
 .chg-batch{margin:0 0 12px}
