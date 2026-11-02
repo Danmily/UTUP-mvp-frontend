@@ -16,6 +16,11 @@ const DB = { 电商DMP: 'ecom_dmp', 生服LDMP: 'life_ldmp', AI用户画像: 'ai
 const DOMAIN_OF = { 电商DMP: 'DMP', 生服LDMP: 'LDMP' }
 const SECURITY_OF = { 开放: 'L2', 通用: 'L3', 受控: 'L3', 高敏: 'L4' }
 const STATUS_TABS = [['all', '资产总数'], ['online', '已上线'], ['draft', '草稿'], ['off', '已下线']]
+/* 操作记录：导入、版本变更、上下线都按批次记录在浏览器里，可展开看涉及的资产，也可把一批资产带回列表继续批量管理 */
+const LOG_KEY = 'utup.asset.logs.v1'
+const MODE_LABEL = { 单个: '单个录入', 批量: '批量导入' }
+const LOG_TYPES = [['all', '全部'], ['import', '导入'], ['version', '版本变更'], ['status', '上下线']]
+const logTypeOf = (mode) => (['单个', '批量'].includes(mode) ? 'import' : /版本|撤回/.test(mode) ? 'version' : 'status')
 const PAGE = 10
 /* 确认依据附件：图片（可直接粘贴截图）、PDF、Office 文档、邮件；单个 ≤ 10MB，最多 5 个 */
 const MAX_FILES = 5, MAX_FILE_MB = 10
@@ -94,7 +99,10 @@ function diffRows(before, after) {
 
 export default function AssetIn({ V, pushAudit }) {
   const [assets, setAssetsRaw] = useState(load)
-  const [logs, setLogs] = useState([])
+  const [logs, setLogsRaw] = useState(() => { try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]') } catch { return [] } })
+  const setLogs = (fn) => setLogsRaw((old) => { const v = fn(old).slice(0, 200); try { localStorage.setItem(LOG_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v })
+  const [logType, setLogType] = useState('all'), [openLog, setOpenLog] = useState(null)
+  const [scope, setScope] = useState(null) // 从操作记录带回列表的一批资产：{ no, ids }
   const [tab, setTab] = useState('list')
   const [editing, setEditing] = useState(null) // 编辑中的 tag_id；null 为新建
   const [form, setForm] = useState(blank)
@@ -120,7 +128,10 @@ export default function AssetIn({ V, pushAudit }) {
 
   function setAssets(next) { setAssetsRaw((old) => { const v = typeof next === 'function' ? next(old) : next; try { localStorage.setItem(ASSET_KEY, JSON.stringify(v)) } catch { /* 仅保留在本页 */ } return v }) }
   const ids = assets.map((a) => a.tag_id)
-  const counts = useMemo(() => Object.fromEntries(STATUS_TABS.map(([k]) => [k, k === 'all' ? assets.length : assets.filter((a) => a.status === k).length])), [assets])
+  const counts = useMemo(() => {
+    const pool = scope ? assets.filter((a) => scope.ids.includes(a.tag_id)) : assets
+    return Object.fromEntries(STATUS_TABS.map(([k]) => [k, k === 'all' ? pool.length : pool.filter((a) => a.status === k).length]))
+  }, [assets, scope])
   useEffect(() => { if (formResult?.errors.length) errRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [formResult])
 
   function checkCompliance() {
@@ -144,7 +155,9 @@ export default function AssetIn({ V, pushAudit }) {
   }
   const compFields = () => ({ compliance_officer: comp.officer, compliance_result: comp.result, compliance_evidence: comp.evidence.trim(), compliance_files: comp.files, compliance_at: nowStamp().slice(0, 16) })
   const batchNo = () => 'B' + nowStamp().replace(/\D/g, '').slice(2, 14)
-  const addLog = (log) => setLogs((l) => [{ no: batchNo(), at: nowStamp().slice(0, 16), by: V.name, officer: comp.officer || '—', result: comp.result || '—', ...log }, ...l])
+  const addLog = (log) => setLogs((l) => [{ no: batchNo(), at: nowStamp().slice(0, 16), by: V.name, officer: comp.officer || '—', result: comp.result || '—', items: [], ...log }, ...l])
+  const itemOf = (a, action, detail = '') => ({ tag_id: a.tag_id, tag_name: a.tag_name, action, detail })
+  const NO_COMP_OP = { officer: '—', result: '—' }
   const NO_COMP = { officer: '—', result: '无需（未改密级与数据源）' }
 
   const complianceBlock = (scope, num) => (
@@ -229,7 +242,7 @@ export default function AssetIn({ V, pushAudit }) {
   function commitForm(r, draftKey, isUpdate, needComp) {
     if (draftKey && draftKey !== r.asset.tag_id) setAssets((old) => old.filter((x) => x.tag_id !== draftKey))
     upsert([r.asset], V.name) // 未重新确认时沿用该资产已有的合规确认记录
-    addLog({ mode: '单个', created: isUpdate ? 0 : 1, updated: isUpdate ? 1 : 0, failed: 0, file: r.asset.tag_name, ...(needComp ? {} : NO_COMP) })
+    addLog({ mode: '单个', created: isUpdate ? 0 : 1, updated: isUpdate ? 1 : 0, failed: 0, file: r.asset.tag_name, items: [itemOf(r.asset, isUpdate ? '更新' : '新增')], ...(needComp ? {} : NO_COMP) })
     pushAudit?.(`${isUpdate ? '更新' : '接入'}资产：${r.asset.tag_name}（${r.asset.tag_id}）→ 机审通过，已上线；${needComp ? `合规确认人 ${comp.officer}` : '未改密级与数据源，沿用原合规确认'}`, r.asset.unified_level)
     message.success(`机审通过，${isUpdate ? '更新已生效' : '已上线'}：${r.asset.tag_name}`)
     resetForm()
@@ -266,7 +279,7 @@ export default function AssetIn({ V, pushAudit }) {
     const res = validateImport(records, ids, Object.fromEntries(assets.map((a) => [a.tag_id, a.owner])))
     setRows(res)
     const bad = res.filter((r) => r.errors.length).length
-    if (bad) addLog({ mode: '批量', file: name, created: 0, updated: 0, failed: bad })
+    if (bad) addLog({ mode: '批量', file: name, created: 0, updated: 0, failed: bad, items: res.filter((r) => r.errors.length).map((r) => ({ tag_id: r.asset.tag_id || '', tag_name: r.asset.tag_name || `第 ${r.line} 行`, action: `第 ${r.line} 行校验失败`, detail: r.errors[0] })) })
   }
   function demoFile() {
     const keys = FIELDS.map((f) => f.key)
@@ -294,7 +307,7 @@ export default function AssetIn({ V, pushAudit }) {
     if (batchNeedsComp && !checkCompliance()) return
     upsert(okRows.map((r) => (rowNeedsComp(r) ? Object.assign(r.asset, compFields()) : r.asset)), V.name)
     const created = okRows.filter((r) => r.action === 'create').length, updated = okRows.filter((r) => r.action === 'update').length
-    addLog({ mode: '批量', file: fileName, created, updated, failed: 0, ...(batchNeedsComp ? {} : NO_COMP) })
+    addLog({ mode: '批量', file: fileName, created, updated, failed: 0, items: okRows.map((r) => itemOf(r.asset, r.action === 'create' ? '新增' : '更新')), ...(batchNeedsComp ? {} : NO_COMP) })
     pushAudit?.(`批量导入资产：${fileName}，新增 ${created}、更新 ${updated}；${batchNeedsComp ? `合规确认人 ${comp.officer}` : '均未改密级与数据源，沿用原合规确认'}`)
     message.success(`机审通过，已整批导入并上线 ${okRows.length} 个资产（新增 ${created}、更新 ${updated}）`)
     setRows(null)
@@ -317,6 +330,7 @@ export default function AssetIn({ V, pushAudit }) {
     const at = nowStamp().slice(0, 10), names = offList.map((a) => a.tag_name)
     const offIds = new Set(offList.map((a) => a.tag_id))
     setAssets((old) => old.map((x) => (offIds.has(x.tag_id) ? { ...x, status: 'off', offReason: offReason.trim(), offAt: at, updated: nowStamp().slice(0, 16) } : x)))
+    addLog({ mode: offList.length > 1 ? '批量下线' : '下线', file: offList.length > 1 ? `${offList.length} 个资产` : offList[0].tag_name, note: offReason.trim(), items: offList.map((a) => itemOf(a, '下线', offReason.trim())), ...NO_COMP_OP })
     pushAudit?.(`${offList.length > 1 ? '批量' : ''}下线资产：${names.join('、')}，原因：${offReason.trim()}`)
     message.success(`已下线 ${offList.length} 个资产；受影响消费方将在标签广场、我的申请 / 权限页看到提醒，并收到 IM bot 通知`)
     setSel((s) => s.filter((id) => !offIds.has(id))); setOffList(null)
@@ -326,25 +340,46 @@ export default function AssetIn({ V, pushAudit }) {
     const r = validateAsset(a, { existing: ids })
     if (r.errors.length) { message.error(`重新机审未通过：${r.errors[0]}。请先编辑修正`); return }
     patch(a.tag_id, { status: 'online', offReason: '', offAt: '' })
+    addLog({ mode: '重新上线', file: a.tag_name, items: [itemOf(a, '重新上线', '重新机审通过')], ...NO_COMP_OP })
     pushAudit?.(`重新上线资产：${a.tag_name}（重新机审通过）`, a.unified_level)
     message.success('重新机审通过，已上线')
   }
   /* ---- 版本变更：IM Bot 通知下游 → 测试窗口并行收集反馈 → 到期保留新版本、下线旧版本 ---- */
+  /* 下游消费方去重：批量变更时同一消费方只收一张卡片 */
+  const consumerNames = (list) => new Set(list.flatMap((a) => consumersOf(tagIdOf(a.tag_id), MY_IDS).map((c) => c.name)))
+  const openChange = (list) => setChg({ list, note: '', days: 7 })
   function confirmChange() {
     if (chg.note.trim().length < 4) return
-    const a = chg.a, to = nextVersion(a), n = consumersOf(tagIdOf(a.tag_id), MY_IDS).length
-    setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? startChange(x, { note: chg.note, windowDays: chg.days }) : x)))
-    pushAudit?.(`发起版本变更：${a.tag_name} ${a.version || 'v1'} → ${to}，测试窗口 ${chg.days} 天`)
-    message.success(`已通过 IM Bot 通知 ${n} 个下游消费方，测试窗口 ${chg.days} 天，到期自动切换到 ${to}`)
+    const list = chg.list, picked = new Set(list.map((a) => a.tag_id)), many = list.length > 1, n = consumerNames(list).size
+    setAssets((old) => old.map((x) => (picked.has(x.tag_id) ? startChange(x, { note: chg.note, windowDays: chg.days }) : x)))
+    addLog({ mode: many ? '批量版本变更' : '版本变更', file: many ? `${list.length} 个资产` : list[0].tag_name, note: chg.note.trim(), days: chg.days, endAt: ymd(Date.now() + chg.days * 864e5), items: list.map((a) => itemOf(a, '版本变更', `${a.version || 'v1'} → ${nextVersion(a)}`)), ...NO_COMP_OP })
+    pushAudit?.(`${many ? '批量' : ''}发起版本变更：${list.map((a) => `${a.tag_name} ${a.version || 'v1'} → ${nextVersion(a)}`).join('、')}，测试窗口 ${chg.days} 天`)
+    message.success(`已通过 IM Bot 通知 ${n} 个下游消费方，${list.length} 个资产进入 ${chg.days} 天测试窗口，到期自动切换到新版本`)
+    if (many) setSel((s) => s.filter((id) => !picked.has(id)))
     setChg(null)
   }
-  function finishNow(a) { setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? finishChange(x, Date.now()) : x))); pushAudit?.(`版本切换：${a.tag_name} → ${a.change.to}，旧版本已下线`); message.success(`已切换到 ${a.change.to}，旧版本 ${a.change.from} 已下线`); setChgId(null) }
-  function withdrawChange(a) { patch(a.tag_id, { change: null }); pushAudit?.(`撤回版本变更：${a.tag_name}`); message.info('已撤回变更，IM Bot 已通知下游继续使用当前版本'); setChgId(null) }
+  function finishNow(a) { setAssets((old) => old.map((x) => (x.tag_id === a.tag_id ? finishChange(x, Date.now()) : x))); addLog({ mode: '版本切换', file: a.tag_name, items: [itemOf(a, '提前切换', `${a.change.from} → ${a.change.to}`)], ...NO_COMP_OP }); pushAudit?.(`版本切换：${a.tag_name} → ${a.change.to}，旧版本已下线`); message.success(`已切换到 ${a.change.to}，旧版本 ${a.change.from} 已下线`); setChgId(null) }
+  function withdrawChange(a) { patch(a.tag_id, { change: null }); addLog({ mode: '撤回变更', file: a.tag_name, items: [itemOf(a, '撤回变更', `保持 ${a.change.from}，不升级 ${a.change.to}`)], ...NO_COMP_OP }); pushAudit?.(`撤回版本变更：${a.tag_name}`); message.info('已撤回变更，IM Bot 已通知下游继续使用当前版本'); setChgId(null) }
+  /* 记录里某个资产的版本变更现在走到哪一步：从资产当前状态推出来 */
+  function changeStatusOf(item) {
+    const a = assets.find((x) => x.tag_id === item.tag_id), to = item.detail.split('→')[1]?.trim()
+    if (!a) return '资产已删除'
+    if (a.change?.to === to) { const cs = changeState(a); return `测试中 · 剩 ${cs.daysLeft} 天 · 反馈 ${a.change.feedback.length}${cs.issues ? `（问题 ${cs.issues}）` : ''}` }
+    if (a.versions?.some((v) => v.to === to) || a.version === to) return `已切换到 ${to}`
+    return '已撤回'
+  }
+  /* 把一条记录涉及的资产带回列表：只显示这一批，并勾选其中可批量操作的已上线资产 */
+  function manageBatch(l) {
+    const batch = [...new Set(l.items.map((i) => i.tag_id))].filter((id) => assets.some((a) => a.tag_id === id))
+    if (!batch.length) { message.info('这批资产已不在列表中'); return }
+    setScope({ no: l.no, mode: MODE_LABEL[l.mode] || l.mode, ids: batch }); setStatusTab('all'); setQ(''); setDom(''); setPage(1)
+    setSel(batch.filter((id) => assets.find((a) => a.tag_id === id)?.status === 'online')); setTab('list')
+  }
   function remindChange(a) { patch(a.tag_id, { change: { ...a.change, reminded: (a.change.reminded || 0) + 1 } }); message.success('已通过 IM Bot 再次提醒未反馈的消费方') }
   function confirmDelete() { setAssets((old) => old.filter((x) => x.tag_id !== delTarget.tag_id)); pushAudit?.(`删除资产：${delTarget.tag_name}（${delTarget.tag_id}）`); message.success('已删除'); setDelTarget(null) }
 
   const kw = q.trim().toLowerCase()
-  const shown = assets.filter((a) => (statusTab === 'all' || a.status === statusTab) && (!dom || a.source_domain === dom) && (!kw || `${a.tag_name} ${a.tag_id} ${a.source_table}`.toLowerCase().includes(kw)))
+  const shown = assets.filter((a) => (!scope || scope.ids.includes(a.tag_id)) && (statusTab === 'all' || a.status === statusTab) && (!dom || a.source_domain === dom) && (!kw || `${a.tag_name} ${a.tag_id} ${a.source_table}`.toLowerCase().includes(kw)))
   const pages = Math.max(1, Math.ceil(shown.length / PAGE)), pageNow = Math.min(page, pages), pageRows = shown.slice((pageNow - 1) * PAGE, pageNow * PAGE)
   const pageOnline = pageRows.filter((a) => a.status === 'online').map((a) => a.tag_id)
   const pageAllOn = pageOnline.length > 0 && pageOnline.every((id) => sel.includes(id))
@@ -352,6 +387,7 @@ export default function AssetIn({ V, pushAudit }) {
   const togglePage = () => setSel((s) => (pageAllOn ? s.filter((id) => !pageOnline.includes(id)) : [...new Set([...s, ...pageOnline])]))
   const statusTag = (st) => <Tag color={st === 'online' ? 'success' : st === 'draft' ? 'warning' : undefined}>{STATUS_LABEL[st]}</Tag>
   const selAssets = assets.filter((a) => sel.includes(a.tag_id) && a.status === 'online')
+  const selChangeable = selAssets.filter((a) => !a.change) // 已在测试窗口内的资产不能再次发起变更
 
   const REQ_NEXT = { 待承接: ['承接', '生产中'], 生产中: ['标记已上线', '已上线'] }
   const reqCard = reqs.length > 0 && (
@@ -368,7 +404,8 @@ export default function AssetIn({ V, pushAudit }) {
         <input className="au-input" placeholder="搜索标签名称 / 资产 ID / 源表" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} aria-label="搜索资产" />
         <select className="au-input" value={dom} onChange={(e) => { setDom(e.target.value); setPage(1) }} aria-label="来源域"><option value="">全部来源域</option>{DOMAINS.map((x) => <option key={x}>{x}</option>)}</select>
       </div>
-      {selAssets.length > 0 && <div className="asset-batch-bar"><span>已选 <b>{selAssets.length}</b> 个已上线资产</span><Space><Button size="small" onClick={() => setSel([])}>取消选择</Button><Button size="small" type="primary" onClick={() => openOff(selAssets)}>批量下线</Button></Space></div>}
+      {scope && <div className="asset-scope"><span>只看批次 <code>{scope.no}</code>（{scope.mode}）涉及的 <b>{scope.ids.length}</b> 个资产，可勾选后批量变更或下线</span><Button size="small" type="link" onClick={() => { setScope(null); setPage(1) }}>查看全部资产</Button></div>}
+      {selAssets.length > 0 && <div className="asset-batch-bar"><span>已选 <b>{selAssets.length}</b> 个已上线资产{selChangeable.length < selAssets.length && <small>，其中 {selAssets.length - selChangeable.length} 个正在测试新版本，不参与批量版本变更</small>}</span><Space><Button size="small" onClick={() => setSel([])}>取消选择</Button><Button size="small" disabled={!selChangeable.length} onClick={() => openChange(selChangeable)}>批量版本变更</Button><Button size="small" type="primary" onClick={() => openOff(selAssets)}>批量下线</Button></Space></div>}
       <table className="asset-table">
         <thead><tr>
           <th className="asset-check"><input type="checkbox" aria-label="勾选本页已上线资产" checked={pageAllOn} disabled={!pageOnline.length} onChange={togglePage} /></th>
@@ -391,7 +428,7 @@ export default function AssetIn({ V, pushAudit }) {
               {a.status === 'draft' && <Button size="small" type="link" onClick={() => { editAsset(a); message.info('补充必填信息与合规确认后点击「提交」，机审通过即上线') }}>提交</Button>}
               {a.status === 'online' && (a.change
                 ? <Button size="small" type="link" onClick={() => setChgId(a.tag_id)}>变更详情</Button>
-                : <Button size="small" type="link" onClick={() => setChg({ a, note: '', days: 7 })}>版本变更</Button>)}
+                : <Button size="small" type="link" onClick={() => openChange([a])}>版本变更</Button>)}
               {a.status === 'online' && <Button size="small" type="link" onClick={() => openOff([a])}>下线</Button>}
               {a.status === 'off' && <Button size="small" type="link" onClick={() => goOnline(a)}>重新上线</Button>}
               {a.status !== 'online' && <Button size="small" type="link" onClick={() => setDelTarget(a)}>删除</Button>}
@@ -541,14 +578,40 @@ export default function AssetIn({ V, pushAudit }) {
     </Card>
   )
 
+  const logCount = Object.fromEntries(LOG_TYPES.map(([k]) => [k, k === 'all' ? logs.length : logs.filter((l) => logTypeOf(l.mode) === k).length]))
+  const logShown = logs.filter((l) => logType === 'all' || logTypeOf(l.mode) === logType)
+  /* 结果列：导入看机审；版本变更按资产当前状态汇总；上下线看数量 */
+  function logResult(l) {
+    const type = logTypeOf(l.mode), items = l.items || []
+    if (type === 'import') return <>{l.failed ? <Tag color="danger">失败 {l.failed} 行</Tag> : <Tag color="success">机审通过</Tag>}{!l.failed && <small>新增 {l.created} · 更新 {l.updated}</small>}</>
+    if (l.mode.includes('版本变更')) {
+      const st = items.map(changeStatusOf), testing = st.filter((s) => s.startsWith('测试中')).length, done = st.filter((s) => s.startsWith('已切换')).length
+      return <><Tag color={testing ? 'processing' : 'success'}>{testing ? `测试中 ${testing}` : '已结束'}</Tag><small>已切换 {done} · 已撤回 {st.length - testing - done}{l.days ? ` · 窗口 ${l.days} 天至 ${l.endAt}` : ''}</small></>
+    }
+    return <><Tag color={l.mode.includes('下线') ? 'warning' : 'success'}>{l.mode}</Tag>{l.note && <small>原因：{l.note}</small>}</>
+  }
   const logView = (
-    <Card title="导入记录">
-      {logs.length ? <table className="asset-table"><thead><tr><th>批次号</th><th>提交时间</th><th>提交人</th><th>接入方式</th><th>文件 / 资产</th><th>合规确认人 · 结论</th><th>机审结果</th></tr></thead><tbody>{logs.map((l) => (
-        <tr key={l.no + l.at + l.file}>
-          <td><code>{l.no}</code></td><td>{l.at}</td><td>{l.by}</td><td>{l.mode}</td><td>{l.file}</td><td>{l.officer} · {l.result}</td>
-          <td>{l.failed ? <Tag color="danger">失败 {l.failed} 行</Tag> : <Tag color="success">通过</Tag>}{!l.failed && <small>新增 {l.created} · 更新 {l.updated}</small>}</td>
-        </tr>
-      ))}</tbody></table> : <p className="asset-muted asset-empty">还没有导入记录。单个录入与批量导入的每次提交都会记录在这里</p>}
+    <Card title="操作记录" extra={<span className="asset-muted">导入、版本变更、上下线按批次记录；点「管理这批资产」可回到列表继续批量操作</span>}>
+      <div className="asset-status-tabs" role="tablist">{LOG_TYPES.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={logType === k} className={logType === k ? 'on' : ''} onClick={() => setLogType(k)}>{l}<b>{logCount[k]}</b></button>)}</div>
+      {logShown.length ? <table className="asset-table asset-log"><thead><tr><th>批次号</th><th>时间</th><th>操作人</th><th>操作类型</th><th>文件 / 资产</th><th>合规确认人 · 结论</th><th>结果</th><th>操作</th></tr></thead><tbody>{logShown.map((l, i) => {
+        const key = `${l.no}-${i}`, items = l.items || [], isOpen = openLog === key, isVer = l.mode.includes('版本变更')
+        return [
+          <tr key={key} className={isOpen ? 'is-open' : undefined}>
+            <td><code>{l.no}</code></td><td>{l.at}</td><td>{l.by}</td><td>{MODE_LABEL[l.mode] || l.mode}</td>
+            <td>{l.file}{items.length > 1 && !String(l.file).endsWith('个资产') && <small>共 {items.length} 个资产</small>}{isVer && l.note && <small>说明：{l.note}</small>}</td>
+            <td>{l.officer} · {l.result}</td><td>{logResult(l)}</td>
+            <td><div className="asset-ops">
+              {items.length > 0 && <Button size="small" type="link" onClick={() => setOpenLog(isOpen ? null : key)}>{isOpen ? '收起' : '明细'}</Button>}
+              {items.some((x) => x.tag_id && !x.action.includes('校验失败')) && <Button size="small" type="link" onClick={() => manageBatch(l)}>管理这批资产</Button>}
+            </div></td>
+          </tr>,
+          isOpen && <tr key={key + '-d'} className="asset-log-detail"><td colSpan={8}>
+            <table className="asset-table"><thead><tr><th>资产</th><th>动作</th><th>{isVer ? '版本' : '说明'}</th>{isVer && <th>当前进度</th>}</tr></thead><tbody>{items.map((x, j) => (
+              <tr key={j}><td><b>{x.tag_name}</b><small>{x.tag_id || '—'}</small></td><td>{x.action}</td><td>{x.detail || '—'}</td>{isVer && <td>{changeStatusOf(x)}</td>}</tr>
+            ))}</tbody></table>
+          </td></tr>,
+        ]
+      })}</tbody></table> : <p className="asset-muted asset-empty">{logs.length ? '这一类还没有记录' : '还没有操作记录。单个录入、批量导入、版本变更与上下线的每次提交都会记录在这里'}</p>}
     </Card>
   )
 
@@ -560,7 +623,7 @@ export default function AssetIn({ V, pushAudit }) {
         { key: 'list', label: '资产列表', children: list },
         { key: 'form', label: editing ? (editingDraft ? '编辑草稿' : '编辑资产') : '单个录入', children: formView },
         { key: 'import', label: '批量导入', children: importView },
-        { key: 'logs', label: `导入记录${logs.length ? `（${logs.length}）` : ''}`, children: logView },
+        { key: 'logs', label: `操作记录${logs.length ? `（${logs.length}）` : ''}`, children: logView },
       ]} />
       {metaTarget && <Modal open width={680} title={`元信息 · ${metaTarget.tag_name}`} onCancel={() => setMetaTarget(null)} footer={<Space><Button onClick={() => setMetaTarget(null)}>关闭</Button>{metaTarget.status !== 'off' && <Button type="primary" onClick={() => { const a = metaTarget; setMetaTarget(null); editAsset(a) }}>编辑</Button>}</Space>}>
         <div className="asset-meta-head">{statusTag(metaTarget.status)}<span>元信息完整度 <b>{completeness(metaTarget)}%</b></span><span className="asset-muted">最近更新 {metaTarget.updated} · {metaTarget.by}</span></div>
@@ -593,16 +656,18 @@ export default function AssetIn({ V, pushAudit }) {
         <textarea className="au-textarea" rows={3} value={offReason} onChange={(e) => setOffReason(e.target.value)} placeholder="下线原因（至少 4 个字），如：上游表下线，口径停止维护" aria-label="下线原因" />
         <label className="asset-radio asset-off-ack"><input type="checkbox" checked={offAck} onChange={() => setOffAck((v) => !v)} />我已知晓以上影响范围，确认下线</label>
       </Modal>}
-      {chg && (() => { const a = chg.a, to = nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5); return <Modal open width={660} title={`发起版本变更 · ${a.tag_name}`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
-        <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new">{to}<small>新版本</small></span></div>
+      {chg && (() => { const list = chg.list, a = list[0], one = list.length === 1, to = nextVersion(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS), end = ymd(Date.now() + chg.days * 864e5), allCons = consumerNames(list).size; return <Modal open width={one ? 660 : 760} title={one ? `发起版本变更 · ${a.tag_name}` : `批量版本变更 · ${list.length} 个资产`} onCancel={() => setChg(null)} footer={<Space><Button onClick={() => setChg(null)}>取消</Button><Button type="primary" disabled={chg.note.trim().length < 4} onClick={confirmChange}>通知下游并开始测试</Button></Space>}>
+        {one ? <div className="chg-ver"><span>{a.version || 'v1'}<small>当前线上</small></span><b>→</b><span className="new">{to}<small>新版本</small></span></div>
+          : <table className="asset-table chg-batch"><thead><tr><th>资产</th><th>版本</th><th>下游消费方</th></tr></thead><tbody>{list.map((x) => <tr key={x.tag_id}><td><b>{x.tag_name}</b><small>{x.tag_id}</small></td><td>{x.version || 'v1'} → <b>{nextVersion(x)}</b></td><td>{consumersOf(tagIdOf(x.tag_id), MY_IDS).length} 个</td></tr>)}</tbody></table>}
         <label className="chg-label">变更说明</label>
         <textarea className="au-textarea" rows={3} value={chg.note} onChange={(e) => setChg({ ...chg, note: e.target.value })} placeholder="至少 4 个字，如：上游口径调整，活跃天数改为按支付行为计算" aria-label="变更说明" />
         <label className="chg-label">测试窗口</label>
         <div className="af-seg">{CHANGE_WINDOWS.map((d) => <button key={d} type="button" className={chg.days === d ? 'on' : ''} onClick={() => setChg({ ...chg, days: d })}>{d} 天</button>)}</div>
-        <p className="asset-muted">窗口期内新旧版本并行，消费方在 IM Bot 卡片里反馈「验证通过 / 有问题」；{end} 到期后自动保留新版本、下线旧版本 {a.version || 'v1'}，期间可提前切换或撤回。</p>
-        <label className="chg-label">将通知的下游消费方（{cons.length}）</label>
-        <div className="chg-cons">{cons.map((c) => <span key={c.name}>{c.name}<small>{c.team} · {c.scene}</small></span>)}</div>
-        <div className="imbot-card preview"><div className="imbot-head">🤖 交易画像门户 Bot<small>预览</small></div><b>【版本变更通知】『{a.tag_name}』将由 {a.version || 'v1'} 升级为 {to}</b><p>{chg.note || '（变更说明）'}</p><p className="asset-muted">测试窗口至 {end}，请在窗口期内验证并反馈；到期自动切换到新版本。</p><div className="imbot-acts"><span>验证通过</span><span>有问题</span></div></div>
+        <p className="asset-muted">窗口期内新旧版本并行，消费方在 IM Bot 卡片里反馈「验证通过 / 有问题」；{end} 到期后自动保留新版本、下线旧版本{one ? ` ${a.version || 'v1'}` : ''}，期间可{one ? '' : '在每个资产的变更详情里'}提前切换或撤回。{!one && '本次提交会在「操作记录」里生成一个批次，可随时查看每个资产的测试进度。'}</p>
+        {one ? <><label className="chg-label">将通知的下游消费方（{cons.length}）</label>
+          <div className="chg-cons">{cons.map((c) => <span key={c.name}>{c.name}<small>{c.team} · {c.scene}</small></span>)}</div></>
+          : <p className="asset-muted">将通知 <b>{allCons}</b> 个下游消费方（已去重），每个消费方收到一张卡片，只列出其正在使用的资产。</p>}
+        <div className="imbot-card preview"><div className="imbot-head">🤖 交易画像门户 Bot<small>预览</small></div><b>{one ? `【版本变更通知】『${a.tag_name}』将由 ${a.version || 'v1'} 升级为 ${to}` : `【版本变更通知】你使用的 ${list.slice(0, 2).map((x) => `『${x.tag_name}』`).join('')}${list.length > 2 ? ` 等 ${list.length} 个资产` : ''}将升级版本`}</b><p>{chg.note || '（变更说明）'}</p><p className="asset-muted">测试窗口至 {end}，请在窗口期内验证并反馈；到期自动切换到新版本。</p><div className="imbot-acts"><span>验证通过</span><span>有问题</span></div></div>
       </Modal> })()}
       {chgId && (() => { const a = assets.find((x) => x.tag_id === chgId); if (!a?.change) return null; const c = a.change, cs = changeState(a), cons = consumersOf(tagIdOf(a.tag_id), MY_IDS); const fbOf = (n) => c.feedback.find((f) => f.by === n); return <Modal open width={720} title={`版本变更 · ${a.tag_name}`} onCancel={() => setChgId(null)} footer={<Space><Button onClick={() => withdrawChange(a)}>撤回变更</Button><Button onClick={() => remindChange(a)}>IM Bot 再次提醒</Button><Button type="primary" onClick={() => finishNow(a)}>提前结束并切换</Button></Space>}>
         <div className="chg-ver"><span>{c.from}<small>旧版本 · 窗口期内保留</small></span><b>→</b><span className="new">{c.to}<small>测试中 · 剩 {cs.daysLeft} 天</small></span></div>

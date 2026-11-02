@@ -3102,6 +3102,16 @@ margin-top: 3px
 /* 资产管理：批量下线栏、勾选列、下线影响范围 */
 .asset-batch-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 0;padding:8px 14px;border:1px solid var(--au-primary-border, #A4C6FF);background:var(--au-primary-light);border-radius:8px;font-size:13px}
 .asset-batch-bar b{color:var(--au-primary)}
+.asset-batch-bar small{color:var(--au-text-3)}
+.asset-scope{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 0;padding:6px 14px;border:1px dashed var(--au-primary-border, #A4C6FF);border-radius:8px;font-size:13px}
+.asset-scope code{font-size:12px;color:var(--au-primary)}
+.asset-scope b{color:var(--au-primary)}
+.asset-log tr.is-open td{background:#f7f9ff}
+.asset-log>tbody>tr>td:nth-child(-n+4){white-space:nowrap}
+.asset-log>tbody>tr>td:nth-child(5){min-width:180px}
+.asset-log tr.asset-log-detail>td{padding:0 10px 12px;background:#f7f9ff}
+.asset-log tr.asset-log-detail .asset-table{margin-top:0;background:#fff}
+.chg-batch{margin:0 0 12px}
 .asset-table .asset-check{width:32px;text-align:center}
 .asset-impact{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:4px 0 12px}
 .asset-impact div{border:1px solid var(--au-border);border-radius:8px;padding:10px 12px;background:#fff8f0}
@@ -3295,6 +3305,16 @@ margin-top: 3px
 .usage-items button.on b{color:#2f5fd0}
 .usage-items small{color:#8f959e;font-size:11px}
 .usage-items em{font-style:normal;color:#2f5fd0}
+.usage-items mark{background:#fff1b8;color:inherit;padding:0 1px;border-radius:2px}
+.usage-items small.usage-hit{color:#b26a00;margin-top:2px}
+.usage-empty{padding:12px 10px;margin:0}
+.usage-search{position:relative}
+.usage-search .au-input{width:100%;padding-right:28px;box-sizing:border-box}
+.usage-search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:#8f959e;font-size:16px;line-height:1;cursor:pointer;padding:2px 4px}
+.usage-filters{display:flex;gap:6px;flex-wrap:wrap}
+.usage-filters button{border:1px solid #dee0e3;background:#fff;border-radius:12px;padding:2px 10px;font-size:12px;color:#646a73;cursor:pointer}
+.usage-filters button.on{border-color:#2f5fd0;color:#2f5fd0;background:#eef4ff}
+.usage-table tr.usage-row-hit td{background:#fffbe6}
 .usage-kpi{margin-bottom:12px}
 .usage-chg{background:#eef4ff;border:1px solid #bfd4ff;border-radius:8px;padding:8px 12px;margin-bottom:12px;color:#2f5fd0}
 .usage-table td small{display:block;color:#8f959e}

@@ -90,6 +90,29 @@ export function boardSummary(rows) {
     quarter: rows.filter((r) => r.quarter).length,
   }
 }
+/* ---- 下游看板检索：空格分隔多个词，每个词都要命中；字段本身的信息排在消费方信息前面 ---- */
+export const searchWords = (q) => String(q ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean)
+export function searchUsage(tags, q, myTagIds = []) {
+  const words = searchWords(q)
+  if (!words.length) return tags.map((tag) => ({ tag, hits: [] }))
+  return tags.flatMap((tag) => {
+    const cs = consumersOf(tag.id, myTagIds)
+    const fields = [ // [命中位置, 检索文本, 展示文本]
+      ['字段名', tag.name], ['ID', `tag_${tag.id}`], ['表名', tag.table],
+      ['Owner', `${tag.owner} ${tag.team}`, tag.owner], ['数据源', tag.src], ['枚举', (tag.enums || []).join(' ')], ['口径', tag.desc],
+      ...cs.map((c) => ['消费方', `${c.name} ${c.team}`, `${c.name}（${c.team}）`]),
+      ...cs.map((c) => ['使用场景', c.scene]),
+    ]
+    const hits = []
+    for (const w of words) {
+      const f = fields.find(([, text]) => String(text ?? '').toLowerCase().includes(w))
+      if (!f) return []
+      const show = f[0] === '枚举' ? tag.enums.find((e) => e.toLowerCase().includes(w)) : f[0] === '口径' ? '' : (f[2] ?? f[1])
+      if (!hits.some((x) => x.at === f[0] && x.show === show)) hits.push({ at: f[0], show })
+    }
+    return [{ tag, hits, rank: hits.filter((x) => x.at === '字段名' || x.at === 'ID').length }]
+  }).sort((a, b) => b.rank - a.rank)
+}
 /* 当前消费方待填报的 IM Bot 卡片：每个持有的字段 × 本期月度 / 季度 */
 export function pendingReports(myTagIds, reports, now = Date.now()) {
   const p = periodsOf(now)
